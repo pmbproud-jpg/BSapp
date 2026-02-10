@@ -1,0 +1,161 @@
+{
+  "common": {
+    "welcome": "Witaj",
+    "loading": "Ładowanie...",
+    "error": "Błąd",
+    "success": "Sukces",
+    "ok": "OK",
+    "cancel": "Anuluj",
+    "save": "Zapisz",
+    "delete": "Usuń",
+    "edit": "Edytuj",
+    "create": "Utwórz",
+    "back": "Wstecz",
+    "roles": {
+      "admin": "Administrator",
+      "zarzad": "Zarząd",
+      "project_manager": "Project Manager",
+      "bauleiter": "Bauleiter",
+      "worker": "Pracownik"
+    }
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Hasło",
+    "login": "Zaloguj się",
+    "logout": "Wyloguj się",
+    "email_placeholder": "twoj@email.com",
+    "password_placeholder": "Wprowadź hasło",
+    "forgot_password": "Zapomniałeś hasła?",
+    "reset_password": "Zresetuj hasło",
+    "reset_instructions": "Wprowadź swój email, aby otrzymać link do resetu hasła",
+    "send_reset_link": "Wyślij link resetujący",
+    "reset_sent": "Link resetujący wysłany!",
+    "check_email": "Sprawdź swoją skrzynkę email",
+    "login_error": "Nieprawidłowy email lub hasło"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "projects": "Projekty",
+    "tasks": "Zadania",
+    "users": "Użytkownicy",
+    "settings": "Ustawienia"
+  },
+  "dashboard": {
+    "greeting": "Witaj, {{name}}!",
+    "stats": {
+      "active_projects": "Aktywne Projekty",
+      "pending_tasks": "Oczekujące Zadania",
+      "completed_tasks": "Ukończone Zadania"
+    },
+    "quick_actions": {
+      "title": "Szybkie akcje",
+      "add_project": "Dodaj Projekt",
+      "add_task": "Dodaj Zadanie"
+    }
+  },
+  "projects": {
+    "title": "Projekty",
+    "new": "Nowy Projekt",
+    "details": "Szczegóły Projektu",
+    "empty": "Brak projektów",
+    "empty_subtitle": "Kliknij + aby dodać nowy projekt",
+    "name": "Nazwa projektu",
+    "name_placeholder": "Wprowadź nazwę projektu",
+    "name_required": "Nazwa projektu jest wymagana",
+    "description": "Opis",
+    "description_placeholder": "Dodaj opis projektu",
+    "location": "Lokalizacja",
+    "location_placeholder": "Miasto, adres",
+    "start_date": "Data rozpoczęcia",
+    "end_date": "Data zakończenia",
+    "date_format": "Format: RRRR-MM-DD",
+    "budget": "Budżet",
+    "budget_hint": "Kwota w EUR",
+    "status": {
+      "planning": "Planowanie",
+      "active": "Aktywny",
+      "on_hold": "Wstrzymany",
+      "completed": "Ukończony",
+      "cancelled": "Anulowany"
+    },
+    "create": "Utwórz projekt",
+    "created_success": "Projekt utworzony pomyślnie",
+    "create_error": "Błąd podczas tworzenia projektu",
+    "fetch_error": "Błąd podczas pobierania projektu",
+    "not_found": "Projekt nie znaleziony",
+    "delete_confirm_title": "Usuń projekt",
+    "delete_confirm_message": "Czy na pewno chcesz usunąć ten projekt? Tej operacji nie można cofnąć.",
+    "delete_error": "Błąd podczas usuwania projektu"
+  },
+  "tasks": {
+    "title": "Zadania",
+    "new": "Nowe Zadanie",
+    "details": "Szczegóły Zadania",
+    "empty": "Brak zadań",
+    "empty_subtitle": "Kliknij + aby dodać nowe zadanie",
+    "empty_project": "Brak zadań w tym projekcie",
+    "filter": {
+      "all": "Wszystkie",
+      "my": "Moje",
+      "pending": "Oczekujące"
+    },
+    "title_label": "Tytuł",
+    "title_placeholder": "Wprowadź tytuł zadania",
+    "title_required": "Tytuł zadania jest wymagany",
+    "description": "Opis",
+    "description_placeholder": "Dodaj opis zadania",
+    "project": "Projekt",
+    "assigned_to": "Przypisane do",
+    "due_date": "Termin",
+    "date_format": "Format: RRRR-MM-DD",
+    "priority": {
+      "low": "Niski",
+      "medium": "Średni",
+      "high": "Wysoki"
+    },
+    "status": {
+      "pending": "Oczekujące",
+      "in_progress": "W trakcie",
+      "completed": "Ukończone",
+      "cancelled": "Anulowane"
+    },
+    "comments": "Komentarze",
+    "add_comment": "Dodaj komentarz...",
+    "comment_error": "Błąd podczas dodawania komentarza",
+    "create": "Utwórz zadanie",
+    "created_success": "Zadanie utworzone pomyślnie",
+    "create_error": "Błąd podczas tworzenia zadania",
+    "fetch_error": "Błąd podczas pobierania zadania",
+    "not_found": "Zadanie nie znalezione",
+    "delete_confirm_title": "Usuń zadanie",
+    "delete_confirm_message": "Czy na pewno chcesz usunąć to zadanie? Tej operacji nie można cofnąć.",
+    "delete_error": "Błąd podczas usuwania zadania"
+  },
+  "users": {
+    "title": "Użytkownicy",
+    "new": "Nowy Użytkownik",
+    "empty": "Brak użytkowników",
+    "delete_confirm_title": "Usuń użytkownika",
+    "delete_confirm_message": "Czy na pewno chcesz usunąć tego użytkownika? Tej operacji nie można cofnąć.",
+    "deleted_success": "Użytkownik usunięty pomyślnie",
+    "delete_error": "Błąd podczas usuwania użytkownika"
+  },
+  "settings": {
+    "title": "Ustawienia",
+    "profile": "Profil",
+    "language": "Język",
+    "company": "Firma",
+    "company_member": "Członek firmy",
+    "email": "Email",
+    "full_name": "Imię i nazwisko",
+    "full_name_placeholder": "Wprowadź imię i nazwisko",
+    "name_required": "Imię i nazwisko jest wymagane",
+    "save": "Zapisz zmiany",
+    "saved_success": "Profil zaktualizowany pomyślnie",
+    "save_error": "Błąd podczas zapisywania profilu",
+    "logout": "Wyloguj się",
+    "logout_confirm": "Wylogować się?",
+    "logout_message": "Czy na pewno chcesz się wylogować?"
+  }
+}
