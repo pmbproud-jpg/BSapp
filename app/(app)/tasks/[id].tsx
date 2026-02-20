@@ -19,6 +19,8 @@ import { supabase } from "@/src/lib/supabase/client";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { usePermissions } from "@/src/hooks/usePermissions";
 import FileAttachments from "@/components/FileAttachments";
+import { translateText } from "@/src/hooks/useAutoTranslate";
+import { useNotifications } from "@/src/providers/NotificationProvider";
 import type { Database } from "@/src/lib/supabase/database.types";
 
 type Task = Database["public"]["Tables"]["tasks"]["Row"] & {
@@ -43,6 +45,7 @@ export default function TaskDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
   const { profile } = useAuth();
+  const { sendNotification } = useNotifications();
   const [task, setTask] = useState<Task | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -50,7 +53,7 @@ export default function TaskDetailsScreen() {
   const [newComment, setNewComment] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({ title: "", description: "", status: "pending", priority: "medium", assigned_to: "", due_date: "" });
+  const [editForm, setEditForm] = useState({ title: "", description: "", status: "todo", priority: "medium", assigned_to: [] as string[], due_date: "" });
   const [editSaving, setEditSaving] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [planUsers, setPlanUsers] = useState<any[]>([]);
@@ -58,6 +61,30 @@ export default function TaskDetailsScreen() {
 
   const perms = usePermissions();
   const canEdit = perms.canEditTask;
+  const canDelete = perms.canDeleteTask;
+  const canChangeStatus = perms.canChangeTaskStatus;
+  const canComment = perms.canAddTaskComments;
+
+  // Translation state (detail view)
+  const [translating, setTranslating] = useState(false);
+  const [translatedTitle, setTranslatedTitle] = useState("");
+  const [translatedDesc, setTranslatedDesc] = useState("");
+  const [translateDir, setTranslateDir] = useState<"pl|de" | "de|pl">("pl|de");
+
+  // Translation state (comments)
+  const [commentTranslations, setCommentTranslations] = useState<Record<string, string>>({});
+  const [commentTranslatingId, setCommentTranslatingId] = useState<string | null>(null);
+  const [commentTranslateDir, setCommentTranslateDir] = useState<"pl|de" | "de|pl">("pl|de");
+
+  // Pin link state
+  const [linkedPin, setLinkedPin] = useState<any>(null);
+  const [linkedPlan, setLinkedPlan] = useState<any>(null);
+
+  // Translation state (edit modal)
+  const [editTranslating, setEditTranslating] = useState(false);
+  const [editTranslatedTitle, setEditTranslatedTitle] = useState("");
+  const [editTranslatedDesc, setEditTranslatedDesc] = useState("");
+  const [editTranslateDir, setEditTranslateDir] = useState<"pl|de" | "de|pl">("pl|de");
 
   useFocusEffect(
     useCallback(() => {
@@ -127,14 +154,23 @@ export default function TaskDetailsScreen() {
     }
   };
 
-  const openEditModal = () => {
+  const openEditModal = async () => {
     if (!task) return;
+    // Pobierz aktualnych przypisanych z task_assignees
+    let existingAssignees: string[] = [];
+    const { data: assignees } = await (supabaseAdmin.from("task_assignees") as any)
+      .select("user_id").eq("task_id", id);
+    if (assignees && assignees.length > 0) {
+      existingAssignees = assignees.map((a: any) => a.user_id);
+    } else if ((task as any).assigned_to) {
+      existingAssignees = [(task as any).assigned_to];
+    }
     setEditForm({
       title: task.title || "",
       description: task.description || "",
-      status: task.status || "pending",
+      status: task.status || "todo",
       priority: task.priority || "medium",
-      assigned_to: (task as any).assigned_to || "",
+      assigned_to: existingAssignees,
       due_date: task.due_date || "",
     });
     setShowEditModal(true);
@@ -147,18 +183,57 @@ export default function TaskDetailsScreen() {
     }
     setEditSaving(true);
     try {
+      const primaryAssigned = editForm.assigned_to.length > 0 ? editForm.assigned_to[0] : null;
       const updateData: any = {
         title: editForm.title.trim(),
         description: editForm.description.trim() || null,
         status: editForm.status,
         priority: editForm.priority,
-        assigned_to: editForm.assigned_to || null,
+        assigned_to: primaryAssigned,
         due_date: editForm.due_date || null,
+        edited_by: profile?.id || null,
+        edited_at: new Date().toISOString(),
       };
+      // Jeśli zmieniono przypisanie — zapisz kto i kiedy przydzielił
+      const prevAssigned = (task as any)?.assigned_to || null;
+      if (primaryAssigned && primaryAssigned !== prevAssigned) {
+        updateData.assigned_by = profile?.id || null;
+        updateData.assigned_at = new Date().toISOString();
+      } else if (!primaryAssigned && prevAssigned) {
+        updateData.assigned_by = null;
+        updateData.assigned_at = null;
+      }
       const { error } = await (supabase.from("tasks") as any)
         .update(updateData)
         .eq("id", id);
       if (error) throw error;
+
+      // Pobierz starych przypisanych przed synchronizacją
+      const { data: oldAssignees } = await (supabaseAdmin.from("task_assignees") as any)
+        .select("user_id").eq("task_id", id);
+      const oldIds = new Set((oldAssignees || []).map((a: any) => a.user_id));
+
+      // Synchronizuj task_assignees
+      await (supabaseAdmin.from("task_assignees") as any).delete().eq("task_id", id);
+      if (editForm.assigned_to.length > 0) {
+        const rows = editForm.assigned_to.map((uid: string) => ({
+          task_id: id,
+          user_id: uid,
+          assigned_by: profile?.id || null,
+        }));
+        await (supabaseAdmin.from("task_assignees") as any).insert(rows);
+      }
+
+      // Wyślij powiadomienia do nowo przypisanych pracowników
+      const projName = (task as any)?.projects?.name || "";
+      for (const uid of editForm.assigned_to) {
+        if (uid !== profile?.id && !oldIds.has(uid)) {
+          const title = t("notifications.task_assigned_title", "Nowe zadanie");
+          const body = `${editForm.title.trim()}${projName ? ` • ${projName}` : ""}`;
+          sendNotification(uid, title, body, "task_assigned", { task_id: id, project_id: (task as any)?.project_id });
+        }
+      }
+
       setShowEditModal(false);
       fetchTaskDetails();
     } catch (error) {
@@ -169,18 +244,65 @@ export default function TaskDetailsScreen() {
     }
   };
 
+  const fetchLinkedPin = async (taskId: string) => {
+    try {
+      const { data: pin } = await (supabaseAdmin.from("plan_pins") as any)
+        .select("*, plan:project_plans!plan_pins_plan_id_fkey(id, name, project_id)")
+        .eq("task_id", taskId)
+        .maybeSingle();
+      if (pin) {
+        setLinkedPin(pin);
+        setLinkedPlan(pin.plan || null);
+      }
+    } catch (e) {
+      console.error("Error fetching linked pin:", e);
+    }
+  };
+
   const fetchTaskDetails = async () => {
     try {
       const { data, error } = await supabase
         .from("tasks")
-        .select("*, projects(name), assigned_user:profiles!assigned_to(full_name)")
+        .select("*, projects(name), assigned_user:profiles!assigned_to(full_name), assigned_by_user:profiles!assigned_by(full_name)")
         .eq("id", id)
         .single();
 
       if (error) throw error;
-      setTask(data);
-      if (data?.project_id) {
-        fetchUsersForProject(data.project_id);
+
+      // Pobierz profil created_by i edited_by osobno (brak FK w bazie)
+      let enriched: any = { ...(data as any) };
+      if (data && (data as any).created_by) {
+        const { data: cbUser } = await (supabaseAdmin.from("profiles") as any)
+          .select("full_name").eq("id", (data as any).created_by).single();
+        if (cbUser) enriched.created_by_user = cbUser;
+      }
+      if (data && (data as any).edited_by) {
+        const { data: ebUser } = await (supabaseAdmin.from("profiles") as any)
+          .select("full_name").eq("id", (data as any).edited_by).single();
+        if (ebUser) enriched.edited_by_user = ebUser;
+      }
+
+      // Pobierz wszystkich przypisanych z task_assignees
+      const { data: assignees } = await (supabaseAdmin.from("task_assignees") as any)
+        .select("user_id").eq("task_id", id);
+      if (assignees && assignees.length > 0) {
+        const aIds = assignees.map((a: any) => a.user_id);
+        const { data: aProfiles } = await (supabaseAdmin.from("profiles") as any)
+          .select("id, full_name, email").in("id", aIds);
+        enriched.all_assignees = (aProfiles || []).map((p: any) => p.full_name || p.email || "");
+      } else if (enriched.assigned_user?.full_name) {
+        enriched.all_assignees = [enriched.assigned_user.full_name];
+      } else {
+        enriched.all_assignees = [];
+      }
+
+      setTask(enriched);
+      if ((data as any)?.project_id) {
+        fetchUsersForProject((data as any).project_id);
+      }
+      // Fetch linked pin if task is from a plan pin
+      if (id && (data as any)?.title?.startsWith("📌")) {
+        fetchLinkedPin(id);
       }
     } catch (error) {
       console.error("Error fetching task:", error);
@@ -293,10 +415,10 @@ export default function TaskDetailsScreen() {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      pending: "#f59e0b",
+      todo: "#f59e0b",
       in_progress: "#3b82f6",
       completed: "#10b981",
-      cancelled: "#64748b",
+      blocked: "#64748b",
     };
     return colors[status] || "#94a3b8";
   };
@@ -342,17 +464,21 @@ export default function TaskDetailsScreen() {
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t("tasks.details")}</Text>
-        {canEdit && (
+        {(canEdit || canDelete) && (
           <View style={styles.headerActions}>
-            <TouchableOpacity
-              onPress={openEditModal}
-              style={styles.iconButton}
-            >
-              <Ionicons name="create-outline" size={22} color="#2563eb" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={deleteTask} style={styles.iconButton}>
-              <Ionicons name="trash-outline" size={22} color="#ef4444" />
-            </TouchableOpacity>
+            {canEdit && (
+              <TouchableOpacity
+                onPress={openEditModal}
+                style={styles.iconButton}
+              >
+                <Ionicons name="create-outline" size={22} color="#2563eb" />
+              </TouchableOpacity>
+            )}
+            {canDelete && (
+              <TouchableOpacity onPress={deleteTask} style={styles.iconButton}>
+                <Ionicons name="trash-outline" size={22} color="#ef4444" />
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
@@ -396,11 +522,11 @@ export default function TaskDetailsScreen() {
           </View>
 
           {/* Quick Status Change */}
-          {canEdit && task.status !== "completed" && (
+          {canChangeStatus && task.status !== "completed" && (
             <View style={styles.quickActions}>
               <Text style={styles.quickActionsLabel}>{t("tasks.change_status")}:</Text>
               <View style={styles.statusButtons}>
-                {task.status === "pending" && (
+                {(task.status === "todo") && (
                   <TouchableOpacity
                     style={[styles.statusButton, { backgroundColor: "#3b82f620" }]}
                     onPress={() => updateStatus("in_progress")}
@@ -411,7 +537,7 @@ export default function TaskDetailsScreen() {
                     </Text>
                   </TouchableOpacity>
                 )}
-                {(task.status === "pending" || task.status === "in_progress") && (
+                {(task.status === "todo" || task.status === "in_progress") && (
                   <TouchableOpacity
                     style={[styles.statusButton, { backgroundColor: "#10b98120" }]}
                     onPress={() => updateStatus("completed")}
@@ -426,15 +552,121 @@ export default function TaskDetailsScreen() {
             </View>
           )}
 
-          {task.description && (
+          {task.description ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t("tasks.description")}</Text>
               <Text style={styles.description}>{task.description}</Text>
             </View>
-          )}
+          ) : null}
+
+          {/* Show on plan button — for tasks linked to a pin */}
+          {linkedPin && linkedPlan ? (
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                backgroundColor: "#eff6ff",
+                borderWidth: 2,
+                borderColor: "#3b82f6",
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                marginBottom: 16,
+              }}
+              onPress={() => {
+                if (task?.project_id) {
+                  router.replace(`/projects/${task.project_id}?tab=plans&planId=${linkedPlan.id}&pinId=${linkedPin.id}` as any);
+                }
+              }}
+            >
+              <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: "#3b82f6", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="map" size={20} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: "#1e40af" }}>
+                  {t("plans.show_on_plan", "Auf Plan anzeigen")}
+                </Text>
+                <Text style={{ fontSize: 12, color: "#3b82f6", marginTop: 2 }}>
+                  📌 {linkedPlan.name}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#3b82f6" />
+            </TouchableOpacity>
+          ) : null}
+
+          {/* Translation PL↔DE */}
+          {(task.title || task.description) ? (
+            <View style={{ marginBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#f1f5f9" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <Ionicons name="language" size={18} color="#64748b" />
+                <Text style={{ fontSize: 13, fontWeight: "600", color: "#64748b" }}>Übersetzen</Text>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: translateDir === "pl|de" ? "#2563eb" : "#f1f5f9", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}
+                  onPress={() => { setTranslateDir("pl|de"); setTranslatedTitle(""); setTranslatedDesc(""); }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: translateDir === "pl|de" ? "#fff" : "#64748b" }}>PL → DE</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: translateDir === "de|pl" ? "#2563eb" : "#f1f5f9", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}
+                  onPress={() => { setTranslateDir("de|pl"); setTranslatedTitle(""); setTranslatedDesc(""); }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: translateDir === "de|pl" ? "#fff" : "#64748b" }}>DE → PL</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#eff6ff", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}
+                  onPress={async () => {
+                    setTranslating(true);
+                    setTranslatedTitle(""); setTranslatedDesc("");
+                    try {
+                      if (task.title?.trim()) {
+                        const r = await translateText(task.title, translateDir);
+                        setTranslatedTitle(r);
+                      }
+                      if (task.description?.trim()) {
+                        const r = await translateText(task.description, translateDir);
+                        setTranslatedDesc(r);
+                      }
+                    } catch (e) { console.error("Translation error:", e); }
+                    finally { setTranslating(false); }
+                  }}
+                  disabled={translating}
+                >
+                  {translating ? (
+                    <ActivityIndicator size="small" color="#2563eb" />
+                  ) : (
+                    <Ionicons name="swap-horizontal" size={16} color="#2563eb" />
+                  )}
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: "#2563eb" }}>Übersetzen</Text>
+                </TouchableOpacity>
+              </View>
+              {(translatedTitle || translatedDesc) ? (
+                <View style={{ backgroundColor: "#f0fdf4", borderRadius: 8, padding: 10, borderWidth: 1, borderColor: "#bbf7d0" }}>
+                  {translatedTitle ? (
+                    <View style={{ marginBottom: translatedDesc ? 8 : 0 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: "#166534", marginBottom: 2 }}>
+                        {translateDir === "pl|de" ? "Titel (DE):" : "Tytuł (PL):"}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: "#166534" }}>{translatedTitle}</Text>
+                    </View>
+                  ) : null}
+                  {translatedDesc ? (
+                    <View>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: "#166534", marginBottom: 2 }}>
+                        {translateDir === "pl|de" ? "Beschreibung (DE):" : "Opis (PL):"}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: "#166534" }}>{translatedDesc}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           <View style={styles.infoGrid}>
-            {task.projects?.name && (
+            {task.projects?.name ? (
               <View style={styles.infoItem}>
                 <View style={styles.infoLabel}>
                   <Ionicons name="briefcase-outline" size={18} color="#64748b" />
@@ -442,9 +674,17 @@ export default function TaskDetailsScreen() {
                 </View>
                 <Text style={styles.infoValue}>{task.projects.name}</Text>
               </View>
-            )}
+            ) : null}
 
-            {task.assigned_user?.full_name && (
+            {(task as any).all_assignees && (task as any).all_assignees.length > 0 ? (
+              <View style={styles.infoItem}>
+                <View style={styles.infoLabel}>
+                  <Ionicons name="people-outline" size={18} color="#64748b" />
+                  <Text style={styles.infoLabelText}>{t("tasks.assigned_to")} ({(task as any).all_assignees.length})</Text>
+                </View>
+                <Text style={styles.infoValue}>{(task as any).all_assignees.join(", ")}</Text>
+              </View>
+            ) : task.assigned_user?.full_name ? (
               <View style={styles.infoItem}>
                 <View style={styles.infoLabel}>
                   <Ionicons name="person-outline" size={18} color="#64748b" />
@@ -452,9 +692,24 @@ export default function TaskDetailsScreen() {
                 </View>
                 <Text style={styles.infoValue}>{task.assigned_user.full_name}</Text>
               </View>
-            )}
+            ) : null}
 
-            {task.due_date && (
+            {(task as any).assigned_by_user?.full_name ? (
+              <View style={styles.infoItem}>
+                <View style={styles.infoLabel}>
+                  <Ionicons name="person-add-outline" size={18} color="#64748b" />
+                  <Text style={styles.infoLabelText}>Zugewiesen von</Text>
+                </View>
+                <Text style={styles.infoValue}>
+                  {(task as any).assigned_by_user.full_name}
+                  {(task as any).assigned_at ? (
+                    ` • ${new Date((task as any).assigned_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })} ${new Date((task as any).assigned_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`
+                  ) : ""}
+                </Text>
+              </View>
+            ) : null}
+
+            {task.due_date ? (
               <View style={styles.infoItem}>
                 <View style={styles.infoLabel}>
                   <Ionicons name="calendar-outline" size={18} color="#64748b" />
@@ -464,7 +719,37 @@ export default function TaskDetailsScreen() {
                   {new Date(task.due_date).toLocaleDateString()}
                 </Text>
               </View>
-            )}
+            ) : null}
+
+            {(task as any).created_by_user?.full_name ? (
+              <View style={styles.infoItem}>
+                <View style={styles.infoLabel}>
+                  <Ionicons name="create-outline" size={18} color="#2563eb" />
+                  <Text style={styles.infoLabelText}>{t("tasks.created_by") || "Zlecone przez"}</Text>
+                </View>
+                <Text style={styles.infoValue}>
+                  {(task as any).created_by_user.full_name}
+                  {task.created_at ? (
+                    ` • ${new Date(task.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })} ${new Date(task.created_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`
+                  ) : ""}
+                </Text>
+              </View>
+            ) : null}
+
+            {(task as any).edited_by_user?.full_name ? (
+              <View style={styles.infoItem}>
+                <View style={styles.infoLabel}>
+                  <Ionicons name="pencil-outline" size={18} color="#f59e0b" />
+                  <Text style={styles.infoLabelText}>{t("tasks.edited_by") || "Edytowane przez"}</Text>
+                </View>
+                <Text style={styles.infoValue}>
+                  {(task as any).edited_by_user.full_name}
+                  {(task as any).edited_at ? (
+                    ` • ${new Date((task as any).edited_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })} ${new Date((task as any).edited_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`
+                  ) : ""}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -474,7 +759,8 @@ export default function TaskDetailsScreen() {
             attachments={attachments}
             entityType="task"
             entityId={id || ""}
-            canUpload={canEdit}
+            canUpload={perms.canUploadFiles}
+            canDelete={perms.canDeleteFiles}
             onRefresh={fetchAttachments}
           />
         </View>
@@ -482,6 +768,24 @@ export default function TaskDetailsScreen() {
         {/* Comments Section */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t("tasks.comments")}</Text>
+
+          {comments.length > 0 && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <Ionicons name="language" size={16} color="#64748b" />
+              <TouchableOpacity
+                style={{ backgroundColor: commentTranslateDir === "pl|de" ? "#2563eb" : "#f1f5f9", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 }}
+                onPress={() => { setCommentTranslateDir("pl|de"); setCommentTranslations({}); }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: "600", color: commentTranslateDir === "pl|de" ? "#fff" : "#64748b" }}>PL → DE</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: commentTranslateDir === "de|pl" ? "#2563eb" : "#f1f5f9", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 }}
+                onPress={() => { setCommentTranslateDir("de|pl"); setCommentTranslations({}); }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: "600", color: commentTranslateDir === "de|pl" ? "#fff" : "#64748b" }}>DE → PL</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {comments.length === 0 ? (
             <Text style={styles.emptyText}>{t("tasks.no_comments")}</Text>
@@ -497,31 +801,62 @@ export default function TaskDetailsScreen() {
                   </Text>
                 </View>
                 <Text style={styles.commentText}>{comment.comment}</Text>
+                {commentTranslations[comment.id] ? (
+                  <View style={{ backgroundColor: "#f0fdf4", borderRadius: 6, padding: 8, marginTop: 6, borderWidth: 1, borderColor: "#bbf7d0" }}>
+                    <Text style={{ fontSize: 10, fontWeight: "700", color: "#166534", marginBottom: 2 }}>
+                      {commentTranslateDir === "pl|de" ? "DE:" : "PL:"}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: "#166534" }}>{commentTranslations[comment.id]}</Text>
+                  </View>
+                ) : null}
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4, alignSelf: "flex-start" }}
+                  disabled={commentTranslatingId === comment.id}
+                  onPress={async () => {
+                    setCommentTranslatingId(comment.id);
+                    try {
+                      const result = await translateText(comment.comment, commentTranslateDir);
+                      setCommentTranslations((prev) => ({ ...prev, [comment.id]: result }));
+                    } catch (e) { console.error("Comment translation error:", e); }
+                    finally { setCommentTranslatingId(null); }
+                  }}
+                >
+                  {commentTranslatingId === comment.id ? (
+                    <ActivityIndicator size="small" color="#2563eb" />
+                  ) : (
+                    <Ionicons name="swap-horizontal" size={14} color="#2563eb" />
+                  )}
+                  <Text style={{ fontSize: 11, color: "#2563eb", fontWeight: "500" }}>
+                    {commentTranslations[comment.id] ? "↻" : "Übersetzen"}
+                  </Text>
+                </TouchableOpacity>
               </View>
             ))
           )}
 
-          <View style={styles.addComment}>
-            <TextInput
-              style={styles.commentInput}
-              value={newComment}
-              onChangeText={setNewComment}
-              placeholder={t("tasks.add_comment")}
-              placeholderTextColor="#94a3b8"
-              multiline
-            />
-            <TouchableOpacity
-              style={[
-                styles.commentButton,
-                (!newComment.trim() || submittingComment) &&
-                  styles.commentButtonDisabled,
-              ]}
-              onPress={addComment}
-              disabled={!newComment.trim() || submittingComment}
-            >
-              <Ionicons name="send" size={20} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
+          {canComment && (
+            <View style={styles.addComment}>
+              <TextInput
+                style={styles.commentInput}
+                value={newComment}
+                onChangeText={setNewComment}
+                placeholder={t("tasks.add_comment")}
+                placeholderTextColor="#94a3b8"
+                multiline
+              />
+              <TouchableOpacity
+                style={[
+                  styles.commentButton,
+                  (!newComment.trim() || submittingComment) &&
+                    styles.commentButtonDisabled,
+                ]}
+                onPress={addComment}
+                disabled={!newComment.trim() || submittingComment}
+              >
+                <Ionicons name="send" size={20} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         <View style={{ height: 40 }} />
@@ -559,10 +894,90 @@ export default function TaskDetailsScreen() {
                   multiline
                 />
               </View>
+              {/* Auto-translate PL↔DE in edit modal */}
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <Ionicons name="language" size={18} color="#64748b" />
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: "#64748b" }}>Übersetzen</Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                  <TouchableOpacity
+                    style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: editTranslateDir === "pl|de" ? "#2563eb" : "#f1f5f9", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 }}
+                    onPress={() => { setEditTranslateDir("pl|de"); setEditTranslatedTitle(""); setEditTranslatedDesc(""); }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: editTranslateDir === "pl|de" ? "#fff" : "#64748b" }}>PL → DE</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: editTranslateDir === "de|pl" ? "#2563eb" : "#f1f5f9", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 }}
+                    onPress={() => { setEditTranslateDir("de|pl"); setEditTranslatedTitle(""); setEditTranslatedDesc(""); }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: editTranslateDir === "de|pl" ? "#fff" : "#64748b" }}>DE → PL</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#eff6ff", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 }}
+                    onPress={async () => {
+                      setEditTranslating(true);
+                      setEditTranslatedTitle(""); setEditTranslatedDesc("");
+                      try {
+                        if (editForm.title.trim()) {
+                          const r = await translateText(editForm.title, editTranslateDir);
+                          setEditTranslatedTitle(r);
+                        }
+                        if (editForm.description.trim()) {
+                          const r = await translateText(editForm.description, editTranslateDir);
+                          setEditTranslatedDesc(r);
+                        }
+                      } catch (e) { console.error("Translation error:", e); }
+                      finally { setEditTranslating(false); }
+                    }}
+                    disabled={editTranslating || (!editForm.title.trim() && !editForm.description.trim())}
+                  >
+                    {editTranslating ? (
+                      <ActivityIndicator size="small" color="#2563eb" />
+                    ) : (
+                      <Ionicons name="swap-horizontal" size={16} color="#2563eb" />
+                    )}
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#2563eb" }}>Übersetzen</Text>
+                  </TouchableOpacity>
+                </View>
+                {(editTranslatedTitle || editTranslatedDesc) ? (
+                  <View style={{ backgroundColor: "#f0fdf4", borderRadius: 8, padding: 10, borderWidth: 1, borderColor: "#bbf7d0" }}>
+                    {editTranslatedTitle ? (
+                      <View style={{ marginBottom: editTranslatedDesc ? 6 : 0 }}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#166534", marginBottom: 2 }}>
+                          {editTranslateDir === "pl|de" ? "Titel (DE):" : "Tytuł (PL):"}
+                        </Text>
+                        <Text style={{ fontSize: 13, color: "#166534" }}>{editTranslatedTitle}</Text>
+                      </View>
+                    ) : null}
+                    {editTranslatedDesc ? (
+                      <View>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#166534", marginBottom: 2 }}>
+                          {editTranslateDir === "pl|de" ? "Beschreibung (DE):" : "Opis (PL):"}
+                        </Text>
+                        <Text style={{ fontSize: 13, color: "#166534" }}>{editTranslatedDesc}</Text>
+                      </View>
+                    ) : null}
+                    <TouchableOpacity
+                      style={{ marginTop: 8, flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: "#16a34a", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
+                      onPress={() => {
+                        const newTitle = editTranslatedTitle ? `${editForm.title}\n${editTranslateDir === "pl|de" ? "[DE]" : "[PL]"} ${editTranslatedTitle}` : editForm.title;
+                        const newDesc = editTranslatedDesc ? `${editForm.description}\n\n${editTranslateDir === "pl|de" ? "[DE]" : "[PL]"} ${editTranslatedDesc}` : editForm.description;
+                        setEditForm({ ...editForm, title: newTitle, description: newDesc });
+                        setEditTranslatedTitle(""); setEditTranslatedDesc("");
+                      }}
+                    >
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                      <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>Übersetzung einfügen</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
+
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>{t("tasks.statusLabel")}</Text>
                 <View style={styles.editChips}>
-                  {["pending", "in_progress", "completed", "cancelled"].map((s) => (
+                  {["todo", "in_progress", "completed", "blocked"].map((s) => (
                     <TouchableOpacity
                       key={s}
                       style={[styles.editChip, editForm.status === s && styles.editChipActive]}
@@ -592,12 +1007,12 @@ export default function TaskDetailsScreen() {
                 </View>
               </View>
               <View style={styles.editField}>
-                <Text style={styles.editLabel}>{t("tasks.assigned_to")}</Text>
+                <Text style={styles.editLabel}>{t("tasks.assigned_to")} ({editForm.assigned_to.length})</Text>
                 <TouchableOpacity
-                  style={[styles.editChip, !editForm.assigned_to && styles.editChipActive, { alignSelf: "flex-start", marginBottom: 8 }]}
-                  onPress={() => setEditForm({ ...editForm, assigned_to: "" })}
+                  style={[styles.editChip, editForm.assigned_to.length === 0 && styles.editChipActive, { alignSelf: "flex-start", marginBottom: 8 }]}
+                  onPress={() => setEditForm({ ...editForm, assigned_to: [] })}
                 >
-                  <Text style={[styles.editChipText, !editForm.assigned_to && styles.editChipTextActive]}>— {t("common.none")}</Text>
+                  <Text style={[styles.editChipText, editForm.assigned_to.length === 0 && styles.editChipTextActive]}>— {t("common.none")}</Text>
                 </TouchableOpacity>
 
                 {planUsers.length > 0 && (
@@ -605,63 +1020,75 @@ export default function TaskDetailsScreen() {
                     <Text style={{ fontSize: 11, fontWeight: "600", color: "#10b981", marginBottom: 4, textTransform: "uppercase" }}>
                       {t("plan.workers_from_plan")}
                     </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-                      <View style={styles.editChips}>
-                        {planUsers.map((u) => (
-                          <TouchableOpacity
-                            key={u.id}
-                            style={[styles.editChip, editForm.assigned_to === u.id && styles.editChipActive, { borderColor: "#10b981" }]}
-                            onPress={() => setEditForm({ ...editForm, assigned_to: u.id })}
-                          >
-                            <Text style={[styles.editChipText, editForm.assigned_to === u.id && styles.editChipTextActive]} numberOfLines={1}>
-                              {u.full_name || u.email}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </ScrollView>
+                    {planUsers.map((u) => {
+                      const sel = editForm.assigned_to.includes(u.id);
+                      return (
+                        <TouchableOpacity
+                          key={u.id}
+                          style={[styles.editChip, sel && styles.editChipActive, { borderColor: "#10b981", flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }]}
+                          onPress={() => {
+                            const next = sel ? editForm.assigned_to.filter((x: string) => x !== u.id) : [...editForm.assigned_to, u.id];
+                            setEditForm({ ...editForm, assigned_to: next });
+                          }}
+                        >
+                          <Ionicons name={sel ? "checkbox" : "square-outline"} size={18} color={sel ? "#2563eb" : "#94a3b8"} />
+                          <Text style={[styles.editChipText, sel && styles.editChipTextActive]} numberOfLines={1}>
+                            {u.full_name || u.email}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                    <View style={{ height: 8 }} />
                   </>
                 )}
 
                 {projectUsers.length > 0 && (
                   <>
                     <Text style={{ fontSize: 11, fontWeight: "600", color: "#64748b", marginBottom: 4, textTransform: "uppercase" }}>
-                      {t("tasks.project_members") || "Członkowie projektu"}
+                      {t("tasks.project_members", "Członkowie projektu")}
                     </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      <View style={styles.editChips}>
-                        {projectUsers.map((u) => (
-                          <TouchableOpacity
-                            key={u.id}
-                            style={[styles.editChip, editForm.assigned_to === u.id && styles.editChipActive]}
-                            onPress={() => setEditForm({ ...editForm, assigned_to: u.id })}
-                          >
-                            <Text style={[styles.editChipText, editForm.assigned_to === u.id && styles.editChipTextActive]} numberOfLines={1}>
-                              {u.full_name || u.email}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </ScrollView>
+                    {projectUsers.map((u) => {
+                      const sel = editForm.assigned_to.includes(u.id);
+                      return (
+                        <TouchableOpacity
+                          key={u.id}
+                          style={[styles.editChip, sel && styles.editChipActive, { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }]}
+                          onPress={() => {
+                            const next = sel ? editForm.assigned_to.filter((x: string) => x !== u.id) : [...editForm.assigned_to, u.id];
+                            setEditForm({ ...editForm, assigned_to: next });
+                          }}
+                        >
+                          <Ionicons name={sel ? "checkbox" : "square-outline"} size={18} color={sel ? "#2563eb" : "#94a3b8"} />
+                          <Text style={[styles.editChipText, sel && styles.editChipTextActive]} numberOfLines={1}>
+                            {u.full_name || u.email}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </>
                 )}
 
                 {planUsers.length === 0 && projectUsers.length === 0 && (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={styles.editChips}>
-                      {users.map((u) => (
+                  <>
+                    {users.map((u) => {
+                      const sel = editForm.assigned_to.includes(u.id);
+                      return (
                         <TouchableOpacity
                           key={u.id}
-                          style={[styles.editChip, editForm.assigned_to === u.id && styles.editChipActive]}
-                          onPress={() => setEditForm({ ...editForm, assigned_to: u.id })}
+                          style={[styles.editChip, sel && styles.editChipActive, { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }]}
+                          onPress={() => {
+                            const next = sel ? editForm.assigned_to.filter((x: string) => x !== u.id) : [...editForm.assigned_to, u.id];
+                            setEditForm({ ...editForm, assigned_to: next });
+                          }}
                         >
-                          <Text style={[styles.editChipText, editForm.assigned_to === u.id && styles.editChipTextActive]} numberOfLines={1}>
+                          <Ionicons name={sel ? "checkbox" : "square-outline"} size={18} color={sel ? "#2563eb" : "#94a3b8"} />
+                          <Text style={[styles.editChipText, sel && styles.editChipTextActive]} numberOfLines={1}>
                             {u.full_name || u.email}
                           </Text>
                         </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
+                      );
+                    })}
+                  </>
                 )}
               </View>
               <View style={styles.editField}>

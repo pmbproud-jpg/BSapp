@@ -19,8 +19,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/src/lib/supabase/client";
 import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
 import { useAuth } from "@/src/providers/AuthProvider";
+import { usePermissions } from "@/src/hooks/usePermissions";
 import type { Database } from "@/src/lib/supabase/database.types";
 import * as XLSX from "xlsx";
+import { sendPasswordEmail } from "@/src/lib/sendEmail";
 
 const openLink = (url: string) => {
   if (Platform.OS === "web") {
@@ -70,13 +72,14 @@ export default function UsersScreen() {
   const [addSubLoading, setAddSubLoading] = useState(false);
   const [newSub, setNewSub] = useState({ full_name: "", email: "", phone: "", access_expires_at: "" });
 
-  const isAdmin = profile?.role === "admin";
-  const isManagement = profile?.role === "management";
-  const isPM = profile?.role === "project_manager";
-  const canViewUsers = isAdmin || isManagement;
-  const canDeleteUser = isAdmin;
-  const canChangeRole = isAdmin;
-  const canManageSubs = isAdmin || isManagement || isPM;
+  const perms = usePermissions();
+  const isAdmin = perms.isAdmin;
+  const isManagement = perms.isManagement;
+  const canViewUsers = perms.canViewUsers;
+  const canEditUsers = perms.canEditUser;
+  const canDeleteUser = perms.canDeleteUser;
+  const canChangeRole = perms.canChangeUserRole;
+  const canManageSubs = perms.canManageSubcontractor;
 
   useEffect(() => {
     if (!canViewUsers && !canManageSubs) {
@@ -119,6 +122,10 @@ export default function UsersScreen() {
       bauleiter: "#10b981",
       worker: "#64748b",
       subcontractor: "#8b5cf6",
+      office_worker: "#06b6d4",
+      logistics: "#f97316",
+      purchasing: "#ec4899",
+      warehouse_manager: "#7c3aed",
     };
     return colors[role] || "#94a3b8";
   };
@@ -131,6 +138,10 @@ export default function UsersScreen() {
       bauleiter: "construct",
       worker: "hammer",
       subcontractor: "people",
+      office_worker: "desktop",
+      logistics: "cube",
+      purchasing: "cart",
+      warehouse_manager: "file-tray-stacked",
     };
     return icons[role] || "person";
   };
@@ -138,21 +149,25 @@ export default function UsersScreen() {
   // ---- ADD USER ----
   const roleOptions = [
     { value: "admin", label: "Admin", icon: "shield-checkmark" as keyof typeof Ionicons.glyphMap },
-    { value: "management", label: "Zarząd", icon: "business" as keyof typeof Ionicons.glyphMap },
+    { value: "management", label: t("common.roles.management") || "Geschäftsleitung", icon: "business" as keyof typeof Ionicons.glyphMap },
     { value: "project_manager", label: "PM", icon: "briefcase" as keyof typeof Ionicons.glyphMap },
     { value: "bauleiter", label: "BL", icon: "construct" as keyof typeof Ionicons.glyphMap },
-    { value: "worker", label: "Worker", icon: "hammer" as keyof typeof Ionicons.glyphMap },
+    { value: "office_worker", label: t("common.roles.office_worker") || "Büroangestellter", icon: "desktop" as keyof typeof Ionicons.glyphMap },
+    { value: "logistics", label: t("common.roles.logistics") || "Logistik", icon: "cube" as keyof typeof Ionicons.glyphMap },
+    { value: "purchasing", label: t("common.roles.purchasing") || "Einkauf", icon: "cart" as keyof typeof Ionicons.glyphMap },
+    { value: "worker", label: t("common.roles.worker") || "Mitarbeiter", icon: "hammer" as keyof typeof Ionicons.glyphMap },
+    { value: "warehouse_manager", label: t("common.roles.warehouse_manager") || "Lagerverwalter", icon: "file-tray-stacked" as keyof typeof Ionicons.glyphMap },
   ];
 
   const createUser = async () => {
     if (!newUser.full_name.trim()) {
-      if (Platform.OS === "web") window.alert(t("users.name_required") || "Imię i nazwisko jest wymagane");
-      else Alert.alert(t("common.error"), t("users.name_required") || "Imię i nazwisko jest wymagane");
+      if (Platform.OS === "web") window.alert(t("users.name_required") || "Vollständiger Name ist erforderlich");
+      else Alert.alert(t("common.error"), t("users.name_required") || "Vollständiger Name ist erforderlich");
       return;
     }
     if (!newUser.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newUser.email.trim())) {
-      if (Platform.OS === "web") window.alert(t("users.email_required") || "Podaj prawidłowy email");
-      else Alert.alert(t("common.error"), t("users.email_required") || "Podaj prawidłowy email");
+      if (Platform.OS === "web") window.alert(t("users.email_required") || "Bitte gültige E-Mail eingeben");
+      else Alert.alert(t("common.error"), t("users.email_required") || "Bitte gültige E-Mail eingeben");
       return;
     }
 
@@ -195,11 +210,11 @@ export default function UsersScreen() {
       setShowAddUser(false);
       fetchUsers();
 
-      if (Platform.OS === "web") window.alert(t("users.created_success") || "Użytkownik utworzony pomyślnie");
-      else Alert.alert(t("common.success"), t("users.created_success") || "Użytkownik utworzony pomyślnie");
+      if (Platform.OS === "web") window.alert(t("users.created_success") || "Benutzer erfolgreich erstellt");
+      else Alert.alert(t("common.success"), t("users.created_success") || "Benutzer erfolgreich erstellt");
     } catch (error: any) {
       console.error("Error creating user:", error);
-      const msg = error?.message || t("users.create_error") || "Błąd tworzenia użytkownika";
+      const msg = error?.message || t("users.create_error") || "Fehler beim Erstellen des Benutzers";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.error"), msg);
     } finally {
@@ -210,17 +225,17 @@ export default function UsersScreen() {
   // ---- SUBCONTRACTOR ----
   const createSubcontractor = async () => {
     if (!newSub.full_name.trim()) {
-      const msg = t("users.name_required") || "Imię i nazwisko jest wymagane";
+      const msg = t("users.name_required") || "Vollständiger Name ist erforderlich";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
       return;
     }
     if (!newSub.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newSub.email.trim())) {
-      const msg = t("users.email_required") || "Podaj prawidłowy email";
+      const msg = t("users.email_required") || "Bitte gültige E-Mail eingeben";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
       return;
     }
     if (!newSub.access_expires_at) {
-      const msg = t("users.subcontractors.expiry_required") || "Podaj datę wygaśnięcia dostępu";
+      const msg = t("users.subcontractors.expiry_required") || "Bitte Ablaufdatum des Zugangs eingeben";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
       return;
     }
@@ -260,7 +275,7 @@ export default function UsersScreen() {
       setShowAddSubcontractor(false);
       fetchUsers();
 
-      const msg = `${t("users.subcontractors.created_success") || "Podwykonawca utworzony"}\n\nLogin: ${newSub.email.trim()}\n${t("users.subcontractors.temp_password") || "Hasło tymczasowe"}: ${tempPassword}\n${t("users.subcontractors.expires") || "Wygasa"}: ${newSub.access_expires_at}`;
+      const msg = `${t("users.subcontractors.created_success") || "Subunternehmer erstellt"}\n\nLogin: ${newSub.email.trim()}\n${t("users.subcontractors.temp_password") || "Temporäres Passwort"}: ${tempPassword}\n${t("users.subcontractors.expires") || "Läuft ab"}: ${newSub.access_expires_at}`;
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
     } catch (error: any) {
       console.error("Error creating subcontractor:", error);
@@ -278,7 +293,7 @@ export default function UsersScreen() {
         .eq("id", userId);
       if (error) throw error;
       fetchUsers();
-      const msg = t("users.subcontractors.access_renewed") || "Dostęp odnowiony";
+      const msg = t("users.subcontractors.access_renewed") || "Zugang erneuert";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
     } catch (error) {
       console.error("Error renewing access:", error);
@@ -367,7 +382,7 @@ export default function UsersScreen() {
     const isEmail = (v: any) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim());
     const isPhone = (v: any) => /^\+?\d[\d\s\-]{5,}$/.test(String(v).trim());
     const isRole = (v: any) => {
-      const roles = ["admin", "management", "project_manager", "bauleiter", "worker", "bl", "pm"];
+      const roles = ["admin", "management", "project_manager", "bauleiter", "worker", "office_worker", "logistics", "purchasing", "bl", "pm"];
       return roles.includes(String(v).trim().toLowerCase());
     };
     const isHeaderName = (v: any) =>
@@ -409,7 +424,7 @@ export default function UsersScreen() {
     const roleCol = findColByHeader(roleRegex);
 
     const roleMap: Record<string, string> = { bl: "bauleiter", pm: "project_manager" };
-    const validRoles = ["admin", "management", "project_manager", "bauleiter", "worker"];
+    const validRoles = ["admin", "management", "project_manager", "bauleiter", "worker", "office_worker", "logistics", "purchasing"];
 
     const importedUsers: ImportedUser[] = dataRows.map((row) => {
       const cells = row.map((c: any) => (c != null ? String(c).trim() : ""));
@@ -467,7 +482,7 @@ export default function UsersScreen() {
     const skippedNoEmail = importPreview.length - usersWithEmail.length;
 
     if (usersWithEmail.length === 0) {
-      const msg = t("users.import.no_valid_data") + (skippedNoEmail > 0 ? `\n(${skippedNoEmail} bez email)` : "");
+      const msg = t("users.import.no_valid_data") + (skippedNoEmail > 0 ? `\n(${skippedNoEmail} ohne E-Mail)` : "");
       if (Platform.OS === "web") { window.alert(msg); } else { Alert.alert(t("common.error"), msg); }
       return;
     }
@@ -527,8 +542,8 @@ export default function UsersScreen() {
         }
       }
 
-      const successMsg = `Zaimportowano ${createdUsers.length} użytkowników` +
-        (skippedNoEmail > 0 ? ` (${skippedNoEmail} pominięto - brak email)` : "");
+      const successMsg = `${createdUsers.length} Benutzer importiert` +
+        (skippedNoEmail > 0 ? ` (${skippedNoEmail} übersprungen - keine E-Mail)` : "");
 
       if (createdUsers.length > 0) {
         if (Platform.OS === "web") { window.alert(successMsg); } else { Alert.alert(t("common.success"), successMsg); }
@@ -551,33 +566,112 @@ export default function UsersScreen() {
   };
   // ---- END IMPORT ----
 
-  const deleteUser = async (userId: string) => {
-    Alert.alert(
-      t("users.delete_confirm_title"),
-      t("users.delete_confirm_message"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("common.delete"),
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from("profiles")
-                .delete()
-                .eq("id", userId);
+  const sendInviteLink = async (userEmail: string, userName: string) => {
+    try {
+      const redirectUrl = "https://bsapp-management.netlify.app/reset-password";
 
-              if (error) throw error;
-              fetchUsers();
-              Alert.alert(t("common.success"), t("users.deleted_success"));
-            } catch (error) {
-              console.error("Error deleting user:", error);
-              Alert.alert(t("common.error"), t("users.delete_error"));
-            }
-          },
-        },
-      ]
-    );
+      // 1. Generate link via admin API (no rate limit, always works)
+      const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+        type: "recovery",
+        email: userEmail,
+        options: { redirectTo: redirectUrl },
+      });
+      if (error) throw error;
+
+      let actionLink = data?.properties?.action_link || "";
+      if (actionLink) {
+        try {
+          const u = new URL(actionLink);
+          u.searchParams.set("redirect_to", redirectUrl);
+          actionLink = u.toString();
+        } catch {}
+      }
+      if (!actionLink) throw new Error("Link konnte nicht generiert werden.");
+
+      // 2. Send email via Resend
+      const emailResult = await sendPasswordEmail(userEmail, userName, actionLink);
+
+      if (emailResult.success) {
+        const msg = `✅ E-Mail mit Passwort-Link wurde an ${userEmail} gesendet.`;
+        if (Platform.OS === "web") {
+          window.alert(msg);
+        } else {
+          Alert.alert(t("common.success"), msg);
+        }
+      } else {
+        // Email failed — fallback to clipboard/share
+        console.warn("Email send failed:", emailResult.error);
+        const msg = `⚠️ E-Mail konnte nicht gesendet werden.\n\nLink wurde generiert — bitte manuell weiterleiten.`;
+        if (Platform.OS === "web") {
+          await navigator.clipboard.writeText(actionLink).catch(() => {});
+          window.alert(`${msg}\n\nLink wurde in die Zwischenablage kopiert.`);
+        } else {
+          Alert.alert(
+            "Info",
+            msg,
+            [
+              {
+                text: "Link teilen",
+                onPress: () => {
+                  const { Share: NativeShare } = require("react-native");
+                  NativeShare.share({
+                    message: `Passwort erstellen für BSapp:\n${actionLink}`,
+                  }).catch(() => {});
+                },
+              },
+              { text: "OK" },
+            ]
+          );
+        }
+      }
+    } catch (error: any) {
+      console.error("Error sending invite:", error);
+      const msg = error?.message || t("common.error");
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert(t("common.error"), msg);
+    }
+  };
+
+  const deleteUser = async (userId: string) => {
+    const doDelete = async () => {
+      try {
+        // 1. Delete profile first
+        const { error: profileError } = await (supabaseAdmin.from("profiles") as any)
+          .delete()
+          .eq("id", userId);
+        if (profileError) console.error("Profile delete error:", profileError);
+
+        // 2. Delete auth user
+        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+        if (authError) throw authError;
+
+        fetchUsers();
+        const msg = t("users.deleted_success") || "Benutzer gelöscht";
+        if (Platform.OS === "web") window.alert(msg);
+        else Alert.alert(t("common.success"), msg);
+      } catch (error: any) {
+        console.error("Error deleting user:", error);
+        const msg = error?.message || t("users.delete_error") || "Fehler beim Löschen des Benutzers";
+        if (Platform.OS === "web") window.alert(msg);
+        else Alert.alert(t("common.error"), msg);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm(
+        (t("users.delete_confirm_message") || "Möchten Sie diesen Benutzer wirklich löschen?")
+      );
+      if (confirmed) doDelete();
+    } else {
+      Alert.alert(
+        t("users.delete_confirm_title") || "Benutzer löschen",
+        t("users.delete_confirm_message") || "Möchten Sie diesen Benutzer wirklich löschen?",
+        [
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("common.delete"), style: "destructive", onPress: doDelete },
+        ]
+      );
+    }
   };
 
   const renderUser = ({ item }: { item: Profile }) => (
@@ -613,29 +707,48 @@ export default function UsersScreen() {
               <Ionicons name="chevron-forward" size={18} color="#94a3b8" style={{ marginLeft: 6 }} />
             </View>
           </View>
-          <TouchableOpacity onPress={(e) => { e.stopPropagation(); openLink(`mailto:${item.email}`); }} activeOpacity={0.6}>
-            <Text style={[styles.userEmail, { color: "#2563eb", textDecorationLine: "underline" }]} numberOfLines={1}>{item.email}</Text>
-          </TouchableOpacity>
-          {item.phone && (
-            <TouchableOpacity style={styles.contactRow} onPress={(e) => { e.stopPropagation(); openLink(`tel:${item.phone}`); }} activeOpacity={0.6}>
-              <Ionicons name="call" size={14} color="#2563eb" />
-              <Text style={[styles.contactText, { color: "#2563eb", textDecorationLine: "underline" }]}>{item.phone}</Text>
+          {(item as any).hide_email && !(isAdmin || isManagement) ? null : (
+            <TouchableOpacity onPress={(e) => { e.stopPropagation(); openLink(`mailto:${item.email}`); }} activeOpacity={0.6}>
+              <Text style={[styles.userEmail, { color: "#2563eb", textDecorationLine: "underline" }]} numberOfLines={1}>
+                {item.email}{(item as any).hide_email ? " 🔒" : ""}
+              </Text>
             </TouchableOpacity>
           )}
+          {item.phone ? (
+            (item as any).hide_phone && !(isAdmin || isManagement) ? null : (
+              <TouchableOpacity style={styles.contactRow} onPress={(e) => { e.stopPropagation(); openLink(`tel:${item.phone}`); }} activeOpacity={0.6}>
+                <Ionicons name="call" size={14} color="#2563eb" />
+                <Text style={[styles.contactText, { color: "#2563eb", textDecorationLine: "underline" }]}>
+                  {item.phone}{(item as any).hide_phone ? " 🔒" : ""}
+                </Text>
+              </TouchableOpacity>
+            )
+          ) : null}
         </View>
       </View>
 
-      {isAdmin && item.id !== profile?.id && (
+      {canEditUsers && item.id !== profile?.id && (
         <View style={styles.userActions}>
           <TouchableOpacity
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={(e) => { e.stopPropagation(); deleteUser(item.id); }}
+            style={[styles.actionButton, { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }]}
+            onPress={(e) => { e.stopPropagation(); sendInviteLink(item.email, item.full_name || item.email); }}
           >
-            <Ionicons name="trash-outline" size={18} color="#ef4444" />
-            <Text style={[styles.actionButtonText, styles.deleteButtonText]}>
-              {t("common.delete")}
+            <Ionicons name="mail-outline" size={18} color="#2563eb" />
+            <Text style={[styles.actionButtonText, { color: "#2563eb" }]}>
+              {t("users.send_invite") || "Link senden"}
             </Text>
           </TouchableOpacity>
+          {canDeleteUser && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={(e) => { e.stopPropagation(); deleteUser(item.id); }}
+            >
+              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+              <Text style={[styles.actionButtonText, styles.deleteButtonText]}>
+                {t("common.delete")}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </TouchableOpacity>
@@ -676,20 +789,20 @@ export default function UsersScreen() {
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{item.full_name || item.email}</Text>
             <Text style={styles.userEmail}>{item.email}</Text>
-            {(item as any).access_expires_at && (
+            {(item as any).access_expires_at ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
                 <Ionicons name={expired ? "alert-circle" : "time-outline"} size={14} color={expired ? "#ef4444" : "#8b5cf6"} />
                 <Text style={{ fontSize: 12, color: expired ? "#ef4444" : "#8b5cf6", fontWeight: "600" }}>
                   {expired
-                    ? (t("users.subcontractors.expired") || "Wygasł")
-                    : `${t("users.subcontractors.expires") || "Wygasa"}: ${new Date((item as any).access_expires_at).toLocaleDateString()}`}
+                    ? (t("users.subcontractors.expired") || "Abgelaufen")
+                    : `${t("users.subcontractors.expires") || "Läuft ab"}: ${new Date((item as any).access_expires_at).toLocaleDateString("de-DE")}`}
                 </Text>
               </View>
-            )}
+            ) : null}
           </View>
           <View style={[styles.roleBadge, { backgroundColor: expired ? "#fef2f220" : "#8b5cf620" }]}>
             <Text style={[styles.roleText, { color: expired ? "#ef4444" : "#8b5cf6" }]}>
-              {expired ? (t("users.subcontractors.expired") || "Wygasł") : (t("common.roles.subcontractor") || "Podwykonawca")}
+              {expired ? (t("users.subcontractors.expired") || "Abgelaufen") : (t("common.roles.subcontractor") || "Subunternehmer")}
             </Text>
           </View>
         </View>
@@ -704,7 +817,7 @@ export default function UsersScreen() {
             }}
           >
             <Ionicons name="refresh" size={16} color="#8b5cf6" />
-            <Text style={{ color: "#8b5cf6", fontWeight: "600", fontSize: 13 }}>{t("users.subcontractors.renew_30_days") || "Odnów na 30 dni"}</Text>
+            <Text style={{ color: "#8b5cf6", fontWeight: "600", fontSize: 13 }}>{t("users.subcontractors.renew_30_days") || "30 Tage verlängern"}</Text>
           </TouchableOpacity>
         )}
       </TouchableOpacity>
@@ -723,19 +836,21 @@ export default function UsersScreen() {
             >
               <Ionicons name="people" size={18} color={activeTab === "users" ? "#2563eb" : "#64748b"} />
               <Text style={[styles.tabBtnText, activeTab === "users" && styles.tabBtnTextActive]}>
-                {t("users.title") || "Użytkownicy"} ({regularUsers.length})
+                {t("users.title") || "Benutzer"} ({regularUsers.length})
               </Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={[styles.tabBtn, activeTab === "subcontractors" && styles.tabBtnActive]}
-            onPress={() => setActiveTab("subcontractors")}
-          >
-            <Ionicons name="people-circle" size={18} color={activeTab === "subcontractors" ? "#8b5cf6" : "#64748b"} />
-            <Text style={[styles.tabBtnText, activeTab === "subcontractors" && { color: "#8b5cf6" }]}>
-              {t("users.subcontractors.title") || "Podwykonawcy"} ({subcontractors.length})
-            </Text>
-          </TouchableOpacity>
+          {canManageSubs && (
+            <TouchableOpacity
+              style={[styles.tabBtn, activeTab === "subcontractors" && styles.tabBtnActive]}
+              onPress={() => setActiveTab("subcontractors")}
+            >
+              <Ionicons name="people-circle" size={18} color={activeTab === "subcontractors" ? "#8b5cf6" : "#64748b"} />
+              <Text style={[styles.tabBtnText, activeTab === "subcontractors" && { color: "#8b5cf6" }]}>
+                {t("users.subcontractors.title") || "Subunternehmer"} ({subcontractors.length})
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -745,7 +860,7 @@ export default function UsersScreen() {
           {subcontractors.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="people-circle-outline" size={64} color="#cbd5e1" />
-              <Text style={styles.emptyText}>{t("users.subcontractors.empty") || "Brak podwykonawców"}</Text>
+              <Text style={styles.emptyText}>{t("users.subcontractors.empty") || "Keine Subunternehmer"}</Text>
             </View>
           ) : (
             <FlatList
@@ -770,12 +885,12 @@ export default function UsersScreen() {
             <TouchableOpacity onPress={() => { setShowAddSubcontractor(false); setNewSub({ full_name: "", email: "", phone: "", access_expires_at: "" }); }}>
               <Ionicons name="arrow-back" size={24} color="#1e293b" />
             </TouchableOpacity>
-            <Text style={styles.importTitle}>{t("users.subcontractors.add") || "Dodaj podwykonawcę"}</Text>
+            <Text style={styles.importTitle}>{t("users.subcontractors.add") || "Subunternehmer hinzufügen"}</Text>
           </View>
 
           <View style={styles.addUserField}>
-            <Text style={styles.addUserLabel}>{t("users.full_name") || "Imię i Nazwisko"} *</Text>
-            <TextInput style={styles.addUserInput} value={newSub.full_name} onChangeText={(v) => setNewSub({ ...newSub, full_name: v })} placeholder="Jan Kowalski" placeholderTextColor="#94a3b8" />
+            <Text style={styles.addUserLabel}>{t("users.full_name") || "Vollständiger Name"} *</Text>
+            <TextInput style={styles.addUserInput} value={newSub.full_name} onChangeText={(v) => setNewSub({ ...newSub, full_name: v })} placeholder="Max Mustermann" placeholderTextColor="#94a3b8" />
           </View>
           <View style={styles.addUserField}>
             <Text style={styles.addUserLabel}>Email *</Text>
@@ -786,7 +901,7 @@ export default function UsersScreen() {
             <TextInput style={styles.addUserInput} value={newSub.phone} onChangeText={(v) => setNewSub({ ...newSub, phone: v })} placeholder="+48 123 456 789" placeholderTextColor="#94a3b8" keyboardType="phone-pad" />
           </View>
           <View style={styles.addUserField}>
-            <Text style={styles.addUserLabel}>{t("users.subcontractors.access_until") || "Dostęp do"} *</Text>
+            <Text style={styles.addUserLabel}>{t("users.subcontractors.access_until") || "Zugang bis"} *</Text>
             <TextInput style={styles.addUserInput} value={newSub.access_expires_at} onChangeText={(v) => setNewSub({ ...newSub, access_expires_at: v })} placeholder="YYYY-MM-DD" placeholderTextColor="#94a3b8" />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
               {[30, 60, 90].map((days) => (
@@ -798,7 +913,7 @@ export default function UsersScreen() {
                     setNewSub({ ...newSub, access_expires_at: d.toISOString().split("T")[0] });
                   }}
                 >
-                  <Text style={{ color: "#8b5cf6", fontWeight: "600", fontSize: 12 }}>{days} {t("users.subcontractors.days") || "dni"}</Text>
+                  <Text style={{ color: "#8b5cf6", fontWeight: "600", fontSize: 12 }}>{days} {t("users.subcontractors.days") || "Tage"}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -807,10 +922,10 @@ export default function UsersScreen() {
           <View style={{ backgroundColor: "#f5f3ff", borderRadius: 12, padding: 14, marginHorizontal: 16, marginTop: 8 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Ionicons name="information-circle" size={20} color="#8b5cf6" />
-              <Text style={{ fontSize: 13, color: "#6d28d9", fontWeight: "600" }}>{t("users.subcontractors.info_title") || "Informacja"}</Text>
+              <Text style={{ fontSize: 13, color: "#6d28d9", fontWeight: "600" }}>{t("users.subcontractors.info_title") || "Information"}</Text>
             </View>
             <Text style={{ fontSize: 12, color: "#7c3aed", marginTop: 4 }}>
-              {t("users.subcontractors.info_desc") || "Podwykonawca otrzyma login i hasło tymczasowe. Po wygaśnięciu daty dostępu nie będzie mógł się zalogować. Dostęp można odnowić w każdej chwili."}
+              {t("users.subcontractors.info_desc") || "Der Subunternehmer erhält Login und temporäres Passwort. Nach Ablauf des Zugangsdatums kann er sich nicht mehr anmelden. Der Zugang kann jederzeit erneuert werden."}
             </Text>
           </View>
 
@@ -822,7 +937,7 @@ export default function UsersScreen() {
             {addSubLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.importButtonText}>{t("users.subcontractors.create") || "Utwórz podwykonawcę"}</Text>
+              <Text style={styles.importButtonText}>{t("users.subcontractors.create") || "Subunternehmer erstellen"}</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -832,17 +947,17 @@ export default function UsersScreen() {
             <TouchableOpacity onPress={() => { setShowAddUser(false); setNewUser({ full_name: "", email: "", phone: "", role: "worker" }); }}>
               <Ionicons name="arrow-back" size={24} color="#1e293b" />
             </TouchableOpacity>
-            <Text style={styles.importTitle}>{t("users.add_user") || "Dodaj użytkownika"}</Text>
+            <Text style={styles.importTitle}>{t("users.add_user") || "Benutzer hinzufügen"}</Text>
           </View>
 
           <View style={styles.addUserForm}>
             <View style={styles.addUserField}>
-              <Text style={styles.addUserLabel}>{t("users.full_name") || "Imię i Nazwisko"} *</Text>
+              <Text style={styles.addUserLabel}>{t("users.full_name") || "Vollständiger Name"} *</Text>
               <TextInput
                 style={styles.addUserInput}
                 value={newUser.full_name}
                 onChangeText={(text) => setNewUser({ ...newUser, full_name: text })}
-                placeholder="Jan Kowalski"
+                placeholder="Max Mustermann"
                 placeholderTextColor="#94a3b8"
               />
             </View>
@@ -853,7 +968,7 @@ export default function UsersScreen() {
                 style={styles.addUserInput}
                 value={newUser.email}
                 onChangeText={(text) => setNewUser({ ...newUser, email: text })}
-                placeholder="jan@example.com"
+                placeholder="max@example.com"
                 placeholderTextColor="#94a3b8"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -866,14 +981,14 @@ export default function UsersScreen() {
                 style={styles.addUserInput}
                 value={newUser.phone}
                 onChangeText={(text) => setNewUser({ ...newUser, phone: text })}
-                placeholder="+48 123 456 789"
+                placeholder="+49 123 456 789"
                 placeholderTextColor="#94a3b8"
                 keyboardType="phone-pad"
               />
             </View>
 
             <View style={styles.addUserField}>
-              <Text style={styles.addUserLabel}>{t("users.role") || "Funkcja"} *</Text>
+              <Text style={styles.addUserLabel}>{t("users.role") || "Funktion"} *</Text>
               <View style={styles.roleGrid}>
                 {roleOptions.map((opt) => (
                   <TouchableOpacity
@@ -911,7 +1026,7 @@ export default function UsersScreen() {
               {addUserLoading ? (
                 <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.importButtonText}>{t("users.create") || "Utwórz użytkownika"}</Text>
+                <Text style={styles.importButtonText}>{t("users.create") || "Benutzer erstellen"}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -931,8 +1046,8 @@ export default function UsersScreen() {
               <Text style={styles.instructionsTitle}>{t("users.import.instructions_title")}</Text>
               <Text style={styles.instructionsBody}>{t("users.import.instructions_body")}</Text>
               <Text style={styles.instructionsExample}>
-                Imię i Nazwisko | Email | Telefon | Funkcja{"\n"}
-                Jan Kowalski | jan@example.com | +48 123 456 789 | bauleiter
+                Name | Email | Telefon | Funktion{"\n"}
+                Max Mustermann | max@example.com | +49 123 456 789 | bauleiter
               </Text>
             </View>
           </View>
@@ -1000,7 +1115,7 @@ export default function UsersScreen() {
                   style={styles.searchInput}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
-                  placeholder={t("users.search_placeholder") || "Szukaj po nazwie lub email..."}
+                  placeholder={t("users.search_placeholder") || "Nach Name oder E-Mail suchen..."}
                   placeholderTextColor="#94a3b8"
                 />
                 {searchQuery.length > 0 && (
@@ -1060,14 +1175,16 @@ export default function UsersScreen() {
             </View>
           )}
 
-          <View style={styles.fabRow}>
-            <TouchableOpacity style={[styles.fab, styles.fabSecondary]} onPress={() => setShowImport(true)}>
-              <Ionicons name="cloud-upload-outline" size={24} color="#2563eb" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.fab} onPress={() => setShowAddUser(true)}>
-              <Ionicons name="person-add" size={28} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
+          {canEditUsers && (
+            <View style={styles.fabRow}>
+              <TouchableOpacity style={[styles.fab, styles.fabSecondary]} onPress={() => setShowImport(true)}>
+                <Ionicons name="cloud-upload-outline" size={24} color="#2563eb" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.fab} onPress={() => setShowAddUser(true)}>
+                <Ionicons name="person-add" size={28} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+          )}
         </>
       )}
     </View>

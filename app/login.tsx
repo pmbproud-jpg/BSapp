@@ -1,10 +1,22 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { useTranslation } from "react-i18next";
+import { useLocalSearchParams } from "expo-router";
 import i18n, { setLanguage, SupportedLanguage } from "../src/i18n";
 import { supabase } from "../src/lib/supabase/client";
 
-const REDIRECT_TO = "bsapp://reset-password";
+function getRedirectTo() {
+  // Always use web URL — email link always opens in browser
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    return `${window.location.origin}/reset-password`;
+  }
+  return `${process.env.EXPO_PUBLIC_SITE_URL || "https://bsapp-management.netlify.app"}/reset-password`;
+}
+
+function showMsg(title: string, msg: string) {
+  if (Platform.OS === "web") window.alert(msg);
+  else Alert.alert(title, msg);
+}
 
 function prettyErr(err: any) {
   if (!err) return "";
@@ -13,11 +25,13 @@ function prettyErr(err: any) {
 
 export default function LoginScreen() {
   const { t } = useTranslation();
+  const params = useLocalSearchParams<{ email?: string }>();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(params.email || "");
   const [password, setPassword] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [, force] = useState(0);
 
@@ -29,25 +43,25 @@ export default function LoginScreen() {
       await setLanguage(lang);
       force((x) => x + 1);
     } catch (e: any) {
-      Alert.alert("i18n", prettyErr(e));
+      showMsg("i18n", prettyErr(e));
     }
   }
 
   async function onLogin() {
     const e = email.trim().toLowerCase();
     if (!e || !password) {
-      Alert.alert(t("login.title"), t("common.error"));
+      showMsg(t("login.title"), t("common.error"));
       return;
     }
     setLoginLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({ email: e, password });
       if (error) {
-        Alert.alert(t("login.title"), t("login.invalid"));
+        showMsg(t("login.title"), t("login.invalid"));
         return;
       }
     } catch (e2: any) {
-      Alert.alert(t("login.title"), prettyErr(e2));
+      showMsg(t("login.title"), prettyErr(e2));
     } finally {
       setLoginLoading(false);
     }
@@ -56,19 +70,20 @@ export default function LoginScreen() {
   async function onResetPassword() {
     const e = email.trim().toLowerCase();
     if (!e) {
-      Alert.alert(t("login.resetTitle"), t("login.enterEmail"));
+      showMsg(t("login.resetTitle"), t("login.enterEmail"));
       return;
     }
     setResetLoading(true);
+    const redirectUrl = getRedirectTo();
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(e, { redirectTo: REDIRECT_TO });
-      if (error) {
-        Alert.alert(t("login.resetTitle"), prettyErr(error));
-        return;
-      }
-      Alert.alert(t("login.resetTitle"), t("login.resetSent"));
+      const { error } = await supabase.auth.resetPasswordForEmail(e, {
+        redirectTo: redirectUrl,
+      });
+      if (error) throw error;
+
+      showMsg(t("login.resetTitle"), t("login.resetSent"));
     } catch (e2: any) {
-      Alert.alert(t("login.resetTitle"), prettyErr(e2));
+      showMsg(t("login.resetTitle"), prettyErr(e2));
     } finally {
       setResetLoading(false);
     }
@@ -107,13 +122,21 @@ export default function LoginScreen() {
         style={{ borderWidth: 1, borderColor: "#ccc", padding: 12, borderRadius: 10 }}
       />
 
-      <TextInput
-        placeholder={t("common.password")}
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        style={{ borderWidth: 1, borderColor: "#ccc", padding: 12, borderRadius: 10 }}
-      />
+      <View style={{ position: "relative" }}>
+        <TextInput
+          placeholder={t("common.password")}
+          secureTextEntry={!showPassword}
+          value={password}
+          onChangeText={setPassword}
+          style={{ borderWidth: 1, borderColor: "#ccc", padding: 12, paddingRight: 48, borderRadius: 10 }}
+        />
+        <Pressable
+          onPress={() => setShowPassword(!showPassword)}
+          style={{ position: "absolute", right: 12, top: 0, bottom: 0, justifyContent: "center" }}
+        >
+          <Text style={{ fontSize: 18 }}>{showPassword ? "🙈" : "👁"}</Text>
+        </Pressable>
+      </View>
 
       <Pressable
         onPress={onLogin}

@@ -1,8 +1,11 @@
 ﻿import { Tabs, router } from "expo-router";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { useNotifications } from "@/src/providers/NotificationProvider";
+import { useCompany } from "@/src/providers/CompanyProvider";
 import { useTheme } from "@/src/providers/ThemeProvider";
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from "react-native";
+import { usePermissions } from "@/src/hooks/usePermissions";
+import { useGPSTracking } from "@/src/hooks/useGPSTracking";
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 function AppHeader() {
   const { user, profile, signOut } = useAuth();
   const { unreadCount } = useNotifications();
+  const { companyName, logoUrl } = useCompany();
   const { colors } = useTheme();
   const { t } = useTranslation();
 
@@ -18,8 +22,12 @@ function AppHeader() {
       <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <View style={styles.headerContent}>
           <View style={styles.companySection}>
-            <Ionicons name="business" size={24} color={colors.primary} />
-            <Text style={[styles.companyName, { color: colors.text }]}>Building Solutions GmbH</Text>
+            {logoUrl ? (
+              <Image source={{ uri: logoUrl }} style={{ width: 28, height: 28, borderRadius: 6 }} resizeMode="contain" />
+            ) : (
+              <Ionicons name="business" size={24} color={colors.primary} />
+            )}
+            <Text style={[styles.companyName, { color: colors.text }]}>{companyName}</Text>
           </View>
           <View style={styles.userSection}>
             <View style={styles.userInfo}>
@@ -56,12 +64,13 @@ function AppHeader() {
 
 export default function AppLayout() {
   const { t } = useTranslation();
-  const { profile } = useAuth();
   const { colors } = useTheme();
+  const perms = usePermissions();
   const insets = useSafeAreaInsets();
-  const isAdmin = profile?.role === "admin";
-  const isManagement = profile?.role === "management";
-  const canViewUsers = isAdmin || isManagement;
+  const canViewUsers = perms.canViewUsers || perms.canManageSubcontractor;
+
+  // GPS tracking — sends location if gps_enabled on user's profile
+  useGPSTracking();
 
   const bottomPadding = Math.max(insets.bottom, 8);
 
@@ -128,17 +137,34 @@ export default function AppLayout() {
           href: null,
         }}
       />
-      {canViewUsers && (
-        <Tabs.Screen
-          name="users"
-          options={{
-            title: t("navigation.users"),
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="people" size={size} color={color} />
-            ),
-          }}
-        />
-      )}
+      <Tabs.Screen
+        name="absences"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="components/ProjectPlans"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="components/ResourceCalendar"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="users"
+        options={{
+          title: t("navigation.users"),
+          href: canViewUsers ? "/(app)/users" : null,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people" size={size} color={color} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="settings"
         options={{

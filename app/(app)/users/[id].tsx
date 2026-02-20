@@ -10,6 +10,7 @@ import {
   TextInput,
   Alert,
   Linking,
+  Switch,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -17,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/src/lib/supabase/client";
 import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
 import { useAuth } from "@/src/providers/AuthProvider";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import type { Database } from "@/src/lib/supabase/database.types";
 
 const openLink = (url: string) => {
@@ -50,6 +52,11 @@ const roleColors: Record<string, string> = {
   project_manager: "#3b82f6",
   bauleiter: "#10b981",
   worker: "#64748b",
+  subcontractor: "#8b5cf6",
+  office_worker: "#06b6d4",
+  logistics: "#f97316",
+  purchasing: "#ec4899",
+  warehouse_manager: "#7c3aed",
 };
 
 const roleIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -58,6 +65,11 @@ const roleIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   project_manager: "clipboard",
   bauleiter: "construct",
   worker: "hammer",
+  subcontractor: "people",
+  office_worker: "desktop",
+  logistics: "cube",
+  purchasing: "cart",
+  warehouse_manager: "file-tray-stacked",
 };
 
 const statusColors: Record<string, string> = {
@@ -75,6 +87,7 @@ export default function UserProfileScreen() {
 
   const [user, setUser] = useState<Profile | null>(null);
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [userItems, setUserItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -86,6 +99,27 @@ export default function UserProfileScreen() {
     role: "worker" as string,
   });
 
+  // GPS tracking
+  const [gpsEnabled, setGpsEnabled] = useState(false);
+  const [gpsTogglingLoading, setGpsTogglingLoading] = useState(false);
+  const [lastLocation, setLastLocation] = useState<any>(null);
+  const [locationHistory, setLocationHistory] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyDate, setHistoryDate] = useState(() => new Date().toISOString().split("T")[0]);
+
+  // Absences / Vacation
+  const [absences, setAbsences] = useState<any[]>([]);
+  const [absCalMonth, setAbsCalMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
+  const [absShowForm, setAbsShowForm] = useState(false);
+  const [absType, setAbsType] = useState<string>("vacation");
+  const [absDateFrom, setAbsDateFrom] = useState("");
+  const [absDateTo, setAbsDateTo] = useState("");
+  const [absShowFromPicker, setAbsShowFromPicker] = useState(false);
+  const [absShowToPicker, setAbsShowToPicker] = useState(false);
+  const [absNote, setAbsNote] = useState("");
+  const [absSaving, setAbsSaving] = useState(false);
+  const [vacationDaysTotal, setVacationDaysTotal] = useState(26);
+
   const canEdit =
     currentUser?.role === "admin" ||
     currentUser?.role === "management" ||
@@ -93,6 +127,12 @@ export default function UserProfileScreen() {
 
   const canManageVisibility =
     currentUser?.role === "admin" || currentUser?.role === "management";
+
+  const canManageGPS =
+    currentUser?.role === "admin" || currentUser?.role === "management";
+
+  const canApproveAbsence =
+    currentUser?.role === "admin" || currentUser?.role === "management" || currentUser?.role === "logistics";
 
   const fetchUser = useCallback(async () => {
     if (!id) return;
@@ -112,10 +152,235 @@ export default function UserProfileScreen() {
       });
       setHidePhone(!!(data as any).hide_phone);
       setHideEmail(!!(data as any).hide_email);
+      setGpsEnabled(!!(data as any).gps_enabled);
+      setVacationDaysTotal((data as any).vacation_days_total ?? 26);
     } catch (error) {
       console.error("Error fetching user:", error);
     }
   }, [id]);
+
+  const fetchLastLocation = useCallback(async () => {
+    if (!id) return;
+    try {
+      const { data } = await (supabaseAdmin.from("user_locations") as any)
+        .select("*")
+        .eq("user_id", id)
+        .order("recorded_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        setLastLocation(data);
+      } else {
+        // Fallback: read from profiles.last_latitude/last_longitude
+        const { data: profileData } = await (supabaseAdmin.from("profiles") as any)
+          .select("last_latitude, last_longitude, last_location_at")
+          .eq("id", id)
+          .single();
+        if (profileData?.last_latitude && profileData?.last_longitude) {
+          setLastLocation({
+            latitude: profileData.last_latitude,
+            longitude: profileData.last_longitude,
+            recorded_at: profileData.last_location_at || new Date().toISOString(),
+          });
+        } else {
+          setLastLocation(null);
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching last location:", e);
+    }
+  }, [id]);
+
+  const fetchLocationHistory = useCallback(async (date: string) => {
+    if (!id) return;
+    try {
+      const dayStart = `${date}T00:00:00`;
+      const dayEnd = `${date}T23:59:59`;
+      const { data } = await (supabaseAdmin.from("user_locations") as any)
+        .select("*")
+        .eq("user_id", id)
+        .gte("recorded_at", dayStart)
+        .lte("recorded_at", dayEnd)
+        .order("recorded_at", { ascending: true });
+      setLocationHistory(data || []);
+    } catch (e) {
+      console.error("Error fetching location history:", e);
+      setLocationHistory([]);
+    }
+  }, [id]);
+
+  const toggleGPS = async (value: boolean) => {
+    if (!id) return;
+    setGpsTogglingLoading(true);
+    try {
+      const { error } = await (supabaseAdmin.from("profiles") as any)
+        .update({ gps_enabled: value })
+        .eq("id", id);
+      if (error) throw error;
+      setGpsEnabled(value);
+      const msg = value
+        ? (t("users.gps_enabled") || "GPS-Tracking aktiviert")
+        : (t("users.gps_disabled") || "GPS-Tracking deaktiviert");
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert(t("common.success"), msg);
+    } catch (e) {
+      console.error("Error toggling GPS:", e);
+      const msg = t("common.error");
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert(t("common.error"), msg);
+    } finally {
+      setGpsTogglingLoading(false);
+    }
+  };
+
+  const formatTime = (dateStr: string) => {
+    if (!dateStr) return "";
+    return new Date(dateStr).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  };
+
+  // ── Absences ──
+  const absenceTypes = [
+    { key: "vacation", label: t("users.abs_vacation") || "Urlaub", color: "#ef4444" },
+    { key: "sick_leave", label: t("users.abs_sick") || "Krankmeldung", color: "#f59e0b" },
+    { key: "special_leave", label: t("users.abs_special") || "Sonderurlaub", color: "#8b5cf6" },
+    { key: "training", label: t("users.abs_training") || "Schulung", color: "#3b82f6" },
+    { key: "unexcused", label: t("users.abs_unexcused") || "Unentschuldigt", color: "#64748b" },
+  ];
+
+  const absTypeColor = (type: string) => absenceTypes.find((a) => a.key === type)?.color || "#94a3b8";
+  const absTypeLabel = (type: string) => absenceTypes.find((a) => a.key === type)?.label || type;
+
+  const statusLabel = (s: string) => {
+    if (s === "pending") return t("users.abs_pending") || "Ausstehend";
+    if (s === "approved") return t("users.abs_approved") || "Genehmigt";
+    if (s === "rejected") return t("users.abs_rejected") || "Abgelehnt";
+    return s;
+  };
+  const statusColor = (s: string) => s === "approved" ? "#10b981" : s === "rejected" ? "#ef4444" : "#f59e0b";
+
+  const countWorkdays = (from: string, to: string) => {
+    let count = 0;
+    const d = new Date(from);
+    const end = new Date(to);
+    while (d <= end) {
+      const dow = d.getDay();
+      if (dow !== 0 && dow !== 6) count++;
+      d.setDate(d.getDate() + 1);
+    }
+    return count;
+  };
+
+  const usedVacationDays = absences
+    .filter((a: any) => a.type === "vacation" && a.status !== "rejected")
+    .reduce((sum: number, a: any) => sum + (a.days || 0), 0);
+
+  const fetchAbsences = useCallback(async () => {
+    if (!id) return;
+    try {
+      const { data } = await (supabaseAdmin.from("user_absences") as any)
+        .select("*, approver:profiles!user_absences_approved_by_fkey(full_name)")
+        .eq("user_id", id)
+        .order("date_from", { ascending: false });
+      setAbsences(data || []);
+    } catch (e) {
+      console.error("Error fetching absences:", e);
+      setAbsences([]);
+    }
+  }, [id]);
+
+  const saveAbsence = async () => {
+    if (!id || !absDateFrom || !absDateTo) {
+      const msg = t("users.abs_dates_required") || "Bitte Datum angeben";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+      return;
+    }
+    if (absDateFrom > absDateTo) {
+      const msg = t("users.abs_invalid_range") || "Startdatum muss vor Enddatum liegen";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+      return;
+    }
+    setAbsSaving(true);
+    try {
+      const days = countWorkdays(absDateFrom, absDateTo);
+      const isSickLeave = absType === "sick_leave";
+      await (supabaseAdmin.from("user_absences") as any).insert({
+        user_id: id,
+        type: absType,
+        date_from: absDateFrom,
+        date_to: absDateTo,
+        days,
+        note: absNote.trim() || null,
+        status: isSickLeave ? "approved" : "pending",
+        approved_by: isSickLeave ? currentUser?.id : null,
+        approved_at: isSickLeave ? new Date().toISOString() : null,
+      });
+      setAbsShowForm(false);
+      setAbsDateFrom(""); setAbsDateTo(""); setAbsNote(""); setAbsType("vacation");
+      fetchAbsences();
+      const msg = isSickLeave
+        ? (t("users.abs_saved_approved") || "Abwesenheit eingetragen und genehmigt")
+        : (t("users.abs_saved_pending") || "Antrag eingereicht — wartet auf Genehmigung");
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
+    } catch (e: any) {
+      Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message || "Error");
+    } finally { setAbsSaving(false); }
+  };
+
+  const approveAbsence = async (absId: string) => {
+    try {
+      await (supabaseAdmin.from("user_absences") as any)
+        .update({ status: "approved", approved_by: currentUser?.id, approved_at: new Date().toISOString() })
+        .eq("id", absId);
+      fetchAbsences();
+      const msg = t("users.abs_approved") || "Genehmigt";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
+    } catch (e: any) {
+      Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message);
+    }
+  };
+
+  const rejectAbsence = async (absId: string) => {
+    try {
+      await (supabaseAdmin.from("user_absences") as any)
+        .update({ status: "rejected", approved_by: currentUser?.id, approved_at: new Date().toISOString() })
+        .eq("id", absId);
+      fetchAbsences();
+      const msg = t("users.abs_rejected") || "Abgelehnt";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
+    } catch (e: any) {
+      Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message);
+    }
+  };
+
+  const deleteAbsence = async (absId: string) => {
+    const confirmMsg = t("users.abs_delete_confirm") || "Abwesenheit löschen?";
+    const doDelete = async () => {
+      try {
+        await (supabaseAdmin.from("user_absences") as any).delete().eq("id", absId);
+        fetchAbsences();
+      } catch (e: any) {
+        Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message);
+      }
+    };
+    if (Platform.OS === "web") { if (window.confirm(confirmMsg)) doDelete(); }
+    else Alert.alert(t("common.confirm"), confirmMsg, [{ text: t("common.cancel"), style: "cancel" }, { text: t("common.delete"), style: "destructive", onPress: doDelete }]);
+  };
+
+  // Calendar helper: get days in month with absence markers
+  const getCalendarDays = (monthStr: string) => {
+    const [y, m] = monthStr.split("-").map(Number);
+    const firstDay = new Date(y, m - 1, 1);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const startDow = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; // Monday=0
+    const days: { day: number; date: string; absences: any[] }[] = [];
+    for (let i = 0; i < startDow; i++) days.push({ day: 0, date: "", absences: [] });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const dayAbs = absences.filter((a: any) => a.status !== "rejected" && dateStr >= a.date_from && dateStr <= a.date_to);
+      days.push({ day: d, date: dateStr, absences: dayAbs });
+    }
+    return days;
+  };
 
   const fetchProjects = useCallback(async () => {
     if (!id) return;
@@ -176,14 +441,29 @@ export default function UserProfileScreen() {
     }
   }, [id]);
 
+  const fetchUserItems = useCallback(async () => {
+    if (!id) return;
+    try {
+      const { data, error } = await (supabase.from("warehouse_items") as any)
+        .select("id, iv_pds, beschreibung, serial_nummer, hersteller, menge, status, baustelle, kategorie, art_nr, assigned_to")
+        .eq("assigned_to", id)
+        .order("beschreibung", { ascending: true });
+      if (error) throw error;
+      setUserItems(data || []);
+    } catch (e) {
+      console.error("Error fetching user items:", e);
+      setUserItems([]);
+    }
+  }, [id]);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchUser(), fetchProjects()]);
+      await Promise.all([fetchUser(), fetchProjects(), fetchUserItems(), fetchLastLocation(), fetchAbsences()]);
       setLoading(false);
     };
     load();
-  }, [fetchUser, fetchProjects]);
+  }, [fetchUser, fetchProjects, fetchUserItems, fetchLastLocation]);
 
   const saveProfile = async () => {
     if (!id || !canEdit) return;
@@ -201,12 +481,12 @@ export default function UserProfileScreen() {
 
       setEditing(false);
       fetchUser();
-      const msg = t("users.update_success") || "Profil zaktualizowany";
+      const msg = t("users.update_success") || "Profil aktualisiert";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.success"), msg);
     } catch (error) {
       console.error("Error updating profile:", error);
-      const msg = t("users.update_error") || "Błąd aktualizacji profilu";
+      const msg = t("users.update_error") || "Fehler beim Aktualisieren";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.error"), msg);
     } finally {
@@ -217,7 +497,7 @@ export default function UserProfileScreen() {
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "";
     const d = new Date(dateStr);
-    return d.toLocaleDateString("pl-PL", {
+    return d.toLocaleDateString("de-DE", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -233,7 +513,7 @@ export default function UserProfileScreen() {
       if (error) throw error;
       if (field === "hide_phone") setHidePhone(value);
       else setHideEmail(value);
-      const msg = t("users.visibility_updated") || "Widoczność zaktualizowana";
+      const msg = t("users.visibility_updated") || "Sichtbarkeit aktualisiert";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.success"), msg);
     } catch (e) {
@@ -246,10 +526,15 @@ export default function UserProfileScreen() {
 
   const roles: { key: string; label: string }[] = [
     { key: "admin", label: "Admin" },
-    { key: "management", label: t("common.roles.management") || "Zarząd" },
+    { key: "management", label: t("common.roles.management") || "Geschäftsleitung" },
     { key: "project_manager", label: "PM" },
     { key: "bauleiter", label: "BL" },
-    { key: "worker", label: "Worker" },
+    { key: "office_worker", label: t("common.roles.office_worker") || "Büroangestellter" },
+    { key: "logistics", label: t("common.roles.logistics") || "Logistik" },
+    { key: "purchasing", label: t("common.roles.purchasing") || "Einkauf" },
+    { key: "worker", label: t("common.roles.worker") || "Mitarbeiter" },
+    { key: "subcontractor", label: t("common.roles.subcontractor") || "Subunternehmer" },
+    { key: "warehouse_manager", label: t("common.roles.warehouse_manager") || "Lagerverwalter" },
   ];
 
   if (loading) {
@@ -264,7 +549,7 @@ export default function UserProfileScreen() {
     return (
       <View style={styles.center}>
         <Ionicons name="person-outline" size={48} color="#94a3b8" />
-        <Text style={styles.emptyText}>Użytkownik nie znaleziony</Text>
+        <Text style={styles.emptyText}>{t("users.not_found") || "Benutzer nicht gefunden"}</Text>
       </View>
     );
   }
@@ -279,7 +564,7 @@ export default function UserProfileScreen() {
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {t("users.profile") || "Profil użytkownika"}
+          {t("users.profile") || "Benutzerprofil"}
         </Text>
         {canEdit && !editing && (
           <TouchableOpacity
@@ -288,7 +573,7 @@ export default function UserProfileScreen() {
           >
             <Ionicons name="create-outline" size={20} color="#2563eb" />
             <Text style={styles.editBtnText}>
-              {t("users.edit_profile") || "Edytuj"}
+              {t("users.edit_profile") || "Bearbeiten"}
             </Text>
           </TouchableOpacity>
         )}
@@ -346,13 +631,13 @@ export default function UserProfileScreen() {
       {/* Personal Data Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
-          {t("users.personal_data") || "Dane osobowe"}
+          {t("users.personal_data") || "Persönliche Daten"}
         </Text>
 
         {editing ? (
           <View style={styles.editForm}>
             <Text style={styles.fieldLabel}>
-              {t("users.full_name") || "Imię i Nazwisko"}
+              {t("users.full_name") || "Vollständiger Name"}
             </Text>
             <TextInput
               style={styles.input}
@@ -360,7 +645,7 @@ export default function UserProfileScreen() {
               onChangeText={(v) =>
                 setEditData((prev) => ({ ...prev, full_name: v }))
               }
-              placeholder={t("users.full_name") || "Imię i Nazwisko"}
+              placeholder={t("users.full_name") || "Vollständiger Name"}
             />
 
             <Text style={styles.fieldLabel}>
@@ -377,7 +662,7 @@ export default function UserProfileScreen() {
             />
 
             <Text style={styles.fieldLabel}>
-              {t("users.role") || "Funkcja"}
+              {t("users.role") || "Funktion"}
             </Text>
             <View style={styles.roleSelector}>
               {roles.map((r) => (
@@ -414,7 +699,7 @@ export default function UserProfileScreen() {
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <Text style={styles.saveBtnText}>
-                  {t("users.save") || "Zapisz"}
+                  {t("users.save") || "Speichern"}
                 </Text>
               )}
             </TouchableOpacity>
@@ -424,7 +709,7 @@ export default function UserProfileScreen() {
             <View style={styles.dataRow}>
               <Ionicons name="person-outline" size={18} color="#64748b" />
               <Text style={styles.dataLabel}>
-                {t("users.full_name") || "Imię i Nazwisko"}
+                {t("users.full_name") || "Vollständiger Name"}
               </Text>
               <Text style={styles.dataValue}>
                 {user.full_name || "—"}
@@ -437,19 +722,29 @@ export default function UserProfileScreen() {
               <>
                 <TouchableOpacity
                   style={styles.dataRow}
-                  onPress={() => user.email && openLink(`mailto:${user.email}`)}
-                  activeOpacity={0.6}
+                  onPress={() => user.email && !hideEmail && openLink(`mailto:${user.email}`)}
+                  activeOpacity={user.email && !hideEmail ? 0.6 : 1}
+                  disabled={!user.email || (hideEmail && !canManageVisibility)}
                 >
                   <Ionicons name="mail-outline" size={18} color="#64748b" />
                   <Text style={styles.dataLabel}>Email</Text>
-                  {hideEmail && !canManageVisibility ? (
-                    <Text style={[styles.dataValue, { color: "#94a3b8" }]}>{t("users.hidden") || "Ukryty"}</Text>
+                  {hideEmail ? (
+                    canManageVisibility ? (
+                      <>
+                        <Text style={[styles.dataValue, { color: "#94a3b8" }]}>
+                          {user.email}
+                        </Text>
+                        <Ionicons name="eye-off" size={14} color="#ef4444" style={{ marginLeft: 4 }} />
+                      </>
+                    ) : (
+                      <Text style={[styles.dataValue, { color: "#94a3b8" }]}>{t("users.hidden") || "Versteckt"}</Text>
+                    )
                   ) : (
                     <>
                       <Text style={[styles.dataValue, user.email && styles.linkText]}>
                         {user.email}
                       </Text>
-                      {user.email && <Ionicons name="open-outline" size={14} color="#2563eb" />}
+                      {user.email ? <Ionicons name="open-outline" size={14} color="#2563eb" /> : null}
                     </>
                   )}
                 </TouchableOpacity>
@@ -460,7 +755,7 @@ export default function UserProfileScreen() {
                   >
                     <Ionicons name={hideEmail ? "eye-off" : "eye"} size={16} color={hideEmail ? "#ef4444" : "#10b981"} />
                     <Text style={[styles.visibilityText, { color: hideEmail ? "#ef4444" : "#10b981" }]}>
-                      {hideEmail ? (t("users.email_hidden") || "Email ukryty") : (t("users.email_visible") || "Email widoczny")}
+                      {hideEmail ? (t("users.email_hidden") || "E-Mail versteckt") : (t("users.email_visible") || "E-Mail sichtbar")}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -475,20 +770,29 @@ export default function UserProfileScreen() {
                   style={styles.dataRow}
                   onPress={() => user.phone && !hidePhone && openLink(`tel:${user.phone}`)}
                   activeOpacity={user.phone && !hidePhone ? 0.6 : 1}
-                  disabled={!user.phone || hidePhone}
+                  disabled={!user.phone || (hidePhone && !canManageVisibility)}
                 >
                   <Ionicons name="call-outline" size={18} color="#64748b" />
                   <Text style={styles.dataLabel}>
                     {t("users.phone") || "Telefon"}
                   </Text>
-                  {hidePhone && !canManageVisibility ? (
-                    <Text style={[styles.dataValue, { color: "#94a3b8" }]}>{t("users.hidden") || "Ukryty"}</Text>
+                  {hidePhone ? (
+                    canManageVisibility ? (
+                      <>
+                        <Text style={[styles.dataValue, { color: "#94a3b8" }]}>
+                          {user.phone || "—"}
+                        </Text>
+                        <Ionicons name="eye-off" size={14} color="#ef4444" style={{ marginLeft: 4 }} />
+                      </>
+                    ) : (
+                      <Text style={[styles.dataValue, { color: "#94a3b8" }]}>{t("users.hidden") || "Versteckt"}</Text>
+                    )
                   ) : (
                     <>
                       <Text style={[styles.dataValue, user.phone && styles.linkText]}>
                         {user.phone || "—"}
                       </Text>
-                      {user.phone && <Ionicons name="call" size={14} color="#2563eb" />}
+                      {user.phone ? <Ionicons name="call" size={14} color="#2563eb" /> : null}
                     </>
                   )}
                 </TouchableOpacity>
@@ -499,7 +803,7 @@ export default function UserProfileScreen() {
                   >
                     <Ionicons name={hidePhone ? "eye-off" : "eye"} size={16} color={hidePhone ? "#ef4444" : "#10b981"} />
                     <Text style={[styles.visibilityText, { color: hidePhone ? "#ef4444" : "#10b981" }]}>
-                      {hidePhone ? (t("users.phone_hidden") || "Telefon ukryty") : (t("users.phone_visible") || "Telefon widoczny")}
+                      {hidePhone ? (t("users.phone_hidden") || "Telefon versteckt") : (t("users.phone_visible") || "Telefon sichtbar")}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -510,7 +814,7 @@ export default function UserProfileScreen() {
             <View style={styles.dataRow}>
               <Ionicons name="shield-outline" size={18} color="#64748b" />
               <Text style={styles.dataLabel}>
-                {t("users.role") || "Funkcja"}
+                {t("users.role") || "Funktion"}
               </Text>
               <Text
                 style={[
@@ -526,7 +830,7 @@ export default function UserProfileScreen() {
             <View style={styles.dataRow}>
               <Ionicons name="calendar-outline" size={18} color="#64748b" />
               <Text style={styles.dataLabel}>
-                {t("users.member_since") || "Członek od"}
+                {t("users.member_since") || "Mitglied seit"}
               </Text>
               <Text style={styles.dataValue}>
                 {formatDate(user.created_at)}
@@ -539,14 +843,14 @@ export default function UserProfileScreen() {
       {/* Assigned Projects Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
-          {t("users.assigned_projects") || "Przypisane budowy"}
+          {t("users.assigned_projects") || "Zugewiesene Baustellen"}
         </Text>
 
         {projects.length === 0 ? (
           <View style={styles.emptyProjects}>
             <Ionicons name="business-outline" size={32} color="#cbd5e1" />
             <Text style={styles.emptyProjectsText}>
-              {t("users.no_projects") || "Brak przypisanych budów"}
+              {t("users.no_projects") || "Keine zugewiesenen Baustellen"}
             </Text>
           </View>
         ) : (
@@ -583,21 +887,566 @@ export default function UserProfileScreen() {
                   </Text>
                 </View>
               </View>
-              {project.location && (
+              {project.location ? (
                 <View style={styles.projectLocation}>
                   <Ionicons name="location-outline" size={14} color="#94a3b8" />
                   <Text style={styles.locationText}>{project.location}</Text>
                 </View>
-              )}
-              {project.joined_at && (
+              ) : null}
+              {project.joined_at ? (
                 <Text style={styles.joinedText}>
-                  {t("users.member_since") || "Od"}: {formatDate(project.joined_at)}
+                  {t("users.member_since") || "Seit"}: {formatDate(project.joined_at)}
                 </Text>
-              )}
+              ) : null}
             </TouchableOpacity>
           ))
         )}
       </View>
+
+      {/* Warehouse items on hand */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>
+          {t("users.items_on_hand") || "Auf Lager (Werkzeuge)"}
+        </Text>
+
+        {userItems.length === 0 ? (
+          <View style={styles.emptyProjects}>
+            <Ionicons name="construct-outline" size={32} color="#cbd5e1" />
+            <Text style={styles.emptyProjectsText}>
+              {t("users.no_items") || "Keine Werkzeuge auf Lager"}
+            </Text>
+          </View>
+        ) : (
+          userItems.map((item: any) => (
+            <View key={item.id} style={styles.projectCard}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="construct" size={18} color="#dc2626" />
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#1e293b", flex: 1 }} numberOfLines={1}>
+                  {item.beschreibung || "—"}
+                </Text>
+                {item.menge && (
+                  <View style={{ backgroundColor: "#dc262620", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#dc2626" }}>{item.menge}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 4 }}>
+                {item.iv_pds && <Text style={{ fontSize: 11, color: "#64748b" }}>IV: {item.iv_pds}</Text>}
+                {item.serial_nummer && <Text style={{ fontSize: 11, color: "#64748b" }}>SN: {item.serial_nummer}</Text>}
+                {item.hersteller && <Text style={{ fontSize: 11, color: "#64748b" }}>{item.hersteller}</Text>}
+                {item.kategorie && <Text style={{ fontSize: 11, color: "#64748b" }}>{item.kategorie}</Text>}
+              </View>
+              {item.baustelle && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
+                  <Ionicons name="location-outline" size={12} color="#94a3b8" />
+                  <Text style={{ fontSize: 11, color: "#94a3b8" }}>{item.baustelle}</Text>
+                </View>
+              )}
+            </View>
+          ))
+        )}
+      </View>
+
+      {/* Absences / Vacation Section */}
+      <View style={styles.section}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <Text style={styles.sectionTitle}>
+            <Ionicons name="calendar" size={16} color="#ef4444" />{" "}
+            {t("users.abs_title") || "Abwesenheiten / Urlaub"}
+          </Text>
+          {(canEdit || canApproveAbsence) && !absShowForm && (
+            <TouchableOpacity
+              onPress={() => setAbsShowForm(true)}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#eff6ff", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}
+            >
+              <Ionicons name="add" size={16} color="#2563eb" />
+              <Text style={{ color: "#2563eb", fontWeight: "600", fontSize: 13 }}>{t("users.abs_add") || "Eintragen"}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Vacation days counter */}
+        <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
+          <View style={{ flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#e2e8f0", alignItems: "center" }}>
+            <Text style={{ fontSize: 22, fontWeight: "700", color: "#10b981" }}>{vacationDaysTotal - usedVacationDays}</Text>
+            <Text style={{ fontSize: 11, color: "#64748b" }}>{t("users.abs_remaining") || "Resturlaub"}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#e2e8f0", alignItems: "center" }}>
+            <Text style={{ fontSize: 22, fontWeight: "700", color: "#ef4444" }}>{usedVacationDays}</Text>
+            <Text style={{ fontSize: 11, color: "#64748b" }}>{t("users.abs_used") || "Genommen"}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#e2e8f0", alignItems: "center" }}>
+            <Text style={{ fontSize: 22, fontWeight: "700", color: "#1e293b" }}>{vacationDaysTotal}</Text>
+            <Text style={{ fontSize: 11, color: "#64748b" }}>{t("users.abs_total") || "Gesamt"}</Text>
+          </View>
+        </View>
+
+        {/* Calendar */}
+        <View style={styles.dataCard}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <TouchableOpacity
+              onPress={() => {
+                const [y, m] = absCalMonth.split("-").map(Number);
+                const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+                setAbsCalMonth(prev);
+              }}
+              style={{ padding: 6, backgroundColor: "#f1f5f9", borderRadius: 6 }}
+            >
+              <Ionicons name="chevron-back" size={16} color="#64748b" />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#1e293b" }}>
+              {new Date(absCalMonth + "-01").toLocaleDateString("de-DE", { month: "long", year: "numeric" })}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                const [y, m] = absCalMonth.split("-").map(Number);
+                const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+                setAbsCalMonth(next);
+              }}
+              style={{ padding: 6, backgroundColor: "#f1f5f9", borderRadius: 6 }}
+            >
+              <Ionicons name="chevron-forward" size={16} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+          {/* Day headers */}
+          <View style={{ flexDirection: "row", marginBottom: 4 }}>
+            {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((d) => (
+              <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: "600", color: "#94a3b8" }}>{d}</Text>
+            ))}
+          </View>
+          {/* Day grid */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {getCalendarDays(absCalMonth).map((cell, idx) => {
+              const isToday = cell.date === new Date().toISOString().split("T")[0];
+              const hasAbs = cell.absences.length > 0;
+              const topAbs = cell.absences[0];
+              const dow = (idx % 7);
+              const isWeekend = dow === 5 || dow === 6;
+              return (
+                <View
+                  key={idx}
+                  style={{
+                    width: "14.28%",
+                    height: 36,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    borderRadius: 6,
+                    backgroundColor: hasAbs ? (absTypeColor(topAbs.type) + "20") : isToday ? "#eff6ff" : "transparent",
+                    borderWidth: isToday ? 2 : 0,
+                    borderColor: isToday ? "#2563eb" : "transparent",
+                  }}
+                >
+                  {cell.day > 0 && (
+                    <>
+                      <Text style={{ fontSize: 13, fontWeight: isToday ? "700" : "500", color: hasAbs ? absTypeColor(topAbs.type) : isWeekend ? "#94a3b8" : "#1e293b" }}>
+                        {cell.day}
+                      </Text>
+                      {hasAbs && (
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: absTypeColor(topAbs.type), marginTop: 1 }} />
+                      )}
+                    </>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+          {/* Legend */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#f1f5f9" }}>
+            {absenceTypes.map((at) => (
+              <View key={at.key} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: at.color }} />
+                <Text style={{ fontSize: 10, color: "#64748b" }}>{at.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Add absence form */}
+        {absShowForm && (
+          <View style={[styles.dataCard, { marginTop: 12, borderColor: "#2563eb", borderWidth: 2 }]}>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#1e293b", marginBottom: 10 }}>
+              {t("users.abs_new") || "Neue Abwesenheit"}
+            </Text>
+            {/* Type selector */}
+            <Text style={{ fontSize: 12, fontWeight: "600", color: "#64748b", marginBottom: 6 }}>{t("users.abs_type") || "Typ"}</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {absenceTypes.map((at) => (
+                <TouchableOpacity
+                  key={at.key}
+                  onPress={() => setAbsType(at.key)}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
+                    backgroundColor: absType === at.key ? at.color : "#f8fafc",
+                    borderWidth: 1, borderColor: absType === at.key ? at.color : "#e2e8f0",
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: absType === at.key ? "#fff" : "#64748b" }}>{at.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {/* Date inputs */}
+            <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#64748b", marginBottom: 4 }}>{t("users.abs_from") || "Von"}</Text>
+                {Platform.OS === "web" ? (
+                  <input
+                    type="date"
+                    value={absDateFrom}
+                    onChange={(e: any) => setAbsDateFrom(e.target.value)}
+                    style={{ padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 14, backgroundColor: "#f8fafc", color: "#1e293b", width: "100%", boxSizing: "border-box" as any }}
+                  />
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      onPress={() => setAbsShowFromPicker(true)}
+                      style={[styles.input, { justifyContent: "center", flexDirection: "row", alignItems: "center", gap: 6 }]}
+                    >
+                      <Ionicons name="calendar-outline" size={16} color="#2563eb" />
+                      <Text style={{ color: absDateFrom ? "#1e293b" : "#94a3b8", fontSize: 14, flex: 1 }}>
+                        {absDateFrom ? new Date(absDateFrom).toLocaleDateString("de-DE") : t("common.select_date") || "Datum wählen"}
+                      </Text>
+                    </TouchableOpacity>
+                    {absShowFromPicker && (
+                      <DateTimePicker
+                        value={absDateFrom ? new Date(absDateFrom) : new Date()}
+                        mode="date"
+                        display="default"
+                        onChange={(_: any, date?: Date) => {
+                          setAbsShowFromPicker(false);
+                          if (date) setAbsDateFrom(date.toISOString().split("T")[0]);
+                        }}
+                      />
+                    )}
+                  </>
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#64748b", marginBottom: 4 }}>{t("users.abs_to") || "Bis"}</Text>
+                {Platform.OS === "web" ? (
+                  <input
+                    type="date"
+                    value={absDateTo}
+                    onChange={(e: any) => setAbsDateTo(e.target.value)}
+                    style={{ padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 14, backgroundColor: "#f8fafc", color: "#1e293b", width: "100%", boxSizing: "border-box" as any }}
+                  />
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      onPress={() => setAbsShowToPicker(true)}
+                      style={[styles.input, { justifyContent: "center", flexDirection: "row", alignItems: "center", gap: 6 }]}
+                    >
+                      <Ionicons name="calendar-outline" size={16} color="#2563eb" />
+                      <Text style={{ color: absDateTo ? "#1e293b" : "#94a3b8", fontSize: 14, flex: 1 }}>
+                        {absDateTo ? new Date(absDateTo).toLocaleDateString("de-DE") : t("common.select_date") || "Datum wählen"}
+                      </Text>
+                    </TouchableOpacity>
+                    {absShowToPicker && (
+                      <DateTimePicker
+                        value={absDateTo ? new Date(absDateTo) : new Date()}
+                        mode="date"
+                        display="default"
+                        onChange={(_: any, date?: Date) => {
+                          setAbsShowToPicker(false);
+                          if (date) setAbsDateTo(date.toISOString().split("T")[0]);
+                        }}
+                      />
+                    )}
+                  </>
+                )}
+              </View>
+            </View>
+            {absDateFrom && absDateTo && absDateFrom <= absDateTo && (
+              <Text style={{ fontSize: 12, color: "#2563eb", fontWeight: "600", marginBottom: 8 }}>
+                = {countWorkdays(absDateFrom, absDateTo)} {t("users.abs_workdays") || "Arbeitstage"}
+              </Text>
+            )}
+            {/* Note */}
+            <Text style={{ fontSize: 12, fontWeight: "600", color: "#64748b", marginBottom: 4 }}>{t("users.abs_note") || "Notiz"}</Text>
+            <TextInput
+              style={[styles.input, { minHeight: 40, textAlignVertical: "top" }]}
+              value={absNote}
+              onChangeText={setAbsNote}
+              placeholder={t("users.abs_note_placeholder") || "Optional..."}
+              placeholderTextColor="#94a3b8"
+              multiline
+            />
+            {/* Buttons */}
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+              <TouchableOpacity
+                onPress={() => { setAbsShowForm(false); setAbsDateFrom(""); setAbsDateTo(""); setAbsNote(""); }}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: "#e2e8f0", alignItems: "center" }}
+              >
+                <Text style={{ color: "#64748b", fontWeight: "600" }}>{t("common.cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={saveAbsence}
+                disabled={absSaving}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "#2563eb", alignItems: "center", opacity: absSaving ? 0.6 : 1 }}
+              >
+                {absSaving ? <ActivityIndicator size="small" color="#fff" /> : (
+                  <Text style={{ color: "#fff", fontWeight: "600" }}>{t("common.save")}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Absence list */}
+        {absences.length > 0 && (
+          <View style={{ marginTop: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: "#64748b", marginBottom: 8 }}>
+              {t("users.abs_list") || "Einträge"} ({absences.length})
+            </Text>
+            {absences.map((a: any) => (
+              <View key={a.id} style={{ backgroundColor: "#fff", borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: a.status === "pending" ? "#f59e0b" : "#e2e8f0", borderLeftWidth: 4, borderLeftColor: absTypeColor(a.type) }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: absTypeColor(a.type) }}>{absTypeLabel(a.type)}</Text>
+                    <View style={{ backgroundColor: statusColor(a.status) + "20", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: statusColor(a.status) }}>{statusLabel(a.status)}</Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#1e293b" }}>{a.days} {t("users.abs_days") || "Tage"}</Text>
+                </View>
+                <Text style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                  {new Date(a.date_from).toLocaleDateString("de-DE")} — {new Date(a.date_to).toLocaleDateString("de-DE")}
+                </Text>
+                {a.note && <Text style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", marginTop: 4 }}>{a.note}</Text>}
+                {a.approver?.full_name && a.status !== "pending" && (
+                  <Text style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>
+                    {a.status === "approved" ? "✓" : "✗"} {a.approver.full_name} · {a.approved_at ? new Date(a.approved_at).toLocaleDateString("de-DE") : ""}
+                  </Text>
+                )}
+                {/* Actions */}
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                  {canApproveAbsence && a.status === "pending" && (
+                    <>
+                      <TouchableOpacity
+                        onPress={() => approveAbsence(a.id)}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#ecfdf5", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}
+                      >
+                        <Ionicons name="checkmark-circle" size={14} color="#10b981" />
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#10b981" }}>{t("users.abs_approve") || "Genehmigen"}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => rejectAbsence(a.id)}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#fef2f2", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}
+                      >
+                        <Ionicons name="close-circle" size={14} color="#ef4444" />
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#ef4444" }}>{t("users.abs_reject") || "Ablehnen"}</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  {(canEdit || canApproveAbsence) && (
+                    <TouchableOpacity
+                      onPress={() => deleteAbsence(a.id)}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 6 }}
+                    >
+                      <Ionicons name="trash-outline" size={14} color="#94a3b8" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* GPS Tracking Section */}
+      {canManageGPS && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            <Ionicons name="navigate" size={16} color="#2563eb" />{" "}
+            {t("users.gps_tracking") || "GPS-Tracking"}
+          </Text>
+
+          <View style={styles.dataCard}>
+            {/* Toggle GPS */}
+            <View style={[styles.dataRow, { justifyContent: "space-between" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                <Ionicons name="location" size={18} color={gpsEnabled ? "#10b981" : "#94a3b8"} />
+                <Text style={[styles.dataLabel, { flex: 0, marginRight: 8 }]}>
+                  {t("users.gps_tracking_label") || "GPS-Tracking"}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={{ fontSize: 12, color: gpsEnabled ? "#10b981" : "#ef4444", fontWeight: "600" }}>
+                  {gpsEnabled ? (t("users.gps_on") || "Aktiv") : (t("users.gps_off") || "Inaktiv")}
+                </Text>
+                {gpsTogglingLoading ? (
+                  <ActivityIndicator size="small" color="#2563eb" />
+                ) : (
+                  <Switch
+                    value={gpsEnabled}
+                    onValueChange={toggleGPS}
+                    trackColor={{ false: "#e2e8f0", true: "#86efac" }}
+                    thumbColor={gpsEnabled ? "#10b981" : "#94a3b8"}
+                  />
+                )}
+              </View>
+            </View>
+
+            {gpsEnabled && (
+              <>
+                <View style={styles.separator} />
+
+                {/* Current location */}
+                {lastLocation ? (
+                  <View style={{ paddingVertical: 10 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                      <Ionicons name="pin" size={16} color="#2563eb" />
+                      <Text style={{ marginLeft: 6, fontSize: 13, fontWeight: "600", color: "#1e293b" }}>
+                        {t("users.last_location") || "Letzte Position"}
+                      </Text>
+                      <Text style={{ marginLeft: "auto", fontSize: 11, color: "#64748b" }}>
+                        {formatTime(lastLocation.recorded_at)} · {formatDate(lastLocation.recorded_at)}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
+                      {lastLocation.latitude.toFixed(6)}, {lastLocation.longitude.toFixed(6)}
+                      {lastLocation.accuracy ? ` (±${Math.round(lastLocation.accuracy)}m)` : ""}
+                    </Text>
+                    {Platform.OS === "web" && (
+                      <View style={{ borderRadius: 10, overflow: "hidden", height: 220, borderWidth: 1, borderColor: "#e2e8f0" }}>
+                        <iframe
+                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${lastLocation.longitude - 0.005},${lastLocation.latitude - 0.003},${lastLocation.longitude + 0.005},${lastLocation.latitude + 0.003}&layer=mapnik&marker=${lastLocation.latitude},${lastLocation.longitude}`}
+                          style={{ width: "100%", height: "100%", border: "none" } as any}
+                        />
+                      </View>
+                    )}
+                    {Platform.OS !== "web" && (
+                      <TouchableOpacity
+                        style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#eff6ff", padding: 10, borderRadius: 8 }}
+                        onPress={() => Linking.openURL(`https://www.google.com/maps?q=${lastLocation.latitude},${lastLocation.longitude}`)}
+                      >
+                        <Ionicons name="map" size={16} color="#2563eb" />
+                        <Text style={{ color: "#2563eb", fontWeight: "600", fontSize: 13 }}>
+                          {t("users.open_in_maps") || "In Google Maps öffnen"}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ) : (
+                  <View style={{ paddingVertical: 16, alignItems: "center" }}>
+                    <Ionicons name="location-outline" size={32} color="#cbd5e1" />
+                    <Text style={{ fontSize: 13, color: "#94a3b8", marginTop: 6 }}>
+                      {t("users.no_location") || "Keine Position verfügbar"}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.separator} />
+
+                {/* History toggle */}
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 8 }}
+                  onPress={() => {
+                    if (!showHistory) {
+                      setShowHistory(true);
+                      fetchLocationHistory(historyDate);
+                    } else {
+                      setShowHistory(false);
+                    }
+                  }}
+                >
+                  <Ionicons name="time" size={18} color="#f59e0b" />
+                  <Text style={{ flex: 1, fontSize: 14, fontWeight: "600", color: "#1e293b" }}>
+                    {t("users.location_history") || "Standortverlauf"}
+                  </Text>
+                  <Ionicons name={showHistory ? "chevron-up" : "chevron-down"} size={18} color="#64748b" />
+                </TouchableOpacity>
+
+                {showHistory && (
+                  <View style={{ paddingBottom: 10 }}>
+                    {/* Date picker */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const d = new Date(historyDate);
+                          d.setDate(d.getDate() - 1);
+                          const newDate = d.toISOString().split("T")[0];
+                          setHistoryDate(newDate);
+                          fetchLocationHistory(newDate);
+                        }}
+                        style={{ padding: 6, backgroundColor: "#f1f5f9", borderRadius: 6 }}
+                      >
+                        <Ionicons name="chevron-back" size={16} color="#64748b" />
+                      </TouchableOpacity>
+                      <Text style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: "600", color: "#1e293b" }}>
+                        {new Date(historyDate).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const d = new Date(historyDate);
+                          d.setDate(d.getDate() + 1);
+                          const newDate = d.toISOString().split("T")[0];
+                          setHistoryDate(newDate);
+                          fetchLocationHistory(newDate);
+                        }}
+                        style={{ padding: 6, backgroundColor: "#f1f5f9", borderRadius: 6 }}
+                      >
+                        <Ionicons name="chevron-forward" size={16} color="#64748b" />
+                      </TouchableOpacity>
+                    </View>
+
+                    {locationHistory.length === 0 ? (
+                      <View style={{ alignItems: "center", paddingVertical: 12 }}>
+                        <Ionicons name="location-outline" size={24} color="#cbd5e1" />
+                        <Text style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
+                          {t("users.no_history") || "Keine Daten für diesen Tag"}
+                        </Text>
+                      </View>
+                    ) : (
+                      <>
+                        <Text style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>
+                          {locationHistory.length} {t("users.entries") || "Einträge"}
+                        </Text>
+                        <ScrollView nestedScrollEnabled style={{ maxHeight: 250 }}>
+                          {locationHistory.map((loc: any, idx: number) => (
+                            <View
+                              key={loc.id || idx}
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                paddingVertical: 6,
+                                paddingHorizontal: 8,
+                                borderBottomWidth: 1,
+                                borderBottomColor: "#f1f5f9",
+                                gap: 8,
+                              }}
+                            >
+                              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#2563eb" }} />
+                              <Text style={{ fontSize: 12, fontWeight: "600", color: "#1e293b", width: 65 }}>
+                                {formatTime(loc.recorded_at)}
+                              </Text>
+                              <Text style={{ fontSize: 11, color: "#64748b", flex: 1 }}>
+                                {loc.latitude.toFixed(5)}, {loc.longitude.toFixed(5)}
+                              </Text>
+                              {loc.speed != null && loc.speed > 0 && (
+                                <Text style={{ fontSize: 10, color: "#f59e0b" }}>
+                                  {(loc.speed * 3.6).toFixed(0)} km/h
+                                </Text>
+                              )}
+                              {Platform.OS === "web" && (
+                                <TouchableOpacity
+                                  onPress={() => window.open(`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`, "_blank")}
+                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                >
+                                  <Ionicons name="open-outline" size={14} color="#2563eb" />
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                          ))}
+                        </ScrollView>
+                      </>
+                    )}
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        </View>
+      )}
 
       <View style={{ height: 40 }} />
     </ScrollView>

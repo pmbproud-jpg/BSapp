@@ -1,0 +1,24 @@
+# Zasady pracy
+
+## Przed każdą zmianą:
+- Przeczytaj i zrozum istniejący kod w plikach, które chcesz modyfikować
+- Zrozum architekturę projektu zanim zaczniesz pisać kod
+- Zapytaj jeśli czegoś nie rozumiesz, zamiast zgadywać
+
+## Podczas pisania kodu:
+- Nie usuwaj ani nie zmieniaj istniejącej funkcjonalności, chyba że wyraźnie o to poproszę
+- Nie twórz zduplikowanego kodu - używaj istniejących funkcji i komponentów
+- Każda zmiana musi być kompletna - nie zostawiaj TODO, placeholderów ani niedokończonego kodu
+- Testuj logicznie czy Twoje zmiany nie psują innych części aplikacji
+- Zachowuj spójność z istniejącym stylem kodu
+
+## Po każdej zmianie:
+- Podsumuj CO dokładnie zmieniłeś i DLACZEGO
+- Wymień pliki które zmodyfikowałeś
+- Wskaż potencjalne ryzyka
+
+## Czego NIE robić:
+- Nie zmieniaj plików, o które nie prosiłem
+- Nie "poprawiaj" kodu który działa, chyba że o to poproszę
+- Nie instaluj nowych zależności bez mojej zgody
+- Nie usuwaj komentarzy ani konfiguracji

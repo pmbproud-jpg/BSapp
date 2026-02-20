@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BSapp — Instrukcja obsługi</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #1e293b;
+    line-height: 1.6;
+    background: #fff;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 32px;
+  }
+
+  @media print {
+    body { padding: 20px; max-width: 100%; }
+    .page-break { page-break-before: always; }
+    .no-print { display: none; }
+    h2 { page-break-after: avoid; }
+    .section { page-break-inside: avoid; }
+  }
+
+  /* Cover */
+  .cover {
+    text-align: center;
+    padding: 80px 0 60px;
+    border-bottom: 3px solid #2563eb;
+    margin-bottom: 40px;
+  }
+  .cover-icon { font-size: 64px; margin-bottom: 16px; }
+  .cover h1 { font-size: 42px; font-weight: 800; color: #2563eb; margin-bottom: 8px; }
+  .cover .subtitle { font-size: 20px; color: #64748b; font-weight: 500; }
+  .cover .version { font-size: 14px; color: #94a3b8; margin-top: 24px; }
+
+  /* TOC */
+  .toc { margin-bottom: 40px; }
+  .toc h2 { font-size: 22px; font-weight: 700; color: #1e293b; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+  .toc ol { padding-left: 24px; }
+  .toc li { margin-bottom: 6px; font-size: 15px; }
+  .toc a { color: #2563eb; text-decoration: none; font-weight: 500; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Sections */
+  h2 {
+    font-size: 24px;
+    font-weight: 800;
+    color: #fff;
+    background: #2563eb;
+    padding: 12px 20px;
+    border-radius: 10px;
+    margin: 40px 0 20px;
+  }
+  h2 .num { 
+    display: inline-block;
+    background: rgba(255,255,255,0.25);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 32px;
+    font-size: 16px;
+    margin-right: 10px;
+  }
+
+  h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 20px 0 10px;
+    padding-left: 12px;
+    border-left: 4px solid #2563eb;
+  }
+
+  h4 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #475569;
+    margin: 14px 0 6px;
+  }
+
+  p { margin-bottom: 10px; font-size: 14px; color: #334155; }
+
+  ul, ol { padding-left: 24px; margin-bottom: 12px; }
+  li { margin-bottom: 4px; font-size: 14px; color: #334155; }
+
+  .tip {
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 12px 0;
+    font-size: 13px;
+    color: #1e40af;
+  }
+  .tip::before { content: "💡 "; }
+
+  .warning {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 12px 0;
+    font-size: 13px;
+    color: #92400e;
+  }
+  .warning::before { content: "⚠️ "; }
+
+  .important {
+    background: #fef2f2;
+    border-left: 4px solid #ef4444;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 12px 0;
+    font-size: 13px;
+    color: #991b1b;
+  }
+  .important::before { content: "❗ "; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  th {
+    background: #f1f5f9;
+    font-weight: 700;
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+  }
+  td {
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+  }
+  tr:nth-child(even) td { background: #f8fafc; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .badge-blue { background: #2563eb; }
+  .badge-green { background: #10b981; }
+  .badge-yellow { background: #f59e0b; }
+  .badge-red { background: #ef4444; }
+  .badge-purple { background: #8b5cf6; }
+  .badge-gray { background: #64748b; }
+
+  .steps {
+    counter-reset: step;
+    list-style: none;
+    padding-left: 0;
+  }
+  .steps li {
+    counter-increment: step;
+    padding: 10px 16px 10px 48px;
+    position: relative;
+    margin-bottom: 8px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 12px;
+    top: 10px;
+    width: 26px;
+    height: 26px;
+    background: #2563eb;
+    color: #fff;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 26px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .role-card {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    margin: 2px 4px 2px 0;
+  }
+
+  .footer {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 2px solid #e2e8f0;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 12px;
+  }
+
+  .icon { font-size: 18px; vertical-align: middle; margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ COVER ═══════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-icon">🏗️</div>
+  <h1>BSapp</h1>
+  <div class="subtitle">Instrukcja obsługi aplikacji</div>
+  <p style="color:#64748b; margin-top:12px; font-size:16px;">Zarządzanie budowami, pracownikami i logistyką</p>
+  <div class="version">Wersja 1.0 • Luty 2026</div>
+</div>
+
+<!-- ═══════════════════════════════════════ TOC ═══════════════════════════════════════ -->
+<div class="toc">
+  <h2>📋 Spis treści</h2>
+  <ol>
+    <li><a href="#s1">Logowanie i nawigacja</a></li>
+    <li><a href="#s2">Dashboard — Pulpit główny</a></li>
+    <li><a href="#s3">Projekty (Budowy)</a></li>
+    <li><a href="#s4">Zadania</a></li>
+    <li><a href="#s5">Plan tygodniowy</a></li>
+    <li><a href="#s6">Urlopy i nieobecności</a></li>
+    <li><a href="#s7">Magazyn</a></li>
+    <li><a href="#s8">Użytkownicy</a></li>
+    <li><a href="#s9">Powiadomienia</a></li>
+    <li><a href="#s10">Ustawienia</a></li>
+    <li><a href="#s11">Role i uprawnienia</a></li>
+    <li><a href="#s12">GPS Tracking</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════ 1. LOGOWANIE ═══════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2 id="s1"><span class="num">1</span> Logowanie i nawigacja</h2>
+
+<h3>Logowanie</h3>
+<ol class="steps">
+  <li>Otwórz aplikację BSapp na telefonie lub w przeglądarce.</li>
+  <li>Wpisz swój <strong>adres e-mail</strong> i <strong>hasło</strong>.</li>
+  <li>Kliknij <strong>„Zaloguj się"</strong>.</li>
+  <li>Po zalogowaniu zobaczysz <strong>Dashboard</strong> (pulpit główny).</li>
+</ol>
+
+<h3>Nawigacja — dolny pasek</h3>
+<p>Na dole ekranu znajdują się 4 zakładki:</p>
+<table>
+  <tr><th>Ikona</th><th>Nazwa</th><th>Opis</th></tr>
+  <tr><td>🏠</td><td><strong>Dashboard</strong></td><td>Pulpit główny ze statystykami i skrótami</td></tr>
+  <tr><td>💼</td><td><strong>Projekty</strong></td><td>Lista wszystkich budów/projektów</td></tr>
+  <tr><td>👥</td><td><strong>Użytkownicy</strong></td><td>Lista pracowników (tylko admin/zarząd/PM)</td></tr>
+  <tr><td>⚙️</td><td><strong>Ustawienia</strong></td><td>Profil, język, motyw, uprawnienia</td></tr>
+</table>
+
+<h3>Nagłówek</h3>
+<p>Na górze ekranu widoczne są:</p>
+<ul>
+  <li><strong>Logo i nazwa firmy</strong></li>
+  <li><strong>Imię i rola</strong> zalogowanego użytkownika</li>
+  <li><strong>🔔 Dzwonek</strong> — powiadomienia (czerwona kropka = nowe)</li>
+  <li><strong>🚪 Wyloguj</strong> — wylogowanie z aplikacji</li>
+</ul>
+
+<!-- ═══════════════════════════════════════ 2. DASHBOARD ═══════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2 id="s2"><span class="num">2</span> Dashboard — Pulpit główny</h2>
+
+<p>Dashboard to główny ekran aplikacji. Pokazuje podsumowanie i szybki dostęp do najważniejszych funkcji.</p>
+
+<h3>Karty statystyk</h3>
+<p>Na górze widoczne są 3 karty:</p>
+<table>
+  <tr><th>Karta</th><th>Co pokazuje</th></tr>
+  <tr><td>💼 <strong>Aktywne projekty</strong></td><td>Liczba budów w statusie „aktywna" lub „planowanie"</td></tr>
+  <tr><td>⏳ <strong>Oczekujące zadania</strong></td><td>Zadania do zrobienia lub w trakcie</td></tr>
+  <tr><td>✅ <strong>Ukończone zadania</strong></td><td>Zadania ze statusem „ukończone"</td></tr>
+</table>
+
+<h3>Wskaźnik ukończenia</h3>
+<p>Okrągły wykres pokazujący procent ukończonych zadań w stosunku do wszystkich.</p>
+
+<h3>Przyciski szybkiego dostępu</h3>
+<table>
+  <tr><th>Przycisk</th><th>Kolor</th><th>Dokąd prowadzi</th></tr>
+  <tr><td>📅 <strong>Plan tygodniowy</strong></td><td><span class="badge badge-blue">niebieski</span></td><td>Planowanie tygodnia — przypisania pracowników</td></tr>
+  <tr><td>🗓️ <strong>Urlopy</strong></td><td><span class="badge badge-yellow">żółty</span></td><td>Wnioski urlopowe do akceptacji</td></tr>
+  <tr><td>📦 <strong>Magazyn</strong></td><td><span class="badge badge-red">czerwony</span></td><td>Zarządzanie magazynem</td></tr>
+</table>
+
+<div class="tip">Przy przycisku <strong>Urlopy</strong> pojawia się czerwona liczba — to ilość wniosków oczekujących na akceptację.</div>
+
+<h3>Szybkie akcje</h3>
+<ul>
+  <li><strong>Dodaj projekt</strong> — tworzenie nowej budowy</li>
+  <li><strong>Zobacz projekty</strong> — lista wszystkich budów</li>
+  <li><strong>Użytkownicy</strong> — lista pracowników</li>
+</ul>
+
+<h3>Zadania wg projektu</h3>
+<p>Na dole dashboardu znajduje się lista projektów z paskami postępu zadań. Można wyszukiwać i sortować po nazwie lub numerze budowy.</p>
+
+<!-- ═══════════════════════════════════════ 3. PROJEKTY ═══════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2 id="s3"><span class="num">3</span> Projekty (Budowy)</h2>
+
+<h3>Lista projektów</h3>
+<p>Zakładka <strong>Projekty</strong> pokazuje wszystkie budowy. Możesz:</p>
+<ul>
+  <li><strong>Wyszukiwać</strong> po nazwie lub numerze budowy</li>
+  <li><strong>Filtrować</strong> po statusie (aktywne, planowanie, ukończone, wstrzymane)</li>
+  <li>Kliknąć na projekt, żeby zobaczyć szczegóły</li>
+</ul>
+
+<h3>Tworzenie nowego projektu</h3>
+<ol class="steps">
+  <li>Kliknij <strong>„+ Dodaj projekt"</strong> (na dashboardzie lub w liście projektów).</li>
+  <li>Wypełnij dane: <strong>nazwa, numer budowy, lokalizacja, opis</strong>.</li>
+  <li>Wybierz <strong>kierownika projektu (PM)</strong> i <strong>Bauleitera (BL)</strong>.</li>
+  <li>Kliknij <strong>„Zapisz"</strong>.</li>
+</ol>
+
+<h3>Szczegóły projektu</h3>
+<p>Po kliknięciu na projekt widzisz:</p>
+<table>
+  <tr><th>Sekcja</th><th>Opis</th></tr>
+  <tr><td><strong>Informacje</strong></td><td>Nazwa, numer, lokalizacja, status, PM, BL</td></tr>
+  <tr><td><strong>Zespół</strong></td><td>Lista przypisanych pracowników z rolami</td></tr>
+  <tr><td><strong>Zadania</strong></td><td>Lista zadań z filtrami (wszystkie/moje/do zrobienia)</td></tr>
+  <tr><td><strong>Plany budowlane</strong></td><td>Zdjęcia planów z pinami (znacznikami)</td></tr>
+  <tr><td><strong>Załączniki</strong></td><td>Pliki, zdjęcia, dokumenty w folderach</td></tr>
+</table>
+
+<h4>Plany budowlane</h4>
+<ol class="steps">
+  <li>Wejdź w projekt → zakładka <strong>„Plany"</strong>.</li>
+  <li>Dodaj plan (zdjęcie/plik).</li>
+  <li>Kliknij <strong>„Dodaj pin"</strong> i kliknij na plan, żeby postawić znacznik.</li>
+  <li>Wpisz opis pina i zapisz.</li>
+  <li>Piny widoczne są jako kolorowe kropki na planie.</li>
+</ol>
+
+<!-- ═══════════════════════════════════════ 4. ZADANIA ═══════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2 id="s4"><span class="num">4</span> Zadania</h2>
+
+<p>Zadania są zawsze powiązane z konkretnym projektem. Dostęp do nich jest z poziomu szczegółów projektu.</p>
+
+<h3>Tworzenie zadania</h3>
+<ol class="steps">
+  <li>Wejdź w projekt.</li>
+  <li>Kliknij <strong>„+ Dodaj zadanie"</strong>.</li>
+  <li>Wypełnij: <strong>tytuł, opis, priorytet, termin</strong>.</li>
+  <li>Przypisz <strong>pracownika</strong> (lub kilku).</li>
+  <li>Kliknij <strong>„Utwórz"</strong>.</li>
+  <li>Opcjonalnie dodaj <strong>załączniki</strong> (zdjęcia, pliki).</li>
+</ol>
+
+<h3>Statusy zadań</h3>
+<table>
+  <tr><th>Status</th><th>Znaczenie</th><th>Kolor</th></tr>
+  <tr><td><strong>Do zrobienia</strong></td><td>Zadanie czeka na rozpoczęcie</td><td><span class="badge badge-yellow">żółty</span></td></tr>
+  <tr><td><strong>W trakcie</strong></td><td>Ktoś pracuje nad zadaniem</td><td><span class="badge badge-blue">niebieski</span></td></tr>
+  <tr><td><strong>Ukończone</strong></td><td>Zadanie wykonane</td><td><span class="badge badge-green">zielony</span></td></tr>
+  <tr><td><strong>Zablokowane</strong></td><td>Zadanie nie może być kontynuowane</td><td><span class="badge badge-red">czerwony</span></td></tr>
+</table>
+
+<h3>Szczegóły zadania</h3>
+<p>Po kliknięciu na zadanie możesz:</p>
+<ul>
+  <li>Zmienić <strong>status</strong> (kliknij na aktualny status)</li>
+  <li>Edytować <strong>tytuł, opis, priorytet, termin</strong></li>
+  <li>Dodać <strong>komentarz</strong></li>
+  <li>Dodać <strong>załączniki</strong> (zdjęcia z aparatu, galerii lub pliki)</li>
+  <li>Zmienić <strong>przypisanego pracownika</strong></li>
+</ul>
+
+<!-- ═══════════════════════════════════════ 5. PLAN TYGODNIOWY ═══════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2 id="s5"><span class="num">5</span> Plan tygodniowy</h2>
+
+<p>Plan tygodniowy służy do planowania przypisań pracowników do budów na każdy dzień tygodnia.</p>
+
+<h3>Dostęp</h3>
+<p>Dashboard → przycisk <strong>„Plan tygodniowy"</strong> (niebieski).</p>
+
+<h3>Nawigacja po tygodniach</h3>
+<p>Strzałki <strong>◀ ▶</strong> przełączają między tygodniami. Wyświetlany jest zakres dat (np. 17.02 – 23.02).</p>
+
+<h3>Zakładki</h3>
+<table>
+  <tr><th>Zakładka</th><th>Opis</th></tr>
+  <tr><td><strong>Wochenplan</strong></td><td>Siatka dni + przypisania + pojazdy</td></tr>
+  <tr><td><strong>Bedarf</strong></td><td>Zamówienia BL — zapotrzebowanie na pracowników</td></tr>
+  <tr><td><strong>Kalender</strong></td><td>Widok kalendarza</td></tr>
+</table>
+
+<h3>Siatka dni</h3>
+<p>Każdy dzień tygodnia (Pon–Ndz) pokazuje:</p>
+<ul>
+  <li><strong>Niebieska liczba</strong> — ilość przypisań na ten dzień</li>
+  <li><strong>Czerwona liczba z ✗</strong> — ilość nieobecnych pracowników</li>
+</ul>
+<p>Kliknij na dzień, żeby zobaczyć szczegóły.</p>
+
+<h3>Widok dnia</h3>
+<p>Po kliknięciu na dzień widzisz:</p>
+
+<h4>🚗 Pojazdy</h4>
+<p>Lista pojazdów z liczbą zajętych miejsc. Możesz dodawać, edytować i usuwać pojazdy.</p>
+
+<h4>🔴 Nieobecności</h4>
+<p>Czerwona karta z listą pracowników nieobecnych tego dnia (urlopy zaakceptowane + zwolnienia lekarskie). Każdy wpis pokazuje typ nieobecności kolorowym badge'em.</p>
+
+<h4>📋 Przypisania</h4>
+<p>Lista przypisań pogrupowana wg projektu. Każde przypisanie pokazuje: pracownika, pojazd, godziny.</p>
+
+<h3>Dodawanie przypisania</h3>
+<ol class="steps">
+  <li>Wejdź w widok dnia i kliknij <strong>„+ Dodaj przypisanie"</strong>.</li>
+  <li>Wybierz <strong>projekt</strong> (budowę).</li>
+  <li>Wybierz <strong>pojazd(y)</strong>.</li>
+  <li>Ustaw <strong>godziny</strong> (od–do) i <strong>godzinę odjazdu</strong>.</li>
+  <li>Wybierz <strong>pracowników</strong>.</li>
+  <li>Kliknij <strong>„Zapisz"</strong>.</li>
+</ol>
+
+<div class="warning">System automatycznie sprawdza konflikty godzin — jeśli pracownik jest już przypisany w tych godzinach, zobaczysz ostrzeżenie.</div>
+
+<h3>Zamówienia BL (Bedarf)</h3>
+<p>Bauleiter może zgłaszać zapotrzebowanie na pracowników:</p>
+<ol class="steps">
+  <li>Przejdź na zakładkę <strong>„Bedarf"</strong>.</li>
+  <li>Kliknij <strong>„Nowy Bedarf"</strong>.</li>
+  <li>Wybierz <strong>projekt, pracowników, pojazdy</strong> i dodaj notatki.</li>
+  <li>Kliknij <strong>„Wyślij"</strong>.</li>
+</ol>
+
+<!-- ═══════════════════════════════════════ 6. URLOPY ═══════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2 id="s6"><span class="num">6</span> Urlopy i nieobecności</h2>
+
+<p>System urlopów pozwala pracownikom składać wnioski, a przełożonym je akceptować.</p>
+
+<h3>Składanie wniosku urlopowego</h3>
+<ol class="steps">
+  <li>Wejdź w <strong>Użytkownicy → profil pracownika</strong>.</li>
+  <li>Przewiń do sekcji <strong>„Nieobecności / Urlopy"</strong>.</li>
+  <li>Kliknij <strong>„+ Dodaj"</strong>.</li>
+  <li>Wybierz <strong>typ</strong> nieobecności.</li>
+  <li>Wybierz <strong>daty</strong> (Od – Do) klikając w pole daty — otworzy się kalendarz.</li>
+  <li>Opcjonalnie dodaj <strong>notatkę</strong>.</li>
+  <li>Kliknij <strong>„Zapisz"</strong>.</li>
+</ol>
+
+<h3>Typy nieobecności</h3>
+<table>
+  <tr><th>Typ</th><th>Kolor</th><th>Akceptacja</th><th>Widoczność w planie</th></tr>
+  <tr><td><strong>Urlop</strong></td><td><span class="badge badge-red">czerwony</span></td><td>Wymaga akceptacji</td><td>Po akceptacji</td></tr>
+  <tr><td><strong>Zwolnienie lekarskie</strong></td><td><span class="badge badge-yellow">żółty</span></td><td>Automatyczna</td><td>Od razu</td></tr>
+  <tr><td><strong>Urlop specjalny</strong></td><td><span class="badge badge-purple">fioletowy</span></td><td>Wymaga akceptacji</td><td>Po akceptacji</td></tr>
+  <tr><td><strong>Szkolenie</strong></td><td><span class="badge badge-blue">niebieski</span></td><td>Wymaga akceptacji</td><td>Po akceptacji</td></tr>
+  <tr><td><strong>Nieusprawiedliwiona</strong></td><td><span class="badge badge-gray">szary</span></td><td>Wymaga akceptacji</td><td>Po akceptacji</td></tr>
+</table>
+
+<div class="important"><strong>Zwolnienia lekarskie</strong> są automatycznie akceptowane i od razu widoczne w planie tygodniowym. Wszystkie inne typy wymagają akceptacji.</div>
+
+<h3>Licznik urlopowy</h3>
+<p>W profilu pracownika widoczne są 3 liczniki:</p>
+<ul>
+  <li><strong>Pozostało</strong> — ile dni urlopu jeszcze zostało</li>
+  <li><strong>Wykorzystano</strong> — ile dni już wykorzystano</li>
+  <li><strong>Razem</strong> — roczny limit (domyślnie 26 dni)</li>
+</ul>
+
+<h3>Kalendarz miesięczny</h3>
+<p>W profilu pracownika widoczny jest kalendarz z kolorowymi kropkami przy dniach z nieobecnościami. Legenda kolorów pod kalendarzem.</p>
+
+<h3>Akceptacja wniosków</h3>
+<p><strong>Kto może akceptować:</strong> Admin, Zarząd, Logistyk</p>
+<ol class="steps">
+  <li>Na Dashboardzie kliknij żółty przycisk <strong>„Urlopy"</strong>.</li>
+  <li>Zobaczysz listę wniosków z filtrem <strong>„Oczekujący"</strong>.</li>
+  <li>Przy każdym wniosku kliknij <strong>✓ Akceptuj</strong> lub <strong>✗ Odrzuć</strong>.</li>
+  <li>Po akceptacji urlop pojawi się w planie tygodniowym jako nieobecność.</li>
+</ol>
+
+<div class="tip">Czerwona liczba na przycisku „Urlopy" na dashboardzie pokazuje ile wniosków czeka na akceptację.</div>
+
+<!-- ═══════════════════════════════════════ 7. MAGAZYN ═══════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2 id="s7"><span class="num">7</span> Magazyn</h2>
+
+<p>Magazyn służy do zarządzania materiałami i narzędziami.</p>
+
+<h3>Dostęp</h3>
+<p>Dashboard → przycisk <strong>„Magazyn"</strong> (czerwony).</p>
+
+<h3>Funkcje</h3>
+<ul>
+  <li><strong>Lista artykułów</strong> — wyszukiwarka, sortowanie</li>
+  <li><strong>Dodawanie</strong> — kliknij „+ Dodaj artykuł"</li>
+  <li><strong>Edycja</strong> — kliknij na artykuł</li>
+  <li><strong>Usuwanie</strong> — ikona kosza</li>
+  <li><strong>Import Excel</strong> — masowe dodawanie z pliku</li>
+</ul>
+
+<h3>Dane artykułu</h3>
+<p>Każdy artykuł zawiera: opis, ilość, jednostkę, kategorię, lokalizację, numer zamówienia.</p>
+
+<!-- ═══════════════════════════════════════ 8. UŻYTKOWNICY ═══════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2 id="s8"><span class="num">8</span> Użytkownicy</h2>
+
+<h3>Lista użytkowników</h3>
+<p>Zakładka <strong>Użytkownicy</strong> (widoczna dla admin/zarząd/PM) pokazuje listę wszystkich pracowników.</p>
+<ul>
+  <li><strong>Wyszukiwarka</strong> — szukaj po imieniu lub emailu</li>
+  <li><strong>Filtr ról</strong> — pokaż tylko wybraną rolę</li>
+  <li><strong>Import Excel</strong> — masowe dodawanie pracowników</li>
+</ul>
+
+<h3>Profil użytkownika</h3>
+<p>Po kliknięciu na pracownika widzisz:</p>
+<table>
+  <tr><th>Sekcja</th><th>Opis</th></tr>
+  <tr><td><strong>Dane osobowe</strong></td><td>Imię, email, telefon, rola</td></tr>
+  <tr><td><strong>Projekty</strong></td><td>Lista przypisanych budów</td></tr>
+  <tr><td><strong>Magazyn</strong></td><td>Przedmioty przypisane do pracownika</td></tr>
+  <tr><td><strong>Nieobecności</strong></td><td>Kalendarz, formularz, lista urlopów</td></tr>
+  <tr><td><strong>GPS</strong></td><td>Ostatnia pozycja, historia lokalizacji</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════ 9. POWIADOMIENIA ═══════════════════════════════════════ -->
+<h2 id="s9"><span class="num">9</span> Powiadomienia</h2>
+
+<p>Kliknij <strong>🔔 dzwonek</strong> w nagłówku, żeby zobaczyć powiadomienia.</p>
+
+<h3>Typy powiadomień</h3>
+<ul>
+  <li><strong>Nowe przypisanie</strong> — zostałeś przypisany do budowy w planie tygodniowym</li>
+  <li><strong>Nowe zadanie</strong> — przypisano ci zadanie</li>
+  <li><strong>Nowy projekt</strong> — dodano cię do zespołu projektu</li>
+</ul>
+
+<p>Czerwona kropka na dzwonku oznacza nieprzeczytane powiadomienia. Możesz oznaczyć wszystkie jako przeczytane.</p>
+
+<!-- ═══════════════════════════════════════ 10. USTAWIENIA ═══════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2 id="s10"><span class="num">10</span> Ustawienia</h2>
+
+<h3>Profil</h3>
+<p>Zmiana imienia, emaila, telefonu.</p>
+
+<h3>Język</h3>
+<p>Aplikacja obsługuje 3 języki:</p>
+<ul>
+  <li>🇩🇪 <strong>Deutsch</strong> (domyślny)</li>
+  <li>🇵🇱 <strong>Polski</strong></li>
+  <li>🇬🇧 <strong>English</strong></li>
+</ul>
+
+<h3>Motyw</h3>
+<ul>
+  <li><strong>Jasny</strong> — białe tło</li>
+  <li><strong>Ciemny</strong> — ciemne tło</li>
+  <li><strong>System</strong> — automatycznie wg ustawień telefonu</li>
+</ul>
+
+<h3>Bezpieczeństwo</h3>
+<p><strong>Dwuskładnikowe uwierzytelnianie (2FA)</strong> — dodatkowa ochrona konta. Po włączeniu musisz skanować kod QR w aplikacji Authenticator.</p>
+
+<h3>Zarządzanie rolami (tylko admin)</h3>
+<p>Admin może:</p>
+<ul>
+  <li>Zmieniać <strong>role</strong> użytkowników</li>
+  <li>Ustawiać <strong>indywidualne uprawnienia</strong> per użytkownik</li>
+  <li>Tworzyć <strong>niestandardowe role</strong></li>
+</ul>
+
+<!-- ═══════════════════════════════════════ 11. ROLE ═══════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2 id="s11"><span class="num">11</span> Role i uprawnienia</h2>
+
+<p>Każdy użytkownik ma przypisaną rolę, która określa co może robić w aplikacji.</p>
+
+<table>
+  <tr><th>Rola</th><th>Opis</th><th>Główne uprawnienia</th></tr>
+  <tr>
+    <td><span class="role-card" style="background:#fee2e2;color:#dc2626;">Admin</span></td>
+    <td>Administrator systemu</td>
+    <td>Wszystko — pełna kontrola</td>
+  </tr>
+  <tr>
+    <td><span class="role-card" style="background:#fef3c7;color:#d97706;">Zarząd</span></td>
+    <td>Kierownictwo firmy</td>
+    <td>Wszystko — pełna kontrola</td>
+  </tr>
+  <tr>
+    <td><span class="role-card" style="background:#dbeafe;color:#2563eb;">PM</span></td>
+    <td>Kierownik projektu</td>
+    <td>Projekty, zadania, pliki, plan, użytkownicy. Bez: GPS, edycji magazynu</td>
+  </tr>
+  <tr>
+    <td><span class="role-card" style="background:#d1fae5;color:#059669;">BL</span></td>
+    <td>Bauleiter</td>
+    <td>Zadania, pliki, komentarze, magazyn (podgląd), plan (podgląd). Bez: edycji planu/magazynu/użytkowników</td>
+  </tr>
+  <tr>
+    <td><span class="role-card" style="background:#e0e7ff;color:#4f46e5;">Logistyk</span></td>
+    <td>Logistyka</td>
+    <td>Podgląd wszystkiego + <strong>edycja planu tygodniowego</strong>. Akceptacja urlopów</td>
+  </tr>
+  <tr>
+    <td><span class="role-card" style="background:#fce7f3;color:#db2777;">Zakupy</span></td>
+    <td>Dział zakupów</td>
+    <td>Podgląd wszystkiego + <strong>edycja magazynu</strong></td>
+  </tr>
+  <tr>
+    <td><span class="role-card" style="background:#f3e8ff;color:#7c3aed;">Magazynier</span></td>
+    <td>Pracownik magazynu</td>
+    <td>Podgląd wszystkiego + <strong>edycja magazynu</strong></td>
+  </tr>
+  <tr>
+    <td><span class="role-card" style="background:#f1f5f9;color:#475569;">Biurowy</span></td>
+    <td>Pracownik biurowy</td>
+    <td>Podgląd wszystkiego. Bez edycji</td>
+  </tr>
+  <tr>
+    <td><span class="role-card" style="background:#f8fafc;color:#64748b;">Worker</span></td>
+    <td>Pracownik budowlany</td>
+    <td>Dashboard, plan (podgląd), komentarze, zmiana statusu zadań, upload plików</td>
+  </tr>
+</table>
+
+<div class="tip">Admin może nadawać <strong>indywidualne uprawnienia</strong> każdemu użytkownikowi, niezależnie od roli.</div>
+
+<!-- ═══════════════════════════════════════ 12. GPS ═══════════════════════════════════════ -->
+<h2 id="s12"><span class="num">12</span> GPS Tracking</h2>
+
+<p>System GPS pozwala śledzić lokalizację pracowników w terenie.</p>
+
+<h3>Włączanie GPS</h3>
+<ol class="steps">
+  <li>Wejdź w <strong>profil użytkownika</strong>.</li>
+  <li>Przewiń do sekcji <strong>„GPS Tracking"</strong>.</li>
+  <li>Włącz przełącznik <strong>GPS</strong>.</li>
+</ol>
+
+<h3>Co widać</h3>
+<ul>
+  <li><strong>Ostatnia pozycja</strong> — mapa z pinezką + adres + czas</li>
+  <li><strong>Historia lokalizacji</strong> — lista pozycji z wybranego dnia</li>
+  <li><strong>Link do Google Maps</strong> — otwiera pozycję w mapach</li>
+</ul>
+
+<div class="warning">GPS działa tylko gdy aplikacja jest uruchomiona. Pracownik musi mieć włączoną lokalizację na telefonie.</div>
+
+<h3>Kto widzi GPS</h3>
+<p>Dostęp do GPS mają: <strong>Admin</strong> i <strong>Zarząd</strong>. Inne role nie widzą sekcji GPS.</p>
+
+<!-- ═══════════════════════════════════════ FOOTER ═══════════════════════════════════════ -->
+<div class="footer">
+  <p><strong>BSapp</strong> — Instrukcja obsługi v1.0</p>
+  <p>© 2026 • Wygenerowano: Luty 2026</p>
+</div>
+
+</body>
+</html>

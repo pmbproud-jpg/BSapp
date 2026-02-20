@@ -5,7 +5,9 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { AuthProvider, useAuth } from "../src/providers/AuthProvider";
 import { ThemeProvider } from "../src/providers/ThemeProvider";
 import { NotificationProvider } from "../src/providers/NotificationProvider";
+import { CompanyProvider } from "../src/providers/CompanyProvider";
 import { initI18n } from "../src/i18n";
+import UpdateChecker from "../src/components/UpdateChecker";
 
 // Komponent który obsługuje automatyczne przekierowania
 function RootLayoutNav() {
@@ -26,11 +28,14 @@ function RootLayoutNav() {
   }, [session, loading, segments]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="login" />
-      <Stack.Screen name="reset-password" />
-      <Stack.Screen name="(app)" />
-    </Stack>
+    <>
+      <UpdateChecker />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="login" />
+        <Stack.Screen name="reset-password" />
+        <Stack.Screen name="(app)" />
+      </Stack>
+    </>
   );
 }
 
@@ -66,7 +71,9 @@ export default function RootLayout() {
       <ThemeProvider>
         <AuthProvider>
           <NotificationProvider>
-            <RootLayoutNav />
+            <CompanyProvider>
+              <RootLayoutNav />
+            </CompanyProvider>
           </NotificationProvider>
         </AuthProvider>
       </ThemeProvider>

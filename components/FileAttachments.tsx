@@ -10,6 +10,7 @@ import {
   Modal,
   Dimensions,
   Platform,
+  Linking,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,7 +37,9 @@ type FileAttachmentsProps = {
   entityType: "task" | "project";
   entityId: string;
   canUpload: boolean;
+  canDelete?: boolean;
   onRefresh: () => void;
+  folderId?: string;
 };
 
 // Thumbnail component that loads signed URL for private bucket images
@@ -88,7 +91,9 @@ export default function FileAttachments({
   entityType,
   entityId,
   canUpload,
+  canDelete,
   onRefresh,
+  folderId,
 }: FileAttachmentsProps) {
   const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
@@ -186,13 +191,17 @@ export default function FileAttachments({
       const tableName = entityType === "task" ? "task_attachments" : "project_attachments";
       const foreignKey = entityType === "task" ? "task_id" : "project_id";
 
-      const { error: dbError } = await (supabaseAdmin.from(tableName) as any).insert({
+      const insertData: any = {
         [foreignKey]: entityId,
         file_name: fileName,
         file_url: urlData.publicUrl,
         file_type: fileType,
         file_size: fileSize,
-      });
+      };
+      if (folderId && entityType === "project") {
+        insertData.folder_id = folderId;
+      }
+      const { error: dbError } = await (supabaseAdmin.from(tableName) as any).insert(insertData);
 
       if (dbError) throw dbError;
 
@@ -392,6 +401,31 @@ export default function FileAttachments({
     if (url) setSelectedImage(url);
   };
 
+  const openFile = async (attachment: Attachment) => {
+    try {
+      const url = await getSignedUrl(attachment.file_url);
+      if (!url) {
+        const msg = "Datei konnte nicht geöffnet werden";
+        Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+        return;
+      }
+      if (Platform.OS === "web") {
+        window.open(url, "_blank");
+      } else {
+        const supported = await Linking.canOpenURL(url);
+        if (supported) {
+          await Linking.openURL(url);
+        } else {
+          Alert.alert(t("common.error"), "Datei kann nicht geöffnet werden");
+        }
+      }
+    } catch (e) {
+      console.error("Error opening file:", e);
+      const msg = "Fehler beim Öffnen der Datei";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -411,23 +445,24 @@ export default function FileAttachments({
                   <AttachmentThumbnail fileUrl={attachment.file_url} />
                 </TouchableOpacity>
               ) : (
-                <View style={styles.fileIconContainer}>
+                <TouchableOpacity onPress={() => openFile(attachment)} style={styles.fileIconContainer}>
                   <Ionicons
                     name={getFileIcon(attachment.file_type)}
                     size={32}
                     color="#64748b"
                   />
-                </View>
+                </TouchableOpacity>
               )}
-              <View style={styles.attachmentInfo}>
+              <TouchableOpacity style={styles.attachmentInfo} onPress={() => isImage(attachment.file_type) ? openImage(attachment.file_url) : openFile(attachment)}>
                 <Text style={styles.fileName} numberOfLines={1}>
                   {attachment.file_name}
                 </Text>
                 <Text style={styles.fileSize}>
                   {formatFileSize(attachment.file_size)}
+                  {!isImage(attachment.file_type) && " · Tippen zum Öffnen"}
                 </Text>
-              </View>
-              {canUpload && (
+              </TouchableOpacity>
+              {(canDelete ?? canUpload) && (
                 <TouchableOpacity
                   onPress={() => deleteAttachment(attachment)}
                   style={styles.deleteButton}

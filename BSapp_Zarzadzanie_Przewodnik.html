@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>BSapp — Przewodnik zarządzania aplikacją</title>
+<style>
+  @media print {
+    body { margin: 0; padding: 20px; }
+    .no-print { display: none; }
+  }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px 30px;
+    color: #1e293b;
+    line-height: 1.6;
+    background: #fff;
+  }
+  h1 {
+    color: #2563eb;
+    border-bottom: 3px solid #2563eb;
+    padding-bottom: 12px;
+    font-size: 28px;
+  }
+  h2 {
+    color: #1e40af;
+    margin-top: 32px;
+    font-size: 20px;
+    border-left: 4px solid #2563eb;
+    padding-left: 12px;
+  }
+  h3 {
+    color: #334155;
+    margin-top: 20px;
+    font-size: 16px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px 0;
+    font-size: 14px;
+  }
+  th, td {
+    border: 1px solid #e2e8f0;
+    padding: 10px 14px;
+    text-align: left;
+  }
+  th {
+    background: #eff6ff;
+    color: #1e40af;
+    font-weight: 700;
+  }
+  tr:nth-child(even) { background: #f8fafc; }
+  code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #dc2626;
+  }
+  a { color: #2563eb; }
+  .warning {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 16px 0;
+  }
+  .warning strong { color: #92400e; }
+  .info {
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 16px 0;
+  }
+  .info strong { color: #1e40af; }
+  .print-btn {
+    display: inline-block;
+    background: #2563eb;
+    color: #fff;
+    padding: 12px 28px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    margin: 20px 0;
+  }
+  .print-btn:hover { background: #1d4ed8; }
+  .footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 12px;
+    color: #94a3b8;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="no-print" style="text-align:center;">
+  <button class="print-btn" onclick="window.print()">📄 Zapisz jako PDF / Drukuj</button>
+  <p style="font-size:13px;color:#64748b;">Kliknij przycisk powyżej, a następnie wybierz "Zapisz jako PDF" w oknie drukowania.</p>
+</div>
+
+<h1>🏗️ BSapp — Przewodnik zarządzania aplikacją</h1>
+<p><strong>Data wygenerowania:</strong> 13 lutego 2026<br>
+<strong>Aplikacja:</strong> BSapp — Building Solutions Management App<br>
+<strong>Technologia:</strong> React Native + Expo + Supabase + Netlify</p>
+
+<h2>1. Pliki źródłowe (kod aplikacji)</h2>
+<table>
+  <tr><th>Element</th><th>Wartość</th></tr>
+  <tr><td>Folder projektu</td><td><code>c:\Users\mbak\Desktop\BSapp\</code></td></tr>
+  <tr><td>Technologia</td><td>React Native + Expo (web + Android + iOS)</td></tr>
+  <tr><td>Język programowania</td><td>TypeScript</td></tr>
+  <tr><td>Framework nawigacji</td><td>Expo Router</td></tr>
+</table>
+<p>To jest jedyne źródło kodu. Zalecany backup na <strong>GitHub</strong> lub <strong>GitLab</strong>.</p>
+
+<h2>2. Supabase — baza danych, pliki, autoryzacja</h2>
+<table>
+  <tr><th>Element</th><th>Adres / Wartość</th></tr>
+  <tr><td>Panel Supabase</td><td><a href="https://supabase.com/dashboard">https://supabase.com/dashboard</a></td></tr>
+  <tr><td>ID projektu</td><td><code>ocdcvjpmgwsymuhtnhqc</code></td></tr>
+  <tr><td>Bezpośredni link do projektu</td><td><a href="https://supabase.com/dashboard/project/ocdcvjpmgwsymuhtnhqc">Otwórz projekt w Supabase</a></td></tr>
+</table>
+
+<h3>Co jest przechowywane w Supabase:</h3>
+<table>
+  <tr><th>Moduł</th><th>Co przechowuje</th><th>Sekcja w panelu</th></tr>
+  <tr><td><strong>Database (PostgreSQL)</strong></td><td>Projekty, zadania, komentarze, użytkownicy (profile), plan tygodniowy, zamówienia, historia zmian, ustawienia firmy</td><td>Table Editor</td></tr>
+  <tr><td><strong>Auth</strong></td><td>Konta użytkowników, hasła, sesje logowania, tokeny</td><td>Authentication</td></tr>
+  <tr><td><strong>Storage</strong></td><td>Wszystkie załączniki — zdjęcia, dokumenty PDF, pliki uploadowane w aplikacji</td><td>Storage</td></tr>
+</table>
+
+<h3>Klucze dostępu (plik <code>.env</code>):</h3>
+<table>
+  <tr><th>Klucz</th><th>Rola</th><th>Bezpieczeństwo</th></tr>
+  <tr><td><code>SUPABASE_ANON_KEY</code></td><td>Klucz publiczny — używany przez frontend</td><td>Bezpieczny do ujawnienia</td></tr>
+  <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>Klucz administratora — pełny dostęp do bazy</td><td>🔴 TAJNY — nigdy nie udostępniaj!</td></tr>
+</table>
+
+<div class="warning">
+  <strong>⚠️ Uwaga:</strong> Service Role Key daje pełny dostęp do wszystkich danych w bazie, omijając Row Level Security. Nigdy nie commituj go do publicznego repozytorium i nie udostępniaj nikomu.
+</div>
+
+<h2>3. Netlify — hosting wersji webowej</h2>
+<table>
+  <tr><th>Element</th><th>Adres</th></tr>
+  <tr><td>Panel Netlify</td><td><a href="https://app.netlify.com">https://app.netlify.com</a></td></tr>
+  <tr><td>Adres aplikacji webowej</td><td><a href="https://bsapp-management.netlify.app">https://bsapp-management.netlify.app</a></td></tr>
+  <tr><td>Komenda budowania</td><td><code>npx expo export --platform web</code></td></tr>
+  <tr><td>Folder publikacji</td><td><code>dist</code></td></tr>
+</table>
+<p>Netlify hostuje wersję <strong>webową</strong> aplikacji (dostępną przez przeglądarkę). Zmienne środowiskowe (klucze Supabase) są skonfigurowane w pliku <code>netlify.toml</code>.</p>
+
+<h2>4. Expo — budowanie aplikacji mobilnych</h2>
+<table>
+  <tr><th>Element</th><th>Adres</th></tr>
+  <tr><td>Panel Expo</td><td><a href="https://expo.dev">https://expo.dev</a></td></tr>
+  <tr><td>Expo Go (testowanie)</td><td>Aplikacja na telefon — App Store / Google Play</td></tr>
+  <tr><td>EAS Build</td><td>Budowanie APK/AAB (Android) i IPA (iOS)</td></tr>
+</table>
+
+<h2>5. Sklepy z aplikacjami (opcjonalnie)</h2>
+<table>
+  <tr><th>Sklep</th><th>Adres</th><th>Do czego</th></tr>
+  <tr><td>Google Play Console</td><td><a href="https://play.google.com/console">play.google.com/console</a></td><td>Publikacja na Android</td></tr>
+  <tr><td>Apple Developer</td><td><a href="https://developer.apple.com">developer.apple.com</a></td><td>Publikacja na iOS ($99/rok)</td></tr>
+</table>
+
+<h2>6. Mapa danych — gdzie co się zapisuje</h2>
+<table>
+  <tr><th>Dane</th><th>Gdzie trafiają</th></tr>
+  <tr><td>Użytkownicy, hasła, logowanie</td><td>Supabase Auth</td></tr>
+  <tr><td>Projekty, zadania, komentarze</td><td>Supabase Database (PostgreSQL)</td></tr>
+  <tr><td>Pliki, zdjęcia, załączniki</td><td>Supabase Storage</td></tr>
+  <tr><td>Uprawnienia indywidualne per-user</td><td>localStorage / AsyncStorage (na urządzeniu!)</td></tr>
+  <tr><td>Ustawienia firmy (nazwa, logo)</td><td>Supabase Database</td></tr>
+  <tr><td>Plan tygodniowy, zamówienia</td><td>Supabase Database</td></tr>
+  <tr><td>Wersja webowa (hosting)</td><td>Netlify</td></tr>
+  <tr><td>Kod źródłowy</td><td>Lokalnie: <code>Desktop\BSapp</code></td></tr>
+</table>
+
+<h2>7. Ważne uwagi i zalecenia</h2>
+
+<div class="warning">
+  <strong>⚠️ Backup kodu:</strong> Kod jest tylko na Twoim dysku. Załóż repozytorium na GitHub/GitLab jako backup i kontrolę wersji. Bez tego utrata dysku = utrata kodu.
+</div>
+
+<div class="warning">
+  <strong>⚠️ Uprawnienia indywidualne:</strong> Obecnie zapisują się lokalnie na urządzeniu (localStorage/AsyncStorage), a NIE w Supabase. Zmiana uprawnień na jednym komputerze nie zsynchronizuje się na innym. To jest znany punkt do poprawy w przyszłości.
+</div>
+
+<div class="info">
+  <strong>ℹ️ Supabase Free Tier — limity:</strong><br>
+  • Baza danych: 500 MB<br>
+  • Storage (pliki): 1 GB<br>
+  • Auth requests: 50 000 / miesiąc<br>
+  • Edge Functions: 500 000 wywołań / miesiąc<br>
+  Monitoruj użycie w panelu Supabase → Settings → Usage.
+</div>
+
+<h2>8. Komendy do uruchomienia aplikacji</h2>
+<table>
+  <tr><th>Komenda</th><th>Co robi</th></tr>
+  <tr><td><code>npm start</code></td><td>Uruchamia Expo dev server</td></tr>
+  <tr><td><code>npm run web</code></td><td>Uruchamia wersję webową</td></tr>
+  <tr><td><code>npm run android</code></td><td>Uruchamia na emulatorze/telefonie Android</td></tr>
+  <tr><td><code>npm run ios</code></td><td>Uruchamia na symulatorze iOS (tylko macOS)</td></tr>
+  <tr><td><code>npx expo export --platform web</code></td><td>Buduje wersję webową do folderu <code>dist/</code></td></tr>
+</table>
+
+<div class="footer">
+  BSapp — Building Solutions Management App &bull; Wygenerowano: 13.02.2026 &bull; Wersja 1.0.0
+</div>
+
+</body>
+</html>

@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/src/lib/supabase/client";
 import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
 import { useAuth } from "@/src/providers/AuthProvider";
+import { usePermissions } from "@/src/hooks/usePermissions";
 import LocalizedDatePicker from "@/components/LocalizedDatePicker";
 import MultiSelectUsers from "@/components/MultiSelectUsers";
 
@@ -33,10 +34,12 @@ interface TeamMember {
 export default function NewProjectScreen() {
   const { t } = useTranslation();
   const { profile } = useAuth();
+  const perms = usePermissions();
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
+    project_number: "",
     description: "",
     location: "",
     start_date: null as Date | null,
@@ -53,6 +56,12 @@ export default function NewProjectScreen() {
   const [usersLoading, setUsersLoading] = useState(false);
 
   const canAssignPMBL = profile?.role === "admin" || profile?.role === "management";
+
+  // Guard: redirect if user cannot create projects
+  if (!perms.canCreateProject) {
+    router.replace("/projects" as any);
+    return null;
+  }
 
   const statusOptions: ProjectStatus[] = [
     "planning",
@@ -100,17 +109,22 @@ export default function NewProjectScreen() {
       Alert.alert(t("common.error"), t("projects.name_required"));
       return;
     }
+    if (!formData.project_number.trim()) {
+      Alert.alert(t("common.error"), t("projects.project_number_required") || "Nr. budowy jest wymagany");
+      return;
+    }
 
     setLoading(true);
     try {
       // 1. Tworzenie projektu
       const projectData: any = {
         name: formData.name.trim(),
+        project_number: formData.project_number.trim(),
         description: formData.description.trim() || null,
         location: formData.location.trim() || null,
         status: formData.status,
-        company_id: profile?.company_id,
-        created_by: profile?.id,
+        company_id: profile?.company_id || null,
+        created_by: profile?.id || null,
         project_manager_id: selectedPM?.id || null,
         bauleiter_id: selectedBL?.id || null,
       };
@@ -122,7 +136,10 @@ export default function NewProjectScreen() {
         projectData.end_date = formatDateForDB(formData.end_date);
       }
       if (formData.budget) {
-        projectData.budget = parseFloat(formData.budget);
+        const budgetNum = parseFloat(formData.budget);
+        if (!isNaN(budgetNum)) {
+          projectData.budget = budgetNum;
+        }
       }
 
       const { data: project, error: projectError } = await (supabaseAdmin
@@ -172,7 +189,7 @@ export default function NewProjectScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.replace("/projects" as any)} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t("projects.new")}</Text>
@@ -190,6 +207,19 @@ export default function NewProjectScreen() {
               value={formData.name}
               onChangeText={(text) => setFormData({ ...formData, name: text })}
               placeholder={t("projects.name_placeholder")}
+              placeholderTextColor="#94a3b8"
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              {t("projects.project_number") || "Nr. budowy"} <Text style={styles.required}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={formData.project_number}
+              onChangeText={(text) => setFormData({ ...formData, project_number: text })}
+              placeholder={t("projects.project_number_placeholder") || "np. B-2024-001"}
               placeholderTextColor="#94a3b8"
             />
           </View>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BSapp — Pobierz aplikację</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; }
+    .page {
+      max-width: 800px; margin: 0 auto; padding: 40px 32px;
+      min-height: 100vh;
+    }
+    .header {
+      text-align: center; margin-bottom: 40px;
+      border-bottom: 3px solid #dc2626; padding-bottom: 30px;
+    }
+    .logo-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; }
+    .logo-icon { width: 48px; height: 48px; background: #dc2626; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 24px; font-weight: 800; }
+    .app-name { font-size: 32px; font-weight: 800; color: #dc2626; }
+    .subtitle { font-size: 16px; color: #64748b; margin-top: 4px; }
+
+    .qr-section {
+      text-align: center; margin: 40px 0;
+      background: #fff; border-radius: 20px; padding: 40px;
+      border: 2px solid #e2e8f0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+    .qr-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; color: #1e293b; }
+    .qr-code {
+      display: inline-block; padding: 16px; background: #fff;
+      border: 3px solid #dc2626; border-radius: 16px;
+    }
+    .qr-code img { display: block; width: 250px; height: 250px; }
+    .qr-hint { margin-top: 16px; font-size: 14px; color: #64748b; }
+    .download-link {
+      display: inline-block; margin-top: 16px; padding: 12px 28px;
+      background: #dc2626; color: #fff; text-decoration: none;
+      border-radius: 10px; font-weight: 700; font-size: 15px;
+    }
+    .download-link:hover { background: #b91c1c; }
+
+    .steps {
+      margin: 40px 0; background: #fff; border-radius: 20px;
+      padding: 32px; border: 2px solid #e2e8f0;
+    }
+    .steps-title { font-size: 20px; font-weight: 700; margin-bottom: 24px; color: #1e293b; }
+    .step {
+      display: flex; gap: 16px; margin-bottom: 20px; align-items: flex-start;
+    }
+    .step:last-child { margin-bottom: 0; }
+    .step-num {
+      width: 36px; height: 36px; min-width: 36px;
+      background: #dc2626; color: #fff; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 16px;
+    }
+    .step-content { flex: 1; }
+    .step-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+    .step-desc { font-size: 14px; color: #64748b; line-height: 1.5; }
+
+    .info-box {
+      margin: 30px 0; padding: 20px 24px; border-radius: 12px;
+      border-left: 4px solid #f59e0b; background: #fffbeb;
+    }
+    .info-box-title { font-weight: 700; font-size: 15px; color: #92400e; margin-bottom: 6px; }
+    .info-box-text { font-size: 14px; color: #78350f; line-height: 1.5; }
+
+    .web-section {
+      margin: 30px 0; padding: 24px; border-radius: 16px;
+      background: #eff6ff; border: 2px solid #bfdbfe;
+      text-align: center;
+    }
+    .web-title { font-weight: 700; font-size: 16px; color: #1e40af; margin-bottom: 8px; }
+    .web-link {
+      display: inline-block; margin-top: 8px; padding: 10px 24px;
+      background: #2563eb; color: #fff; text-decoration: none;
+      border-radius: 10px; font-weight: 700; font-size: 14px;
+    }
+
+    .footer {
+      text-align: center; margin-top: 40px; padding-top: 20px;
+      border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px;
+    }
+
+    @media print {
+      body { background: #fff; }
+      .page { padding: 20px; }
+      .download-link, .web-link { color: #dc2626; background: none; border: 2px solid #dc2626; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div class="logo-row">
+        <div class="logo-icon">BS</div>
+        <div class="app-name">BSapp</div>
+      </div>
+      <div class="subtitle">Aplikacja do zarządzania budowami</div>
+    </div>
+
+    <div class="qr-section">
+      <div class="qr-title">📱 Pobierz aplikację</div>
+      <div class="qr-code">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https%3A%2F%2Fexpo.dev%2Faccounts%2Fpmb.proud%2Fprojects%2FBSapp%2Fbuilds%2F7c16f6ae-a06f-4e54-9277-e35279cd5fcf" alt="Kod QR do pobrania aplikacji" />
+      </div>
+      <div class="qr-hint">Zeskanuj kod QR aparatem telefonu, aby pobrać aplikację</div>
+      <br>
+      <a class="download-link" href="https://expo.dev/accounts/pmb.proud/projects/BSapp/builds/7c16f6ae-a06f-4e54-9277-e35279cd5fcf" target="_blank">
+        ⬇ Pobierz aplikację
+      </a>
+    </div>
+
+    <div class="steps">
+      <div class="steps-title">📋 Instrukcja instalacji (Android)</div>
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-title">Zeskanuj kod QR</div>
+          <div class="step-desc">Otwórz aparat w telefonie i zeskanuj kod QR powyżej. Możesz też otworzyć link do pobrania bezpośrednio w przeglądarce.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-title">Pobierz plik APK</div>
+          <div class="step-desc">Na stronie Expo kliknij <strong>„Install"</strong> lub <strong>„Download"</strong>, aby pobrać plik APK na telefon.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-title">Zezwól na instalację</div>
+          <div class="step-desc">Jeśli pojawi się ostrzeżenie: przejdź do <strong>Ustawienia → Aplikacje → Nieznane źródła</strong> i zezwól na instalację z przeglądarki. Następnie zainstaluj ponownie.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <div class="step-title">Otwórz aplikację i zaloguj się</div>
+          <div class="step-desc">Otwórz aplikację <strong>BSapp</strong> i zaloguj się danymi, które otrzymałeś od przełożonego (e-mail i hasło).</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-box-title">⚠️ Ważna informacja</div>
+      <div class="info-box-text">
+        Aplikacja aktualizuje się automatycznie przy każdym uruchomieniu. <strong>Nie musisz</strong> pobierać jej ponownie, gdy pojawi się aktualizacja — wystarczy zamknąć i ponownie otworzyć aplikację.
+      </div>
+    </div>
+
+    <div class="web-section">
+      <div class="web-title">💻 Wersja webowa (na komputer / laptop)</div>
+      <div class="step-desc">Możesz też korzystać z aplikacji w przeglądarce:</div>
+      <a class="web-link" href="https://bsapp-management.netlify.app" target="_blank">
+        bsapp-management.netlify.app
+      </a>
+    </div>
+
+    <div class="info-box" style="border-left-color: #10b981; background: #ecfdf5;">
+      <div class="info-box-title" style="color: #065f46;">📞 Potrzebujesz pomocy?</div>
+      <div class="info-box-text" style="color: #064e3b;">
+        W razie problemów z instalacją lub logowaniem skontaktuj się z kierownikiem budowy lub działem IT.
+      </div>
+    </div>
+
+    <div class="footer">
+      BSapp — Zarządzanie budowami © 2026
+    </div>
+  </div>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -9,6 +10,7 @@ import {
   RefreshControl,
   Alert,
   Platform,
+  TextInput,
 } from "react-native";
 import { Link, router, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -31,6 +33,39 @@ export default function ProjectsScreen() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "number">("name");
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [showFavorites, setShowFavorites] = useState(false);
+
+  const statusOptions = [
+    { value: "planning", icon: "construct" as const, color: "#f59e0b" },
+    { value: "active", icon: "play-circle" as const, color: "#10b981" },
+    { value: "on_hold", icon: "pause-circle" as const, color: "#ef4444" },
+    { value: "completed", icon: "checkmark-circle" as const, color: "#6366f1" },
+  ];
+
+  // Load favorites from storage
+  useEffect(() => {
+    AsyncStorage.getItem("project_favorites").then((val) => {
+      if (val) setFavorites(JSON.parse(val));
+    });
+  }, []);
+
+  const toggleFavorite = async (projectId: string) => {
+    const next = favorites.includes(projectId)
+      ? favorites.filter((id) => id !== projectId)
+      : [...favorites, projectId];
+    setFavorites(next);
+    await AsyncStorage.setItem("project_favorites", JSON.stringify(next));
+  };
+
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilter((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    );
+  };
 
   const perms = usePermissions();
   const { colors: tc } = useTheme();
@@ -128,8 +163,22 @@ export default function ProjectsScreen() {
     >
       <View style={styles.projectHeader}>
         <View style={styles.projectTitleRow}>
-          <Ionicons name="briefcase-outline" size={20} color={tc.primary} />
-          <Text style={[styles.projectName, { color: tc.text }]}>{item.name}</Text>
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
+            style={{ padding: 2, marginRight: 4 }}
+          >
+            <Ionicons
+              name={favorites.includes(item.id) ? "star" : "star-outline"}
+              size={20}
+              color={favorites.includes(item.id) ? "#f59e0b" : "#cbd5e1"}
+            />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.projectName, { color: tc.text }]}>{item.name}</Text>
+            {(item as any).project_number ? (
+              <Text style={{ fontSize: 11, color: tc.textSecondary || "#94a3b8", marginLeft: 8, marginTop: 2 }}>{(item as any).project_number}</Text>
+            ) : null}
+          </View>
         </View>
         <View
           style={[
@@ -150,28 +199,28 @@ export default function ProjectsScreen() {
         </View>
       </View>
 
-      {item.description && (
+      {item.description ? (
         <Text style={[styles.projectDescription, { color: tc.textSecondary }]} numberOfLines={2}>
           {item.description}
         </Text>
-      )}
+      ) : null}
 
       <View style={styles.projectFooter}>
         <View style={styles.projectFooterLeft}>
-          {item.location && (
+          {item.location ? (
             <View style={styles.projectInfo}>
               <Ionicons name="location-outline" size={14} color="#64748b" />
               <Text style={styles.projectInfoText}>{item.location}</Text>
             </View>
-          )}
-          {item.start_date && (
+          ) : null}
+          {item.start_date ? (
             <View style={styles.projectInfo}>
               <Ionicons name="calendar-outline" size={14} color="#64748b" />
               <Text style={styles.projectInfoText}>
                 {formatDate(item.start_date, i18n.language, 'short')}
               </Text>
             </View>
-          )}
+          ) : null}
           {item.project_members && item.project_members[0]?.count > 0 && (
             <View style={styles.projectInfo}>
               <Ionicons name="people-outline" size={14} color="#2563eb" />
@@ -218,7 +267,19 @@ export default function ProjectsScreen() {
         </View>
       ) : (
         <FlatList
-          data={projects}
+          data={projects
+            .filter((p) => {
+              if (showFavorites && !favorites.includes(p.id)) return false;
+              if (statusFilter.length > 0 && !statusFilter.includes(p.status)) return false;
+              if (!search.trim()) return true;
+              const q = search.toLowerCase();
+              return (p.name || "").toLowerCase().includes(q) || ((p as any).project_number || "").toLowerCase().includes(q) || (p.location || "").toLowerCase().includes(q);
+            })
+            .sort((a, b) => {
+              if (sortBy === "number") return ((a as any).project_number || "").localeCompare((b as any).project_number || "", "de", { numeric: true });
+              return (a.name || "").localeCompare(b.name || "", "de");
+            })
+          }
           renderItem={renderProject}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
@@ -228,6 +289,91 @@ export default function ProjectsScreen() {
               onRefresh={onRefresh}
               tintColor="#2563eb"
             />
+          }
+          ListHeaderComponent={
+            <View style={{ marginBottom: 12 }}>
+              {/* Search */}
+              <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: tc.border || "#e2e8f0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: tc.card, marginBottom: 10, gap: 8 }}>
+                <Ionicons name="search" size={18} color="#94a3b8" />
+                <TextInput
+                  style={{ flex: 1, fontSize: 14, color: tc.text, padding: 0 }}
+                  placeholder={t("users.search_placeholder") || "Suchen..."}
+                  placeholderTextColor="#94a3b8"
+                  value={search}
+                  onChangeText={setSearch}
+                />
+                {search.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearch("")}>
+                    <Ionicons name="close-circle" size={18} color="#94a3b8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              {/* Status filter + Favorites */}
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                {/* Favorites toggle */}
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 4,
+                    backgroundColor: showFavorites ? "#fbbf2420" : (tc.card || "#fff"),
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    borderWidth: 1.5,
+                    borderColor: showFavorites ? "#f59e0b" : (tc.border || "#e2e8f0"),
+                  }}
+                  onPress={() => setShowFavorites(!showFavorites)}
+                >
+                  <Ionicons name={showFavorites ? "star" : "star-outline"} size={14} color={showFavorites ? "#f59e0b" : (tc.textSecondary || "#94a3b8")} />
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: showFavorites ? "#f59e0b" : (tc.textSecondary || "#64748b") }}>
+                    {t("projects.favorites", "Ulubione")}
+                  </Text>
+                </TouchableOpacity>
+                {statusOptions.map((opt) => {
+                  const isActive = statusFilter.includes(opt.value);
+                  return (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                        backgroundColor: isActive ? `${opt.color}20` : (tc.card || "#fff"),
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        borderWidth: 1.5,
+                        borderColor: isActive ? opt.color : (tc.border || "#e2e8f0"),
+                      }}
+                      onPress={() => toggleStatusFilter(opt.value)}
+                    >
+                      <Ionicons name={opt.icon} size={14} color={isActive ? opt.color : (tc.textSecondary || "#94a3b8")} />
+                      <Text style={{ fontSize: 12, fontWeight: "600", color: isActive ? opt.color : (tc.textSecondary || "#64748b") }}>
+                        {t(`projects.status.${opt.value}`)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {/* Sort */}
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: sortBy === "name" ? "#2563eb" : (tc.card || "#fff"), paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: sortBy === "name" ? "#2563eb" : (tc.border || "#e2e8f0") }}
+                  onPress={() => setSortBy("name")}
+                >
+                  <Ionicons name="text" size={14} color={sortBy === "name" ? "#fff" : (tc.textSecondary || "#64748b")} />
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: sortBy === "name" ? "#fff" : (tc.textSecondary || "#64748b") }}>{t("projects.name") || "Name"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: sortBy === "number" ? "#2563eb" : (tc.card || "#fff"), paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: sortBy === "number" ? "#2563eb" : (tc.border || "#e2e8f0") }}
+                  onPress={() => setSortBy("number")}
+                >
+                  <Ionicons name="list" size={14} color={sortBy === "number" ? "#fff" : (tc.textSecondary || "#64748b")} />
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: sortBy === "number" ? "#fff" : (tc.textSecondary || "#64748b") }}>Nr. Budowy</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           }
         />
       )}
@@ -270,10 +416,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
     elevation: 1,
   },
   projectHeader: {
@@ -365,10 +508,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#2563eb",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    boxShadow: "0 4px 4px rgba(0,0,0,0.3)",
     elevation: 8,
   },
   fabImport: {
@@ -381,10 +521,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#10b981",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    boxShadow: "0 4px 4px rgba(0,0,0,0.3)",
     elevation: 8,
   },
 });

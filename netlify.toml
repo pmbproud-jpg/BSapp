@@ -1,12 +1,15 @@
 [build]
   command = "npx expo export --platform web"
   publish = "dist"
+  functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "18"
   EXPO_PUBLIC_SUPABASE_URL = "https://ocdcvjpmgwsymuhtnhqc.supabase.co"
   EXPO_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZGN2anBtZ3dzeW11aHRuaHFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMzE1NTUsImV4cCI6MjA4NTcwNzU1NX0.xOFkDQNlVEzaF9I7JSZRvBRhmLFa407VY8jPSjCHwno"
   EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZGN2anBtZ3dzeW11aHRuaHFjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDEzMTU1NSwiZXhwIjoyMDg1NzA3NTU1fQ.jRAy-Yx-ylhSSu7x2PotDIKZg5PyqHf-ChXwyXie12o"
+  EXPO_PUBLIC_SITE_URL = "https://bsapp-management.netlify.app"
+  EXPO_PUBLIC_RESEND_API_KEY = "re_Xk1f5Qiy_59sEBX1W5iLL2BTrnC8pka83"
 
 [[redirects]]
   from = "/*"

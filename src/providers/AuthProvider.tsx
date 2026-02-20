@@ -1,7 +1,8 @@
-﻿import React, { createContext, useContext, useEffect, useState } from "react";
+﻿import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { Alert, Platform } from "react-native";
 import { supabase } from "../lib/supabase/client";
+import i18n from "../i18n";
 import type { Database } from "../lib/supabase/database.types";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
@@ -12,6 +13,7 @@ type AuthContextType = {
   profile: Profile | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   signOut: async () => {},
+  refreshProfile: async () => {},
 });
 
 export function useAuth() {
@@ -73,11 +76,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (prof?.role === "subcontractor" && prof?.access_expires_at) {
         const expiresAt = new Date(prof.access_expires_at);
         if (expiresAt < new Date()) {
-          const msg = "Twój dostęp wygasł. Skontaktuj się z administratorem.";
+          const msg = i18n.t("auth.access_expired", "Twój dostęp wygasł. Skontaktuj się z administratorem.");
           if (Platform.OS === "web") {
             window.alert(msg);
           } else {
-            Alert.alert("Dostęp wygasł", msg);
+            Alert.alert(i18n.t("auth.access_expired_title", "Dostęp wygasł"), msg);
           }
           await supabase.auth.signOut();
           setSession(null);
@@ -94,6 +97,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   };
+
+  const refreshProfile = useCallback(async () => {
+    if (session?.user?.id) {
+      await fetchProfile(session.user.id);
+    }
+  }, [session?.user?.id]);
+
+  // Auto-refresh profile every 60s to pick up permission changes
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const interval = setInterval(() => {
+      fetchProfile(session.user.id);
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [session?.user?.id]);
 
   const signOut = async () => {
     try {
@@ -113,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         loading,
         signOut,
+        refreshProfile,
       }}
     >
       {children}

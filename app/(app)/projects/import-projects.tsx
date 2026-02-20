@@ -138,16 +138,51 @@ export default function ImportProjectsScreen() {
     console.log("[IMPORT] Has header:", hasHeader, "Data rows:", dataRows.length);
     if (firstRow) console.log("[IMPORT] First row:", JSON.stringify(firstRow));
 
-    // Mapuj po kolejności kolumn: A=nr, B=nazwa, C=lokalizacja, D=data start, E=data koniec, F=budżet
+    // Helper: parse Excel date (can be serial number, date string, or garbage like "0")
+    const parseDate = (val: any): string | undefined => {
+      if (val == null || val === "" || val === 0 || val === "0") return undefined;
+      // Excel serial number (e.g. 45678)
+      if (typeof val === "number" && val > 30000 && val < 100000) {
+        const d = new Date((val - 25569) * 86400 * 1000);
+        if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+      }
+      const s = String(val).trim();
+      if (!s || s === "0") return undefined;
+      // Try parsing as date string
+      const d = new Date(s);
+      if (!isNaN(d.getTime()) && d.getFullYear() > 1900) return d.toISOString().split("T")[0];
+      // Try DD.MM.YYYY or DD/MM/YYYY
+      const m = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+      if (m) {
+        const d2 = new Date(`${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`);
+        if (!isNaN(d2.getTime())) return d2.toISOString().split("T")[0];
+      }
+      return undefined;
+    };
+
+    // Detect column mapping from headers
+    // Expected order: Name, Nr.budowy, Lokalizacja, Data rozpoczęcia, Data zakończenia, Budżet
+    const hdr = hasHeader ? firstRow.map((h: any) => String(h).trim().toLowerCase()) : [];
+    const colName = hdr.findIndex((h: string) => h.includes("nazwa") || h.includes("name"));
+    const colNr = hdr.findIndex((h: string) => h.includes("numer") || h.includes("number") || h.includes("nr") || h.includes("baunummer"));
+    const colLoc = hdr.findIndex((h: string) => h.includes("lokalizacja") || h.includes("location") || h.includes("standort"));
+    const colStart = hdr.findIndex((h: string) => h.includes("rozpocz") || h.includes("start"));
+    const colEnd = hdr.findIndex((h: string) => h.includes("zakoń") || h.includes("end") || h.includes("ende"));
+    const colBudget = hdr.findIndex((h: string) => h.includes("budż") || h.includes("budget"));
+
     const projects: ImportedProject[] = dataRows.map((row: any[]) => {
       const str = (val: any) => (val != null ? String(val).trim() : "");
+      // If headers detected, use mapped columns; otherwise fallback: A=name, B=nr.budowy, C=loc, D=start, E=end, F=budget
+      const name = str(row[colName >= 0 ? colName : 0]);
+      const nr = str(row[colNr >= 0 ? colNr : 1]);
+      const loc = str(row[colLoc >= 0 ? colLoc : 2]);
       return {
-        project_number: str(row[0]),
-        name: str(row[1]),
-        location: str(row[2]),
-        start_date: str(row[3]),
-        end_date: str(row[4]),
-        budget: parseFloat(str(row[5])) || undefined,
+        project_number: (nr || name).substring(0, 50),
+        name: name || nr,
+        location: loc || undefined,
+        start_date: parseDate(row[colStart >= 0 ? colStart : 3]),
+        end_date: parseDate(row[colEnd >= 0 ? colEnd : 4]),
+        budget: parseFloat(str(row[colBudget >= 0 ? colBudget : 5])) || undefined,
       };
     });
 
@@ -181,12 +216,12 @@ export default function ImportProjectsScreen() {
     setLoading(true);
     try {
       const projectsToInsert = preview.map((p) => ({
-        project_number: p.project_number,
+        project_number: (p.project_number || "").substring(0, 50),
         name: p.name,
         location: p.location || null,
-        start_date: p.start_date || null,
-        end_date: p.end_date || null,
-        budget: p.budget || null,
+        start_date: p.start_date && p.start_date !== "0" ? p.start_date : null,
+        end_date: p.end_date && p.end_date !== "0" ? p.end_date : null,
+        budget: p.budget && p.budget > 0 ? p.budget : null,
         status: "planning" as const,
         company_id: profile?.company_id,
         created_by: profile?.id,
@@ -225,7 +260,7 @@ export default function ImportProjectsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.replace("/projects" as any)} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t("projects.import.title")}</Text>

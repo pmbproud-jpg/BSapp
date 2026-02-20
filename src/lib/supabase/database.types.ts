@@ -10,7 +10,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type UserRole = 'admin' | 'management' | 'project_manager' | 'bauleiter' | 'worker' | 'subcontractor'
+export type UserRole = 'admin' | 'management' | 'project_manager' | 'bauleiter' | 'worker' | 'subcontractor' | 'office_worker' | 'logistics' | 'purchasing' | 'warehouse_manager'
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled'
 export type TaskStatus = 'todo' | 'in_progress' | 'completed' | 'blocked'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
@@ -55,6 +55,7 @@ export interface Database {
           hide_phone: boolean
           hide_email: boolean
           access_expires_at: string | null
+          custom_permissions: Json | null
           created_at: string
           updated_at: string
         }
@@ -70,6 +71,7 @@ export interface Database {
           hide_phone?: boolean
           hide_email?: boolean
           access_expires_at?: string | null
+          custom_permissions?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -85,6 +87,7 @@ export interface Database {
           hide_phone?: boolean
           hide_email?: boolean
           access_expires_at?: string | null
+          custom_permissions?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -151,7 +154,10 @@ export interface Database {
           completed_at: string | null
           assigned_to: string | null
           assigned_by: string | null
+          assigned_at: string | null
           created_by: string | null
+          edited_by: string | null
+          edited_at: string | null
           notes_de: string | null
           notes_pl: string | null
           notes_en: string | null
@@ -169,7 +175,10 @@ export interface Database {
           completed_at?: string | null
           assigned_to?: string | null
           assigned_by?: string | null
+          assigned_at?: string | null
           created_by?: string | null
+          edited_by?: string | null
+          edited_at?: string | null
           notes_de?: string | null
           notes_pl?: string | null
           notes_en?: string | null
@@ -187,7 +196,10 @@ export interface Database {
           completed_at?: string | null
           assigned_to?: string | null
           assigned_by?: string | null
+          assigned_at?: string | null
           created_by?: string | null
+          edited_by?: string | null
+          edited_at?: string | null
           notes_de?: string | null
           notes_pl?: string | null
           notes_en?: string | null
@@ -421,6 +433,59 @@ export interface Database {
           start_time?: string | null
           end_time?: string | null
           assigned_by?: string | null
+          created_at?: string
+        }
+      }
+      warehouse_materials: {
+        Row: {
+          id: string
+          pozycja: string | null
+          art_nr: string | null
+          nazwa: string | null
+          ilosc: number | null
+          dlugosc: string | null
+          szerokosc: string | null
+          wysokosc: string | null
+          waga: string | null
+          zamawiajacy: string | null
+          data_zamowienia: string | null
+          data_dostawy: string | null
+          min_stan: number | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          pozycja?: string | null
+          art_nr?: string | null
+          nazwa?: string | null
+          ilosc?: number | null
+          dlugosc?: string | null
+          szerokosc?: string | null
+          wysokosc?: string | null
+          waga?: string | null
+          zamawiajacy?: string | null
+          data_zamowienia?: string | null
+          data_dostawy?: string | null
+          min_stan?: number | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          pozycja?: string | null
+          art_nr?: string | null
+          nazwa?: string | null
+          ilosc?: number | null
+          dlugosc?: string | null
+          szerokosc?: string | null
+          wysokosc?: string | null
+          waga?: string | null
+          zamawiajacy?: string | null
+          data_zamowienia?: string | null
+          data_dostawy?: string | null
+          min_stan?: number | null
+          created_by?: string | null
           created_at?: string
         }
       }

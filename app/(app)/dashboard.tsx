@@ -9,11 +9,13 @@ import {
   Dimensions,
   RefreshControl,
   Platform,
+  TextInput,
 } from "react-native";
 import { useFocusEffect, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/src/lib/supabase/client";
+import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { usePermissions } from "@/src/hooks/usePermissions";
 import { useTheme } from "@/src/providers/ThemeProvider";
@@ -110,7 +112,7 @@ const ProgressRing = ({ progress, size = 100, color = "#10b981", label }: {
       }]} />
       <View style={styles.progressTextContainer}>
         <Text style={[styles.progressText, { fontSize: size * 0.22, color }]}>{Math.round(progressValue)}%</Text>
-        {label && <Text style={styles.progressLabel}>{label}</Text>}
+        {label ? <Text style={styles.progressLabel}>{label}</Text> : null}
       </View>
     </View>
   );
@@ -129,23 +131,26 @@ export default function DashboardScreen() {
     totalTasks: 0,
     totalProjects: 0,
   });
-  const [tasksByProject, setTasksByProject] = useState<{ project_number: string; project_id: string; pending: number; in_progress: number; completed: number }[]>([]);
+  const [tasksByProject, setTasksByProject] = useState<{ project_number: string; project_name: string; project_id: string; pending: number; in_progress: number; completed: number }[]>([]);
+  const [tbpSearch, setTbpSearch] = useState("");
+  const [tbpSort, setTbpSort] = useState<"name" | "number">("name");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  const canViewCharts = perms.canViewAllCharts || perms.canViewOwnCharts;
+  const [pendingAbsencesCount, setPendingAbsencesCount] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       fetchAllData();
-    }, [])
+    }, [profile?.id])
   );
 
   const fetchAllData = async () => {
+    if (!refreshing) setLoading(true);
     try {
       await Promise.allSettled([
         fetchStats(),
         fetchTasksByProject(),
+        fetchPendingAbsences(),
       ]);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -253,7 +258,7 @@ export default function DashboardScreen() {
 
       let projectsQuery = supabase
         .from("projects")
-        .select("id, name")
+        .select("id, name, project_number")
         .in("status", ["planning", "active"]);
       if (projectFilter) projectsQuery = projectsQuery.in("id", projectFilter);
       const { data: projects, error: projError } = await projectsQuery;
@@ -286,7 +291,8 @@ export default function DashboardScreen() {
             .eq("project_id", proj.id)
             .eq("status", "completed");
           return {
-            project_number: proj.name || "?",
+            project_number: proj.project_number || proj.name || "?",
+            project_name: proj.name || "?",
             project_id: proj.id,
             pending: (pending || 0),
             in_progress: inProgress || 0,
@@ -297,6 +303,17 @@ export default function DashboardScreen() {
       setTasksByProject(result);
     } catch (error) {
       console.error("Error fetching tasks by project:", error);
+    }
+  };
+
+  const fetchPendingAbsences = async () => {
+    try {
+      const { data } = await (supabaseAdmin.from("user_absences") as any)
+        .select("id")
+        .eq("status", "pending");
+      setPendingAbsencesCount(data?.length || 0);
+    } catch (e) {
+      console.error("Error fetching pending absences:", e);
     }
   };
 
@@ -357,101 +374,23 @@ export default function DashboardScreen() {
       </View>
 
       {/* Completion Rate */}
-      {canViewCharts && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: themeColors.textSecondary }]}>{t("dashboard.charts.completion_rate")}</Text>
-          <View style={[styles.completionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-            <ProgressRing progress={completionRate} size={110} color="#10b981" />
-            <View style={styles.completionInfo}>
-              <Text style={[styles.completionMainText, { color: themeColors.text }]}>
-                {stats.completedTasks} / {stats.totalTasks}
-              </Text>
-              <Text style={[styles.completionSubText, { color: themeColors.textSecondary }]}>
-                {t("dashboard.charts.tasks_completed")}
-              </Text>
-            </View>
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: themeColors.textSecondary }]}>{t("dashboard.charts.completion_rate")}</Text>
+        <View style={[styles.completionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+          <ProgressRing progress={completionRate} size={110} color="#10b981" />
+          <View style={styles.completionInfo}>
+            <Text style={[styles.completionMainText, { color: themeColors.text }]}>
+              {stats.completedTasks} / {stats.totalTasks}
+            </Text>
+            <Text style={[styles.completionSubText, { color: themeColors.textSecondary }]}>
+              {t("dashboard.charts.tasks_completed")}
+            </Text>
           </View>
         </View>
-      )}
-
-      {/* Tasks by Project */}
-      {tasksByProject.length > 0 && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: themeColors.textSecondary }]}>{t("dashboard.charts.tasks_by_project") || "Zadania wg projektu"}</Text>
-          <View style={[styles.chartCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-            <View style={{ flexDirection: "row", justifyContent: "center", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: "#f59e0b" }} />
-                <Text style={{ fontSize: 11, color: themeColors.textSecondary }}>{t("tasks.status.todo") || "Do zrobienia"}</Text>
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: "#3b82f6" }} />
-                <Text style={{ fontSize: 11, color: themeColors.textSecondary }}>{t("tasks.status.in_progress")}</Text>
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: "#10b981" }} />
-                <Text style={{ fontSize: 11, color: themeColors.textSecondary }}>{t("tasks.status.completed")}</Text>
-              </View>
-            </View>
-            <ScrollView horizontal={Platform.OS === "web"} showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: Platform.OS === "web" ? 16 : 10, alignItems: Platform.OS === "web" ? "flex-end" : "stretch", paddingHorizontal: 4 }}>
-                {tasksByProject.map((proj) => {
-                  const maxVal = Math.max(proj.pending, proj.in_progress, proj.completed, 1);
-                  const barMaxH = 100;
-                  return (
-                    <TouchableOpacity
-                      key={proj.project_id}
-                      activeOpacity={0.7}
-                      onPress={() => router.push(`/projects/${proj.project_id}` as any)}
-                      style={Platform.OS === "web" ? { alignItems: "center", minWidth: 60 } : { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 }}
-                    >
-                      {Platform.OS === "web" ? (
-                        <>
-                          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 3, height: barMaxH }}>
-                            <View style={{ alignItems: "center" }}>
-                              <Text style={{ fontSize: 10, fontWeight: "700", color: "#f59e0b", marginBottom: 2 }}>{proj.pending}</Text>
-                              <View style={{ width: 14, height: Math.max((proj.pending / maxVal) * barMaxH * 0.7, 4), backgroundColor: "#f59e0b", borderRadius: 3 }} />
-                            </View>
-                            <View style={{ alignItems: "center" }}>
-                              <Text style={{ fontSize: 10, fontWeight: "700", color: "#3b82f6", marginBottom: 2 }}>{proj.in_progress}</Text>
-                              <View style={{ width: 14, height: Math.max((proj.in_progress / maxVal) * barMaxH * 0.7, 4), backgroundColor: "#3b82f6", borderRadius: 3 }} />
-                            </View>
-                            <View style={{ alignItems: "center" }}>
-                              <Text style={{ fontSize: 10, fontWeight: "700", color: "#10b981", marginBottom: 2 }}>{proj.completed}</Text>
-                              <View style={{ width: 14, height: Math.max((proj.completed / maxVal) * barMaxH * 0.7, 4), backgroundColor: "#10b981", borderRadius: 3 }} />
-                            </View>
-                          </View>
-                          <Text style={{ fontSize: 10, fontWeight: "600", color: themeColors.text, marginTop: 6, maxWidth: 60, textAlign: "center" }} numberOfLines={2}>{proj.project_number}</Text>
-                        </>
-                      ) : (
-                        <>
-                          <Text style={{ fontSize: 11, fontWeight: "700", color: themeColors.text, width: 80 }} numberOfLines={1}>{proj.project_number}</Text>
-                          <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 4 }}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 2, flex: 1 }}>
-                              <View style={{ height: 18, width: Math.max(proj.pending * 8, 4), backgroundColor: "#f59e0b", borderRadius: 3 }} />
-                              <Text style={{ fontSize: 10, fontWeight: "700", color: "#f59e0b" }}>{proj.pending}</Text>
-                            </View>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 2, flex: 1 }}>
-                              <View style={{ height: 18, width: Math.max(proj.in_progress * 8, 4), backgroundColor: "#3b82f6", borderRadius: 3 }} />
-                              <Text style={{ fontSize: 10, fontWeight: "700", color: "#3b82f6" }}>{proj.in_progress}</Text>
-                            </View>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 2, flex: 1 }}>
-                              <View style={{ height: 18, width: Math.max(proj.completed * 8, 4), backgroundColor: "#10b981", borderRadius: 3 }} />
-                              <Text style={{ fontSize: 10, fontWeight: "700", color: "#10b981" }}>{proj.completed}</Text>
-                            </View>
-                          </View>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      )}
+      </View>
 
       {/* Plan Button */}
+      {perms.canViewPlan && (
       <View style={styles.section}>
         <TouchableOpacity
           style={[styles.planButton, { backgroundColor: themeColors.primary }]}
@@ -469,8 +408,36 @@ export default function DashboardScreen() {
           </View>
         </TouchableOpacity>
       </View>
+      )}
+
+      {/* Urlopy Button */}
+      {perms.canViewPlan && (
+      <View style={styles.section}>
+        <TouchableOpacity
+          style={[styles.planButton, { backgroundColor: "#f59e0b" }]}
+          onPress={() => router.push("/(app)/absences" as any)}
+        >
+          <View style={styles.planButtonContent}>
+            <View style={styles.planButtonIcon}>
+              <Ionicons name="calendar-clear" size={32} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.planButtonTitle}>{t("absences.title") || "Urlopy"}</Text>
+              <Text style={styles.planButtonSubtitle}>{t("absences.dashboard_desc") || "Wnioski urlopowe i nieobecności"}</Text>
+            </View>
+            {pendingAbsencesCount > 0 && (
+              <View style={{ backgroundColor: "#ef4444", borderRadius: 12, minWidth: 24, height: 24, justifyContent: "center", alignItems: "center", paddingHorizontal: 6, marginRight: 8 }}>
+                <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>{pendingAbsencesCount}</Text>
+              </View>
+            )}
+            <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.7)" />
+          </View>
+        </TouchableOpacity>
+      </View>
+      )}
 
       {/* Magazyn Button */}
+      {perms.canViewWarehouse && (
       <View style={styles.section}>
         <TouchableOpacity
           style={[styles.planButton, { backgroundColor: "#dc2626" }]}
@@ -481,13 +448,14 @@ export default function DashboardScreen() {
               <Ionicons name="cube" size={32} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.planButtonTitle}>{t("magazyn.title") || "Magazyn"}</Text>
-              <Text style={styles.planButtonSubtitle}>{t("magazyn.dashboard_desc") || "Zarządzanie magazynem"}</Text>
+              <Text style={styles.planButtonTitle}>{t("magazyn.title") || "Lager"}</Text>
+              <Text style={styles.planButtonSubtitle}>{t("magazyn.dashboard_desc") || "Lagerverwaltung"}</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.7)" />
           </View>
         </TouchableOpacity>
       </View>
+      )}
 
       {/* Quick Actions */}
       <View style={styles.section}>
@@ -522,6 +490,113 @@ export default function DashboardScreen() {
           )}
         </View>
       </View>
+
+      {/* Tasks by Project — vertical list at the bottom */}
+      {tasksByProject.length > 0 && (() => {
+        const q = tbpSearch.toLowerCase().trim();
+        const filtered = tasksByProject
+          .filter((p) => !q || p.project_name.toLowerCase().includes(q) || p.project_number.toLowerCase().includes(q))
+          .sort((a, b) => {
+            if (tbpSort === "number") return (a.project_number || "").localeCompare(b.project_number || "", "de", { numeric: true });
+            return (a.project_name || "").localeCompare(b.project_name || "", "de");
+          });
+        return (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: themeColors.textSecondary }]}>{t("dashboard.charts.tasks_by_project") || "Aufgaben nach Projekt"}</Text>
+          <View style={[styles.chartCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            {/* Search */}
+            <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: themeColors.border || "#e2e8f0", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10, gap: 6 }}>
+              <Ionicons name="search" size={16} color="#94a3b8" />
+              <TextInput
+                style={{ flex: 1, fontSize: 13, color: themeColors.text, padding: 0 }}
+                placeholder={t("users.search_placeholder") || "Suchen..."}
+                placeholderTextColor="#94a3b8"
+                value={tbpSearch}
+                onChangeText={setTbpSearch}
+              />
+              {tbpSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setTbpSearch("")}>
+                  <Ionicons name="close-circle" size={16} color="#94a3b8" />
+                </TouchableOpacity>
+              )}
+            </View>
+            {/* Sort buttons */}
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: tbpSort === "name" ? "#2563eb" : (themeColors.border || "#f1f5f9"), paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 }}
+                onPress={() => setTbpSort("name")}
+              >
+                <Ionicons name="text" size={14} color={tbpSort === "name" ? "#fff" : themeColors.textSecondary} />
+                <Text style={{ fontSize: 11, fontWeight: "600", color: tbpSort === "name" ? "#fff" : themeColors.textSecondary }}>{t("projects.name") || "Name"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: tbpSort === "number" ? "#2563eb" : (themeColors.border || "#f1f5f9"), paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 }}
+                onPress={() => setTbpSort("number")}
+              >
+                <Ionicons name="list" size={14} color={tbpSort === "number" ? "#fff" : themeColors.textSecondary} />
+                <Text style={{ fontSize: 11, fontWeight: "600", color: tbpSort === "number" ? "#fff" : themeColors.textSecondary }}>Nr. Budowy</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Legend */}
+            <View style={{ flexDirection: "row", justifyContent: "center", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: "#f59e0b" }} />
+                <Text style={{ fontSize: 11, color: themeColors.textSecondary }}>{t("tasks.status.todo") || "Zu erledigen"}</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: "#3b82f6" }} />
+                <Text style={{ fontSize: 11, color: themeColors.textSecondary }}>{t("tasks.status.in_progress")}</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: "#10b981" }} />
+                <Text style={{ fontSize: 11, color: themeColors.textSecondary }}>{t("tasks.status.completed")}</Text>
+              </View>
+            </View>
+            {filtered.length === 0 ? (
+              <Text style={{ fontSize: 13, color: themeColors.textSecondary, textAlign: "center", paddingVertical: 16 }}>
+                {t("projects.empty") || "Keine Projekte"}
+              </Text>
+            ) : (
+              filtered.map((proj) => {
+                const total = proj.pending + proj.in_progress + proj.completed;
+                const maxVal = Math.max(total, 1);
+                return (
+                  <TouchableOpacity
+                    key={proj.project_id}
+                    activeOpacity={0.7}
+                    onPress={() => router.push(`/projects/${proj.project_id}` as any)}
+                    style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: themeColors.border || "#f1f5f9" }}
+                  >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: themeColors.text, flex: 1 }} numberOfLines={1}>{proj.project_name}</Text>
+                      <Text style={{ fontSize: 11, color: themeColors.textSecondary }}>{total} {t("tasks.title") || "Aufgaben"}</Text>
+                    </View>
+                    <Text style={{ fontSize: 11, color: themeColors.textSecondary, marginBottom: 6 }} numberOfLines={1}>{proj.project_number}</Text>
+                    <View style={{ flexDirection: "row", height: 20, borderRadius: 6, overflow: "hidden", backgroundColor: themeColors.border || "#e2e8f0" }}>
+                      {proj.pending > 0 && (
+                        <View style={{ width: `${(proj.pending / maxVal) * 100}%`, backgroundColor: "#f59e0b", justifyContent: "center", alignItems: "center" }}>
+                          <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff" }}>{proj.pending}</Text>
+                        </View>
+                      )}
+                      {proj.in_progress > 0 && (
+                        <View style={{ width: `${(proj.in_progress / maxVal) * 100}%`, backgroundColor: "#3b82f6", justifyContent: "center", alignItems: "center" }}>
+                          <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff" }}>{proj.in_progress}</Text>
+                        </View>
+                      )}
+                      {proj.completed > 0 && (
+                        <View style={{ width: `${(proj.completed / maxVal) * 100}%`, backgroundColor: "#10b981", justifyContent: "center", alignItems: "center" }}>
+                          <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff" }}>{proj.completed}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+        </View>
+        );
+      })()}
 
       <View style={{ height: 40 }} />
     </ScrollView>

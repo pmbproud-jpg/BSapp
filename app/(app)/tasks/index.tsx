@@ -46,7 +46,7 @@ export default function TasksScreen() {
       if (filter === "my" && profile?.id) {
         query = query.eq("assigned_to", profile.id);
       } else if (filter === "pending") {
-        query = query.in("status", ["pending", "in_progress"]);
+        query = query.in("status", ["todo", "in_progress"]);
       }
 
       const { data, error } = await query;
@@ -72,10 +72,10 @@ export default function TasksScreen() {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      pending: "#f59e0b",
+      todo: "#f59e0b",
       in_progress: "#3b82f6",
       completed: "#10b981",
-      cancelled: "#64748b",
+      blocked: "#64748b",
     };
     return colors[status] || "#94a3b8";
   };
@@ -136,21 +136,21 @@ export default function TasksScreen() {
         </View>
       </View>
 
-      {item.description && (
+      {item.description ? (
         <Text style={styles.taskDescription} numberOfLines={2}>
           {item.description}
         </Text>
-      )}
+      ) : null}
 
       <View style={styles.taskFooter}>
-        {item.due_date && (
+        {item.due_date ? (
           <View style={styles.taskInfo}>
             <Ionicons name="calendar-outline" size={14} color="#64748b" />
             <Text style={styles.taskInfoText}>
               {formatRelativeDate(item.due_date, i18n.language)}
             </Text>
           </View>
-        )}
+        ) : null}
       </View>
     </TouchableOpacity>
   );
