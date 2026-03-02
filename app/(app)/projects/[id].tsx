@@ -1,4 +1,5 @@
 import FileAttachments from "@/components/FileAttachments";
+import KanbanBoard from "@/components/KanbanBoard";
 import { orderStatusColors } from "@/src/constants/colors";
 import { usePermissions } from "@/src/hooks/usePermissions";
 import { useProjectOrders } from "@/src/hooks/useProjectOrders";

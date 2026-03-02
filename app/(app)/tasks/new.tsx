@@ -84,14 +84,14 @@ export default function NewTaskScreen() {
   const fetchProjectName = async () => {
     if (!project_id) return;
     try {
-      const { data, error } = await supabase
-        .from("projects")
+      const { data, error } = await (supabase
+        .from("projects") as any)
         .select("name")
         .eq("id", project_id)
         .single();
 
       if (error) throw error;
-      setProjectName(data?.name || "");
+      setProjectName((data as any)?.name || "");
     } catch (error) {
       console.error("Error fetching project:", error);
     }
