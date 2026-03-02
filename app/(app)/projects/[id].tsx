@@ -2,9 +2,11 @@ import FileAttachments from "@/components/FileAttachments";
 import KanbanBoard from "@/components/KanbanBoard";
 import { orderStatusColors } from "@/src/constants/colors";
 import { usePermissions } from "@/src/hooks/usePermissions";
+import { useProjectData } from "@/src/hooks/useProjectData";
+import { useProjectEdit } from "@/src/hooks/useProjectEdit";
+import { useProjectMembers } from "@/src/hooks/useProjectMembers";
 import { useProjectOrders } from "@/src/hooks/useProjectOrders";
-import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
-import { supabase } from "@/src/lib/supabase/client";
+import { useProjectPlanWorkers } from "@/src/hooks/useProjectPlanWorkers";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { useNotifications } from "@/src/providers/NotificationProvider";
@@ -31,72 +33,28 @@ import {
 import ProjectPlans from "../components/ProjectPlans";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
-type Task = Database["public"]["Tables"]["tasks"]["Row"];
-type ProjectMember = {
-  id: string;
-  user_id: string;
-  role: string;
-  joined_at: string;
-  profile?: { full_name: string | null; email: string; role: string };
-};
-type HistoryEntry = {
-  type: "created" | "member_added" | "member_removed" | "task_created" | "task_completed";
-  date: string;
-  description: string;
-  icon: string;
-  color: string;
-  taskId?: string;
-};
-
-type Attachment = {
-  id: string;
-  file_name: string;
-  file_url: string;
-  file_type: string;
-  file_size: number;
-  created_at: string;
-};
 
 export default function ProjectDetailsScreen() {
   const { id, tab, planId, pinId } = useLocalSearchParams<{ id: string; tab?: string; planId?: string; pinId?: string }>();
   const { t } = useTranslation();
   const { profile } = useAuth();
-  const [project, setProject] = useState<Project | null>(null);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [members, setMembers] = useState<ProjectMember[]>([]);
-  const [pmName, setPmName] = useState<string>("");
-  const [blName, setBlName] = useState<string>("");
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"tasks" | "members" | "history" | "orders" | "plans">(
-    tab === "plans" ? "plans" : "tasks"
-  );
-  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
-  const [taskSortBy, setTaskSortBy] = useState<"date" | "name" | "creator" | "assignee">("date");
-  const [showAddMember, setShowAddMember] = useState(false);
-  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [planWorkers, setPlanWorkers] = useState<any[]>([]);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({ name: "", description: "", location: "", status: "planning", budget: "", start_date: "", end_date: "", project_manager_id: "", bauleiter_id: "" });
-  const [editSaving, setEditSaving] = useState(false);
-  const [allUsers, setAllUsers] = useState<any[]>([]);
-  const [showPMPicker, setShowPMPicker] = useState(false);
-  const [showBLPicker, setShowBLPicker] = useState(false);
+  const perms = usePermissions();
+  const { colors: tc } = useTheme();
+  const { sendNotification } = useNotifications();
 
-  // Attachment folders
-  const [folders, setFolders] = useState<any[]>([]);
-  const [openFolderId, setOpenFolderId] = useState<string | null>(null);
-  const [folderAttachments, setFolderAttachments] = useState<Record<string, any[]>>({});
-  const [showNewFolderInput, setShowNewFolderInput] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-
-  // Team date navigation
-  const [teamDate, setTeamDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  // ─── Hooks danych ───
+  const projectData = useProjectData(id, profile?.id, t);
+  const {
+    project, setProject, tasks, setTasks, attachments, history, loading,
+    pmName, blName,
+    folders, openFolderId, setOpenFolderId, folderAttachments,
+    showNewFolderInput, setShowNewFolderInput, newFolderName, setNewFolderName,
+    fetchProjectDetails, fetchProjectTasks, fetchAttachments, fetchFolders,
+    fetchFolderAttachments, createFolder, deleteFolder, buildHistory,
+    handleKanbanStatusChange, deleteTaskFromProject, deleteProject,
+  } = projectData;
 
   // Orders hook
-  const orders = useProjectOrders(id, profile?.id, t);
   const {
     materialsList, projectOrders,
     showOrderModal, setShowOrderModal,
@@ -110,17 +68,57 @@ export default function ProjectDetailsScreen() {
     toolOrderSaving, toolOrderSearch, setToolOrderSearch,
     toolOrderCart, setToolOrderCart,
     fetchToolsAndOrders, submitToolCartOrders,
-  } = orders;
+  } = useProjectOrders(id, profile?.id, t);
 
-  // Manual plan worker addition
-  const [showAddPlanWorker, setShowAddPlanWorker] = useState(false);
-  const [planWorkerCandidates, setPlanWorkerCandidates] = useState<any[]>([]);
-  const [planWorkerSearch, setPlanWorkerSearch] = useState("");
-  const [addingPlanWorker, setAddingPlanWorker] = useState(false);
+  // fetchAll needs to be defined before hooks that depend on it
+  const fetchAll = async () => {
+    await Promise.all([
+      fetchProjectDetails(),
+      fetchProjectTasks(),
+      fetchAttachments(),
+      fetchFolders(),
+      memberHook.fetchMembers(),
+      fetchMaterialsAndOrders(),
+      fetchToolsAndOrders(),
+      editHook.fetchAllUsers(),
+    ]);
+  };
 
-  const perms = usePermissions();
-  const { colors: tc } = useTheme();
-  const { sendNotification } = useNotifications();
+  // Members hook
+  const memberHook = useProjectMembers(id, profile, project, t, sendNotification, fetchAll);
+  const {
+    members, showAddMember, setShowAddMember,
+    availableUsers, usersLoading,
+    fetchMembers, addMember, removeMember, openAddMemberModal,
+  } = memberHook;
+
+  // Edit hook
+  const editHook = useProjectEdit(id, profile, project, members, t, fetchAll);
+  const {
+    showEditModal, setShowEditModal,
+    editForm, setEditForm, editSaving,
+    allUsers, showPMPicker, setShowPMPicker, showBLPicker, setShowBLPicker,
+    fetchAllUsers, openEditProject, saveEditProject,
+  } = editHook;
+
+  // Plan workers hook
+  const planWorkersHook = useProjectPlanWorkers(id, profile);
+  const {
+    planWorkers,
+    showAddPlanWorker, setShowAddPlanWorker,
+    planWorkerCandidates, planWorkerSearch, setPlanWorkerSearch,
+    addingPlanWorker,
+    fetchPlanWorkers, openAddPlanWorkerModal, addPlanWorkerManually,
+  } = planWorkersHook;
+
+  // ─── Local UI state ───
+  const [activeTab, setActiveTab] = useState<"tasks" | "members" | "history" | "orders" | "plans">(
+    tab === "plans" ? "plans" : "tasks"
+  );
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+  const [taskSortBy, setTaskSortBy] = useState<"date" | "name" | "creator" | "assignee">("date");
+  const [teamDate, setTeamDate] = useState<string>(new Date().toISOString().split("T")[0]);
+
   const canEdit = perms.canEditProject;
   const canDelete = perms.canDeleteProject;
   const canManageMembers = perms.canManageMembers;
@@ -132,7 +130,6 @@ export default function ProjectDetailsScreen() {
     useCallback(() => {
       fetchAll();
       fetchPlanWorkers(teamDate);
-      // Switch to plans tab when navigating from task with pin
       if (tab === "plans") {
         setActiveTab("plans");
       }
@@ -143,654 +140,17 @@ export default function ProjectDetailsScreen() {
     if (id) fetchPlanWorkers(teamDate);
   }, [teamDate]);
 
-  const fetchAllUsers = async () => {
-    try {
-      let query = (supabaseAdmin.from("profiles") as any)
-        .select("id, full_name, email, role")
-        .order("full_name");
-      if (profile?.company_id) {
-        query = query.eq("company_id", profile.company_id);
-      }
-      const { data } = await query;
-      setAllUsers(data || []);
-    } catch (e) { console.error("Error fetching all users:", e); }
-  };
-
-  const fetchAll = async () => {
-    await Promise.all([
-      fetchProjectDetails(),
-      fetchProjectTasks(),
-      fetchAttachments(),
-      fetchFolders(),
-      fetchMembers(),
-      fetchMaterialsAndOrders(),
-      fetchToolsAndOrders(),
-      fetchAllUsers(),
-    ]);
-  };
-
-  const fetchProjectDetails = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (error) throw error;
-      setProject(data);
-
-      // Pobierz nazwy PM i BL
-      const proj: any = data;
-      if (proj.project_manager_id) {
-        const { data: pm } = await (supabaseAdmin.from("profiles") as any)
-          .select("full_name, email")
-          .eq("id", proj.project_manager_id)
-          .single();
-        setPmName(pm?.full_name || pm?.email || "");
-      }
-      if (proj.bauleiter_id) {
-        const { data: bl } = await (supabaseAdmin.from("profiles") as any)
-          .select("full_name, email")
-          .eq("id", proj.bauleiter_id)
-          .single();
-        setBlName(bl?.full_name || bl?.email || "");
-      }
-    } catch (error) {
-      console.error("Error fetching project:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchProjectTasks = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("project_id", id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const taskIds = (data || []).map((t: any) => t.id);
-
-      // Pobierz task_assignees dla wszystkich zadań
-      let assigneesMap: Record<string, string[]> = {};
-      if (taskIds.length > 0) {
-        const { data: assignees } = await (supabaseAdmin.from("task_assignees") as any)
-          .select("task_id, user_id")
-          .in("task_id", taskIds);
-        (assignees || []).forEach((a: any) => {
-          if (!assigneesMap[a.task_id]) assigneesMap[a.task_id] = [];
-          assigneesMap[a.task_id].push(a.user_id);
-        });
-      }
-
-      // Zbierz wszystkie user IDs (assigned_to, created_by, task_assignees)
-      const allAssigneeIds = Object.values(assigneesMap).flat();
-      const userIds = [
-        ...new Set(
-          (data || [])
-            .flatMap((t: any) => [t.assigned_to, t.created_by])
-            .filter(Boolean)
-            .concat(allAssigneeIds)
-        ),
-      ];
-      let profileMap: Record<string, string> = {};
-      if (userIds.length > 0) {
-        const { data: profiles } = await (supabaseAdmin.from("profiles") as any)
-          .select("id, full_name, email")
-          .in("id", userIds);
-        (profiles || []).forEach((p: any) => {
-          profileMap[p.id] = p.full_name || p.email || "";
-        });
-      }
-
-      const tasksWithNames = (data || []).map((task: any) => {
-        // Użyj task_assignees jeśli istnieją, w przeciwnym razie fallback na assigned_to
-        const taskAssigneeIds = assigneesMap[task.id] || (task.assigned_to ? [task.assigned_to] : []);
-        const assigneeNames = taskAssigneeIds.map((uid: string) => profileMap[uid] || "").filter(Boolean);
-        return {
-          ...task,
-          assignee_name: assigneeNames.join(", "),
-          assignee_names: assigneeNames,
-          creator_name: task.created_by ? profileMap[task.created_by] || "" : "",
-        };
-      });
-      setTasks(tasksWithNames);
-    } catch (error) {
-      console.error("Error fetching tasks:", error);
-    }
-  };
-
-  const fetchAttachments = async () => {
-    try {
-      const { data, error } = await (supabase
-        .from("project_attachments") as any)
-        .select("*")
-        .eq("project_id", id)
-        .is("folder_id", null)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setAttachments(data || []);
-    } catch (error) {
-      console.error("Error fetching attachments:", error);
-    }
-  };
-
-  const fetchFolders = async () => {
-    try {
-      const { data, error } = await (supabaseAdmin.from("attachment_folders") as any)
-        .select("*")
-        .eq("project_id", id)
-        .order("name", { ascending: true });
-      if (error) throw error;
-      setFolders(data || []);
-    } catch (error) {
-      console.error("Error fetching folders:", error);
-    }
-  };
-
-  const fetchFolderAttachments = async (folderId: string) => {
-    try {
-      const { data, error } = await (supabaseAdmin.from("project_attachments") as any)
-        .select("*")
-        .eq("project_id", id)
-        .eq("folder_id", folderId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setFolderAttachments((prev) => ({ ...prev, [folderId]: data || [] }));
-    } catch (error) {
-      console.error("Error fetching folder attachments:", error);
-    }
-  };
-
-  const createFolder = async () => {
-    if (!newFolderName.trim()) return;
-    try {
-      const { error } = await (supabaseAdmin.from("attachment_folders") as any).insert({
-        project_id: id,
-        name: newFolderName.trim(),
-        created_by: profile?.id || null,
-      });
-      if (error) throw error;
-      setNewFolderName("");
-      setShowNewFolderInput(false);
-      fetchFolders();
-    } catch (error) {
-      console.error("Error creating folder:", error);
-      Alert.alert(t("common.error"), "Fehler beim Erstellen des Ordners");
-    }
-  };
-
-  const deleteFolder = async (folderId: string, folderName: string) => {
-    const doDelete = async () => {
-      try {
-        const { error } = await (supabaseAdmin.from("attachment_folders") as any)
-          .delete().eq("id", folderId);
-        if (error) throw error;
-        setOpenFolderId(null);
-        fetchFolders();
-      } catch (error) {
-        console.error("Error deleting folder:", error);
-      }
-    };
-    if (Platform.OS === "web") {
-      if (window.confirm(`${t("common.delete")} "${folderName}"? (${t("attachments.delete_message")})`)) doDelete();
-    } else {
-      Alert.alert(t("common.delete"), `"${folderName}"?`, [
-        { text: t("common.cancel"), style: "cancel" },
-        { text: t("common.delete"), style: "destructive", onPress: doDelete },
-      ]);
-    }
-  };
-
-  const fetchMembers = async () => {
-    try {
-      const { data, error } = await (supabaseAdmin.from("project_members") as any)
-        .select("*")
-        .eq("project_id", id)
-        .order("joined_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Pobierz profile członków
-      const membersWithProfiles = await Promise.all(
-        (data || []).map(async (m: any) => {
-          const { data: prof } = await (supabaseAdmin.from("profiles") as any)
-            .select("full_name, email, role")
-            .eq("id", m.user_id)
-            .single();
-          return { ...m, profile: prof };
-        })
-      );
-      setMembers(membersWithProfiles);
-      buildHistory(membersWithProfiles);
-
-      // Auto-detekcja PM i BL z zespołu — jeśli nie ustawione w projekcie
-      const proj: any = project;
-      const updateData: any = {};
-      if (!proj?.project_manager_id) {
-        const pmMember = membersWithProfiles.find((m: any) => m.profile?.role === "project_manager");
-        if (pmMember) updateData.project_manager_id = pmMember.user_id;
-      }
-      if (!proj?.bauleiter_id) {
-        const blMember = membersWithProfiles.find((m: any) => m.profile?.role === "bauleiter");
-        if (blMember) updateData.bauleiter_id = blMember.user_id;
-      }
-      if (Object.keys(updateData).length > 0) {
-        await (supabaseAdmin.from("projects") as any).update(updateData).eq("id", id);
-        fetchProjectDetails();
-      }
-    } catch (error) {
-      console.error("Error fetching members:", error);
-    }
-  };
-
-  const buildHistory = (membersData: ProjectMember[]) => {
-    const entries: HistoryEntry[] = [];
-
-    // Projekt utworzony
-    if (project?.created_at) {
-      entries.push({
-        type: "created",
-        date: project.created_at,
-        description: t("projects.history.created"),
-        icon: "add-circle",
-        color: "#2563eb",
-      });
-    }
-
-    // Członkowie dodani
-    membersData.forEach((m) => {
-      entries.push({
-        type: "member_added",
-        date: m.joined_at,
-        description: `${m.profile?.full_name || m.profile?.email || "?"} — ${t("projects.history.member_added")}`,
-        icon: "person-add",
-        color: "#10b981",
-      });
-    });
-
-    // Zadania utworzone / zakończone
-    tasks.forEach((task) => {
-      entries.push({
-        type: "task_created",
-        date: task.created_at,
-        description: `${t("projects.history.task_created")}: ${task.title}`,
-        icon: "clipboard",
-        color: "#f59e0b",
-        taskId: task.id,
-      });
-      if (task.completed_at) {
-        entries.push({
-          type: "task_completed",
-          date: task.completed_at,
-          description: `${t("projects.history.task_completed")}: ${task.title}`,
-          icon: "checkmark-circle",
-          color: "#10b981",
-          taskId: task.id,
-        });
-      }
-    });
-
-    entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setHistory(entries);
-  };
 
   // Odśwież historię gdy zmienią się tasks
   useEffect(() => {
     if (members.length > 0 || tasks.length > 0) {
-      buildHistory(members);
+      buildHistory(members, tasks, project);
     }
   }, [tasks, project]);
 
-  const addMember = async (userId: string) => {
-    try {
-      const { error } = await (supabaseAdmin.from("project_members") as any)
-        .insert({ project_id: id, user_id: userId, role: "member" });
-      if (error) throw error;
-
-      // Sprawdź rolę dodawanego użytkownika i automatycznie ustaw PM/BL w projekcie
-      const { data: addedUser } = await (supabaseAdmin.from("profiles") as any)
-        .select("id, role, full_name, email")
-        .eq("id", userId)
-        .single();
-
-      if (addedUser) {
-        const updateData: any = {};
-
-        if (addedUser.role === "project_manager") {
-          // Dodano PM → ustaw project_manager_id
-          updateData.project_manager_id = userId;
-
-          // Szukaj BL w aktualnych członkach zespołu i ustaw automatycznie
-          const currentMembers = [...members, { user_id: userId, profile: addedUser }];
-          const { data: memberProfiles } = await (supabaseAdmin.from("profiles") as any)
-            .select("id, role")
-            .in("id", currentMembers.map((m: any) => m.user_id));
-          const blUser = (memberProfiles || []).find((p: any) => p.role === "bauleiter");
-          if (blUser) {
-            updateData.bauleiter_id = blUser.id;
-          }
-        }
-
-        if (addedUser.role === "bauleiter") {
-          // Dodano BL → ustaw bauleiter_id
-          updateData.bauleiter_id = userId;
-
-          // Jeśli PM jeszcze nie ustawiony, szukaj PM w zespole
-          const proj: any = project;
-          if (!proj?.project_manager_id) {
-            const currentMembers = [...members, { user_id: userId, profile: addedUser }];
-            const { data: memberProfiles } = await (supabaseAdmin.from("profiles") as any)
-              .select("id, role")
-              .in("id", currentMembers.map((m: any) => m.user_id));
-            const pmUser = (memberProfiles || []).find((p: any) => p.role === "project_manager");
-            if (pmUser) {
-              updateData.project_manager_id = pmUser.id;
-            }
-          }
-        }
-
-        if (Object.keys(updateData).length > 0) {
-          await (supabaseAdmin.from("projects") as any)
-            .update(updateData)
-            .eq("id", id);
-        }
-      }
-
-      // Wyślij powiadomienie do dodanego użytkownika
-      if (userId !== profile?.id) {
-        const projName = project?.name || "";
-        const title = t("notifications.project_member_title", "Nowy przydział do projektu");
-        const body = `${t("notifications.project_member_body", "Zostałeś dodany do projektu")}: ${projName}`;
-        sendNotification(userId, title, body, "project_member", { project_id: id, project_name: projName });
-      }
-
-      setShowAddMember(false);
-      fetchAll();
-    } catch (error: any) {
-      console.error("Error adding member:", error);
-      const msg = error.code === "23505" ? t("projects.member_already_exists") : t("common.error");
-      if (Platform.OS === "web") window.alert(msg);
-      else Alert.alert(t("common.error"), msg);
-    }
-  };
-
-  const removeMember = async (memberId: string, memberName: string) => {
-    const confirmed = Platform.OS === "web"
-      ? window.confirm(`${t("projects.remove_member_confirm")} ${memberName}?`)
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            t("projects.remove_member_title"),
-            `${t("projects.remove_member_confirm")} ${memberName}?`,
-            [
-              { text: t("common.cancel"), style: "cancel", onPress: () => resolve(false) },
-              { text: t("common.delete"), style: "destructive", onPress: () => resolve(true) },
-            ]
-          );
-        });
-    if (!confirmed) return;
-
-    try {
-      const { error } = await (supabaseAdmin.from("project_members") as any)
-        .delete()
-        .eq("id", memberId);
-      if (error) throw error;
-      fetchMembers();
-    } catch (error) {
-      console.error("Error removing member:", error);
-    }
-  };
-
-  // Pobierz pracowników przypisanych z planu dziennego do tego projektu dla danej daty
-  const fetchPlanWorkers = async (dateStr: string) => {
-    try {
-      // Oblicz week_start (poniedziałek) i day_of_week dla danej daty
-      const d = new Date(dateStr);
-      const dayJs = d.getDay(); // 0=Sun, 1=Mon...
-      const dayOfWeek = dayJs === 0 ? 7 : dayJs; // 1=Mon...7=Sun
-      const monday = new Date(d);
-      monday.setDate(d.getDate() - (dayOfWeek - 1));
-      const weekStart = monday.toISOString().split("T")[0];
-
-      // Znajdź plan_requests dla tego projektu i tygodnia
-      const { data: reqs } = await (supabaseAdmin.from("plan_requests") as any)
-        .select("id")
-        .eq("project_id", id)
-        .eq("week_start", weekStart);
-      if (!reqs || reqs.length === 0) { setPlanWorkers([]); return; }
-      const reqIds = reqs.map((r: any) => r.id);
-      // Pobierz przypisania dla konkretnego dnia tygodnia
-      const { data: asgn } = await (supabaseAdmin.from("plan_assignments") as any)
-        .select("worker_id, start_time, end_time, vehicle_id, departure_time")
-        .in("request_id", reqIds)
-        .eq("day_of_week", dayOfWeek);
-      if (!asgn || asgn.length === 0) { setPlanWorkers([]); return; }
-      const workerIds = [...new Set(asgn.map((a: any) => a.worker_id))];
-      // Pobierz profile
-      const { data: profiles } = await (supabaseAdmin.from("profiles") as any)
-        .select("id, full_name, email, role")
-        .in("id", workerIds)
-        .order("full_name");
-      // Dołącz info o godzinach z przypisań
-      const workersWithTime = (profiles || []).map((p: any) => {
-        const assignment = asgn.find((a: any) => a.worker_id === p.id);
-        return {
-          ...p,
-          start_time: assignment?.start_time?.slice(0, 5) || null,
-          end_time: assignment?.end_time?.slice(0, 5) || null,
-          departure_time: assignment?.departure_time?.slice(0, 5) || null,
-        };
-      });
-      setPlanWorkers(workersWithTime);
-    } catch (error) {
-      console.error("Error fetching plan workers:", error);
-    }
-  };
-
-  // Ręczne dodawanie pracownika do planu dziennego
-  const openAddPlanWorkerModal = async () => {
-    setPlanWorkerSearch("");
-    setShowAddPlanWorker(true);
-    try {
-      const { data } = await (supabaseAdmin.from("profiles") as any)
-        .select("id, full_name, email, role")
-        .eq("company_id", profile?.company_id)
-        .order("full_name");
-      // Filtruj już przypisanych w planie na ten dzień
-      const existingIds = planWorkers.map((pw: any) => pw.id);
-      setPlanWorkerCandidates((data || []).filter((u: any) => !existingIds.includes(u.id)));
-    } catch (e) {
-      console.error("Error fetching users for plan:", e);
-    }
-  };
-
-  const addPlanWorkerManually = async (userId: string) => {
-    setAddingPlanWorker(true);
-    try {
-      // Oblicz week_start i day_of_week
-      const d = new Date(teamDate);
-      const dayJs = d.getDay();
-      const dayOfWeek = dayJs === 0 ? 7 : dayJs;
-      const monday = new Date(d);
-      monday.setDate(d.getDate() - (dayOfWeek - 1));
-      const weekStart = monday.toISOString().split("T")[0];
-
-      // Znajdź lub utwórz plan_request dla tego projektu i tygodnia
-      let { data: reqs } = await (supabaseAdmin.from("plan_requests") as any)
-        .select("id")
-        .eq("project_id", id)
-        .eq("week_start", weekStart);
-
-      let requestId: string;
-      if (reqs && reqs.length > 0) {
-        requestId = reqs[0].id;
-      } else {
-        // Utwórz nowy plan_request
-        const { data: newReq, error: reqErr } = await (supabaseAdmin.from("plan_requests") as any)
-          .insert({ project_id: id, week_start: weekStart, requested_by: profile?.id, status: "published" })
-          .select("id")
-          .single();
-        if (reqErr) throw reqErr;
-        requestId = newReq.id;
-      }
-
-      // Dodaj plan_assignment
-      const { error: asgnErr } = await (supabaseAdmin.from("plan_assignments") as any)
-        .insert({ request_id: requestId, worker_id: userId, day_of_week: dayOfWeek });
-      if (asgnErr) throw asgnErr;
-
-      setShowAddPlanWorker(false);
-      fetchPlanWorkers(teamDate);
-    } catch (e: any) {
-      console.error("Error adding plan worker:", e);
-      const msg = e?.code === "23505" ? "Mitarbeiter bereits zugewiesen" : "Fehler beim Hinzufügen";
-      if (Platform.OS === "web") window.alert(msg);
-      else Alert.alert("Fehler", msg);
-    } finally {
-      setAddingPlanWorker(false);
-    }
-  };
-
-  // Usuwanie zadania z poziomu projektu
-  const deleteTaskFromProject = async (taskId: string, taskTitle: string) => {
-    const confirmed = Platform.OS === "web"
-      ? window.confirm(`${t("tasks.delete_confirm_message")}: ${taskTitle}`)
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            t("tasks.delete_confirm_title"),
-            `${t("tasks.delete_confirm_message")}\n${taskTitle}`,
-            [
-              { text: t("common.cancel"), style: "cancel", onPress: () => resolve(false) },
-              { text: t("common.delete"), style: "destructive", onPress: () => resolve(true) },
-            ]
-          );
-        });
-    if (!confirmed) return;
-    try {
-      const { error } = await (supabaseAdmin.from("tasks") as any).delete().eq("id", taskId);
-      if (error) throw error;
-      fetchAll();
-    } catch (error) {
-      console.error("Error deleting task:", error);
-    }
-  };
-
-  const openAddMemberModal = async () => {
-    setUsersLoading(true);
-    setShowAddMember(true);
-    try {
-      const { data, error } = await (supabaseAdmin.from("profiles") as any)
-        .select("id, full_name, email, role")
-        .eq("company_id", profile?.company_id)
-        .order("full_name");
-      if (error) throw error;
-      // Filtruj już dodanych
-      const memberIds = members.map((m) => m.user_id);
-      setAvailableUsers((data || []).filter((u: any) => !memberIds.includes(u.id)));
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    } finally {
-      setUsersLoading(false);
-    }
-  };
-
-  const openEditProject = async () => {
-    if (!project) return;
-    const proj: any = project;
-    setEditForm({
-      name: project.name || "",
-      description: project.description || "",
-      location: project.location || "",
-      status: project.status || "planning",
-      budget: project.budget ? String(project.budget) : "",
-      start_date: project.start_date || "",
-      end_date: project.end_date || "",
-      project_manager_id: proj.project_manager_id || "",
-      bauleiter_id: proj.bauleiter_id || "",
-    });
-    // Fetch users for PM/BL pickers
-    try {
-      const { data } = await (supabaseAdmin.from("profiles") as any)
-        .select("id, full_name, email, role")
-        .eq("company_id", profile?.company_id)
-        .order("full_name");
-      setAllUsers(data || []);
-    } catch (e) { console.error(e); }
-    setShowEditModal(true);
-  };
-
-  const saveEditProject = async () => {
-    if (!editForm.name.trim()) {
-      Alert.alert(t("common.error"), t("projects.name_required"));
-      return;
-    }
-    setEditSaving(true);
-    try {
-      let blId = editForm.bauleiter_id || null;
-
-      // Jeśli PM jest ustawiony a BL nie — szukaj BL automatycznie w zespole
-      if (editForm.project_manager_id && !blId) {
-        const memberIds = members.map((m: any) => m.user_id);
-        if (memberIds.length > 0) {
-          const { data: memberProfiles } = await (supabaseAdmin.from("profiles") as any)
-            .select("id, role")
-            .in("id", memberIds);
-          const blUser = (memberProfiles || []).find((p: any) => p.role === "bauleiter");
-          if (blUser) blId = blUser.id;
-        }
-      }
-
-      const updateData: any = {
-        name: editForm.name.trim(),
-        description: editForm.description.trim() || null,
-        location: editForm.location.trim() || null,
-        status: editForm.status,
-        project_manager_id: editForm.project_manager_id || null,
-        bauleiter_id: blId,
-        start_date: editForm.start_date || null,
-        end_date: editForm.end_date || null,
-      };
-      if (editForm.budget) {
-        const budgetNum = parseFloat(editForm.budget);
-        updateData.budget = isNaN(budgetNum) ? null : budgetNum;
-      } else {
-        updateData.budget = null;
-      }
-
-      // Jeśli PM jest ustawiony, dodaj go do zespołu jeśli jeszcze nie jest
-      if (editForm.project_manager_id) {
-        const pmInTeam = members.some((m: any) => m.user_id === editForm.project_manager_id);
-        if (!pmInTeam) {
-          await (supabaseAdmin.from("project_members") as any)
-            .upsert({ project_id: id, user_id: editForm.project_manager_id, role: "member" }, { onConflict: "project_id,user_id" });
-        }
-      }
-      // Jeśli BL jest ustawiony, dodaj go do zespołu jeśli jeszcze nie jest
-      if (blId) {
-        const blInTeam = members.some((m: any) => m.user_id === blId);
-        if (!blInTeam) {
-          await (supabaseAdmin.from("project_members") as any)
-            .upsert({ project_id: id, user_id: blId, role: "member" }, { onConflict: "project_id,user_id" });
-        }
-      }
-
-      const { error } = await (supabaseAdmin.from("projects") as any)
-        .update(updateData)
-        .eq("id", id);
-      if (error) throw error;
-      setShowEditModal(false);
-      fetchAll();
-    } catch (error) {
-      console.error("Error updating project:", error);
-      Alert.alert(t("common.error"), t("projects.update_error"));
-    } finally {
-      setEditSaving(false);
-    }
+  const handleDeleteProject = async () => {
+    const deleted = await deleteProject();
+    if (deleted) router.back();
   };
 
   const getStatusColor = (status: string) => {
@@ -812,32 +172,6 @@ export default function ProjectDetailsScreen() {
       blocked: "#64748b",
     };
     return colors[status] || "#94a3b8";
-  };
-
-  const deleteProject = async () => {
-    const confirmed = Platform.OS === "web"
-      ? window.confirm(t("projects.delete_confirm_message"))
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            t("projects.delete_confirm_title"),
-            t("projects.delete_confirm_message"),
-            [
-              { text: t("common.cancel"), style: "cancel", onPress: () => resolve(false) },
-              { text: t("common.delete"), style: "destructive", onPress: () => resolve(true) },
-            ]
-          );
-        });
-    if (!confirmed) return;
-
-    try {
-      const { error } = await (supabaseAdmin.from("projects") as any)
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
-      router.back();
-    } catch (error) {
-      console.error("Error deleting project:", error);
-    }
   };
 
   const getTaskStats = () => {
@@ -882,18 +216,6 @@ export default function ProjectDetailsScreen() {
     }
   };
 
-  const handleKanbanStatusChange = async (taskId: string, newStatus: string) => {
-    try {
-      const { error } = await (supabase.from("tasks") as any)
-        .update({ status: newStatus })
-        .eq("id", taskId);
-      if (error) throw error;
-      setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: newStatus } : t));
-    } catch (error) {
-      console.error("Error updating task status:", error);
-    }
-  };
-
   const formatDateTime = (dateStr: string) => {
     const d = new Date(dateStr);
     return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
@@ -935,7 +257,7 @@ export default function ProjectDetailsScreen() {
             </TouchableOpacity>
           )}
           {canDelete && (
-            <TouchableOpacity onPress={deleteProject} style={styles.iconButton}>
+            <TouchableOpacity onPress={handleDeleteProject} style={styles.iconButton}>
               <Ionicons name="trash-outline" size={22} color="#ef4444" />
             </TouchableOpacity>
           )}
@@ -1663,7 +985,7 @@ export default function ProjectDetailsScreen() {
                 style={{ maxHeight: 400 }}
                 ListEmptyComponent={<Text style={styles.emptyText}>Keine verfügbaren Mitarbeiter</Text>}
                 renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.userPickerItem} onPress={() => addPlanWorkerManually(item.id)}>
+                  <TouchableOpacity style={styles.userPickerItem} onPress={() => addPlanWorkerManually(item.id, teamDate)}>
                     <Ionicons name="person-circle-outline" size={28} color="#f59e0b" />
                     <View style={{ flex: 1, marginLeft: 10 }}>
                       <Text style={styles.userPickerName}>{item.full_name || item.email}</Text>
