@@ -1,8 +1,8 @@
-import { useEffect, useRef, useCallback } from "react";
-import { Platform, AppState } from "react-native";
-import * as Location from "expo-location";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { useAuth } from "@/src/providers/AuthProvider";
+import * as Location from "expo-location";
+import { useCallback, useEffect, useRef } from "react";
+import { AppState } from "react-native";
 
 const INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 

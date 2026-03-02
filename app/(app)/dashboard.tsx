@@ -1,24 +1,23 @@
-import { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Dimensions,
-  RefreshControl,
-  Platform,
-  TextInput,
-} from "react-native";
-import { useFocusEffect, router } from "expo-router";
-import { useTranslation } from "react-i18next";
-import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "@/src/lib/supabase/client";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
-import { useAuth } from "@/src/providers/AuthProvider";
 import { usePermissions } from "@/src/hooks/usePermissions";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import { supabase } from "@/src/lib/supabase/client";
+import { useAuth } from "@/src/providers/AuthProvider";
 import { useTheme } from "@/src/providers/ThemeProvider";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+    ActivityIndicator,
+    Dimensions,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from "react-native";
 
 const screenWidth = Dimensions.get("window").width;
 

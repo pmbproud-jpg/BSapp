@@ -1,30 +1,29 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  TextInput,
-  Modal,
-  Platform,
-  Alert,
-  Image,
-  Dimensions,
-  Linking,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useTranslation } from "react-i18next";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
+import { translateText } from "@/src/hooks/useAutoTranslate";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { useAuth } from "@/src/providers/AuthProvider";
+import { useNotifications } from "@/src/providers/NotificationProvider";
 import { useTheme } from "@/src/providers/ThemeProvider";
+import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { translateText } from "@/src/hooks/useAutoTranslate";
-import { useNotifications } from "@/src/providers/NotificationProvider";
-import { GestureDetector, Gesture, GestureHandlerRootView } from "react-native-gesture-handler";
-import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    Linking,
+    Modal,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from "react-native";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 let WebView: any = null;
 if (Platform.OS !== "web") {
   try { WebView = require("react-native-webview").default; } catch (e) {}

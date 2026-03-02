@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { supabase } from "../lib/supabase/client";
-import { supabaseAdmin } from "../lib/supabase/adminClient";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { adminApi as supabaseAdmin } from "../lib/supabase/adminApi";
 import { useAuth } from "./AuthProvider";
 
 type CompanySettings = {
@@ -47,7 +46,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
           if (path) {
             const { data: signedData } = await supabaseAdmin.storage
               .from("attachments")
-              .createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+              .createSignedUrl(path, 60 * 60 * 24 * 30);
             if (signedData?.signedUrl) {
               data.logo_url = signedData.signedUrl;
               // Update in DB so next time it loads faster

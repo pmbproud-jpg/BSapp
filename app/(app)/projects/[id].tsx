@@ -1,32 +1,32 @@
-import { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  TouchableOpacity,
-  Alert,
-  Platform,
-  Modal,
-  FlatList,
-  TextInput,
-  Linking,
-} from "react-native";
-import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
-import { useTranslation } from "react-i18next";
-import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "@/src/lib/supabase/client";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
-import { useAuth } from "@/src/providers/AuthProvider";
-import { usePermissions } from "@/src/hooks/usePermissions";
-import { useTheme } from "@/src/providers/ThemeProvider";
-import { useNotifications } from "@/src/providers/NotificationProvider";
 import FileAttachments from "@/components/FileAttachments";
 import KanbanBoard from "@/components/KanbanBoard";
-import ProjectPlans from "../components/ProjectPlans";
-import { exportToExcel, exportToPDF } from "@/src/utils/exportData";
+import { usePermissions } from "@/src/hooks/usePermissions";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import { supabase } from "@/src/lib/supabase/client";
 import type { Database } from "@/src/lib/supabase/database.types";
+import { useAuth } from "@/src/providers/AuthProvider";
+import { useNotifications } from "@/src/providers/NotificationProvider";
+import { useTheme } from "@/src/providers/ThemeProvider";
+import { exportToExcel, exportToPDF } from "@/src/utils/exportData";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Linking,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import ProjectPlans from "../components/ProjectPlans";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 type Task = Database["public"]["Tables"]["tasks"]["Row"];

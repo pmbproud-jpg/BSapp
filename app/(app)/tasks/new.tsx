@@ -1,30 +1,30 @@
-import { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  Platform,
-  ActivityIndicator,
-  Image,
-} from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
-import { useTranslation } from "react-i18next";
-import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "@/src/lib/supabase/client";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
-import { useAuth } from "@/src/providers/AuthProvider";
-import { usePermissions } from "@/src/hooks/usePermissions";
 import LocalizedDatePicker from "@/components/LocalizedDatePicker";
-import * as ImagePicker from "expo-image-picker";
+import { translateText } from "@/src/hooks/useAutoTranslate";
+import { usePermissions } from "@/src/hooks/usePermissions";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import { supabase } from "@/src/lib/supabase/client";
+import type { Database } from "@/src/lib/supabase/database.types";
+import { useAuth } from "@/src/providers/AuthProvider";
+import { useNotifications } from "@/src/providers/NotificationProvider";
+import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
-import type { Database } from "@/src/lib/supabase/database.types";
-import { translateText } from "@/src/hooks/useAutoTranslate";
-import { useNotifications } from "@/src/providers/NotificationProvider";
+import * as ImagePicker from "expo-image-picker";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
 type TaskStatus = "todo" | "in_progress" | "completed" | "blocked";
 type TaskPriority = "low" | "medium" | "high";

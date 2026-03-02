@@ -1,24 +1,23 @@
-import { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  Dimensions,
-  Platform,
-  Linking,
-} from "react-native";
-import { useTranslation } from "react-i18next";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
-import { supabase } from "@/src/lib/supabase/client";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
+import * as ImagePicker from "expo-image-picker";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    Linking,
+    Modal,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 

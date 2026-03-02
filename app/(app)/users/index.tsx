@@ -1,28 +1,28 @@
-import { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
-  ScrollView,
-  Platform,
-  TextInput,
-  Linking,
-} from "react-native";
-import { router } from "expo-router";
-import { useTranslation } from "react-i18next";
-import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "@/src/lib/supabase/client";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
-import { useAuth } from "@/src/providers/AuthProvider";
 import { usePermissions } from "@/src/hooks/usePermissions";
-import type { Database } from "@/src/lib/supabase/database.types";
-import * as XLSX from "xlsx";
 import { sendPasswordEmail } from "@/src/lib/sendEmail";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import { supabase } from "@/src/lib/supabase/client";
+import type { Database } from "@/src/lib/supabase/database.types";
+import { useAuth } from "@/src/providers/AuthProvider";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Linking,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import * as XLSX from "xlsx";
 
 const openLink = (url: string) => {
   if (Platform.OS === "web") {

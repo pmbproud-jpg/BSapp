@@ -1,30 +1,29 @@
-import { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  Platform,
-  ActivityIndicator,
-  Modal,
-  FlatList,
-} from "react-native";
-import { useTranslation } from "react-i18next";
-import { Ionicons } from "@expo/vector-icons";
+import { getRoleDefaults, RoleName, usePermissions } from "@/src/hooks/usePermissions";
 import { setLanguage, SupportedLanguage } from "@/src/i18n";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
 import { useAuth } from "@/src/providers/AuthProvider";
-import { usePermissions, getRoleDefaults, RoleName } from "@/src/hooks/usePermissions";
-import { useTheme, ThemeMode } from "@/src/providers/ThemeProvider";
 import { useCompany } from "@/src/providers/CompanyProvider";
+import { ThemeMode, useTheme } from "@/src/providers/ThemeProvider";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
-import { Image } from "react-native";
+import * as Location from "expo-location";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from "react-native";
 
 export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
@@ -48,8 +47,12 @@ export default function SettingsScreen() {
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showPermModal, setShowPermModal] = useState(false);
   const [userPerms, setUserPerms] = useState<Record<string, boolean>>({});
+  const [userRoleDefaults, setUserRoleDefaults] = useState<Record<string, boolean>>({});
+  const [userOverrides, setUserOverrides] = useState<Record<string, boolean> | null>(null);
   const [permSaving, setPermSaving] = useState(false);
   const [permSearch, setPermSearch] = useState("");
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [showRolePickerInPerm, setShowRolePickerInPerm] = useState(false);
   const [permSortBy, setPermSortBy] = useState<"name" | "role">("name");
   const [permSortAsc, setPermSortAsc] = useState(true);
 
@@ -72,56 +75,132 @@ export default function SettingsScreen() {
     { value: "warehouse_manager", label: t("common.roles.warehouse_manager"), icon: "file-tray-stacked" as const, color: "#7c3aed" },
   ];
 
-  const permissionKeys = [
-    // Dashboard
-    { key: "canViewAllCharts", label: t("settings.perm_view_all_charts", "Alle Diagramme anzeigen") },
-    { key: "canViewOwnCharts", label: t("settings.perm_view_own_charts", "Eigene Diagramme anzeigen") },
-    // Projekty
-    { key: "canCreateProject", label: t("settings.perm_create_project", "Projekte erstellen") },
-    { key: "canEditProject", label: t("settings.perm_edit_project", "Projekte bearbeiten") },
-    { key: "canDeleteProject", label: t("settings.perm_delete_project", "Projekte löschen") },
-    { key: "canViewAllProjects", label: t("settings.perm_view_all_projects", "Alle Projekte anzeigen") },
-    // Zadania
-    { key: "canCreateTask", label: t("settings.perm_create_task", "Aufgaben erstellen") },
-    { key: "canEditTask", label: t("settings.perm_edit_task", "Aufgaben bearbeiten") },
-    { key: "canDeleteTask", label: t("settings.perm_delete_task", "Aufgaben löschen") },
-    { key: "canAssignTask", label: t("settings.perm_assign_task", "Aufgaben zuweisen") },
-    { key: "canAddTaskComments", label: t("settings.perm_task_comments", "Aufgabenkommentare") },
-    { key: "canChangeTaskStatus", label: t("settings.perm_change_task_status", "Aufgabenstatus ändern") },
-    // Członkowie
-    { key: "canManageMembers", label: t("settings.perm_manage_members", "Mitglieder verwalten") },
-    { key: "canAddMembers", label: t("settings.perm_add_members", "Mitglieder hinzufügen") },
-    { key: "canRemoveMembers", label: t("settings.perm_remove_members", "Mitglieder entfernen") },
-    // Użytkownicy
-    { key: "canViewUsers", label: t("settings.perm_view_users", "Benutzer anzeigen") },
-    { key: "canCreateUser", label: t("settings.perm_create_user", "Benutzer erstellen") },
-    { key: "canEditUser", label: t("settings.perm_edit_user", "Benutzer bearbeiten") },
-    { key: "canDeleteUser", label: t("settings.perm_delete_user", "Benutzer löschen") },
-    { key: "canChangeUserRole", label: t("settings.perm_change_role", "Benutzerrolle ändern") },
-    // Podwykonawcy
-    { key: "canCreateSubcontractor", label: t("settings.perm_create_sub", "Subunternehmer erstellen") },
-    { key: "canManageSubcontractor", label: t("settings.perm_manage_sub", "Subunternehmer verwalten") },
-    // Ustawienia
-    { key: "canManagePermissions", label: t("settings.perm_manage_permissions", "Berechtigungen verwalten") },
-    { key: "canManageGlobalSettings", label: t("settings.perm_global_settings", "Globale Einstellungen") },
-    { key: "canManageCompanySettings", label: t("settings.perm_company_settings", "Firmeneinstellungen") },
-    // GPS
-    { key: "canViewGPS", label: t("settings.perm_view_gps", "GPS anzeigen") },
-    { key: "canManageGPS", label: t("settings.perm_manage_gps", "GPS verwalten") },
-    { key: "canViewGPSUsers", label: t("settings.perm_view_gps_users", "GPS-Benutzer anzeigen") },
-    // Pliki
-    { key: "canUploadFiles", label: t("settings.perm_upload_files", "Dateien hochladen") },
-    { key: "canDeleteFiles", label: t("settings.perm_delete_files", "Dateien löschen") },
-    // Import
-    { key: "canImportData", label: t("settings.perm_import_data", "Datenimport") },
-    // Magazyn
-    { key: "canViewWarehouse", label: t("settings.perm_view_warehouse", "Lager anzeigen") },
-    { key: "canEditWarehouse", label: t("settings.perm_edit_warehouse", "Lager bearbeiten") },
-    { key: "canOrderMaterials", label: t("settings.perm_order_materials", "Materialbestellungen") },
-    // Plan
-    { key: "canViewPlan", label: t("settings.perm_view_plan", "Plan anzeigen") },
-    { key: "canEditPlan", label: t("settings.perm_edit_plan", "Plan bearbeiten") },
+  const permissionGroups = [
+    {
+      title: t("settings.perm_group_dashboard", "Dashboard"),
+      icon: "bar-chart" as const,
+      color: "#3b82f6",
+      perms: [
+        { key: "canViewAllCharts", label: t("settings.perm_view_all_charts", "Alle Diagramme anzeigen") },
+        { key: "canViewOwnCharts", label: t("settings.perm_view_own_charts", "Eigene Diagramme anzeigen") },
+      ],
+    },
+    {
+      title: t("settings.perm_group_projects", "Projekty"),
+      icon: "folder-open" as const,
+      color: "#10b981",
+      perms: [
+        { key: "canCreateProject", label: t("settings.perm_create_project", "Projekte erstellen") },
+        { key: "canEditProject", label: t("settings.perm_edit_project", "Projekte bearbeiten") },
+        { key: "canDeleteProject", label: t("settings.perm_delete_project", "Projekte löschen") },
+        { key: "canViewAllProjects", label: t("settings.perm_view_all_projects", "Alle Projekte anzeigen") },
+      ],
+    },
+    {
+      title: t("settings.perm_group_tasks", "Zadania"),
+      icon: "checkbox" as const,
+      color: "#f59e0b",
+      perms: [
+        { key: "canCreateTask", label: t("settings.perm_create_task", "Aufgaben erstellen") },
+        { key: "canEditTask", label: t("settings.perm_edit_task", "Aufgaben bearbeiten") },
+        { key: "canDeleteTask", label: t("settings.perm_delete_task", "Aufgaben löschen") },
+        { key: "canAssignTask", label: t("settings.perm_assign_task", "Aufgaben zuweisen") },
+        { key: "canAddTaskComments", label: t("settings.perm_task_comments", "Aufgabenkommentare") },
+        { key: "canChangeTaskStatus", label: t("settings.perm_change_task_status", "Aufgabenstatus ändern") },
+      ],
+    },
+    {
+      title: t("settings.perm_group_members", "Mitglieder"),
+      icon: "people" as const,
+      color: "#8b5cf6",
+      perms: [
+        { key: "canManageMembers", label: t("settings.perm_manage_members", "Mitglieder verwalten") },
+        { key: "canAddMembers", label: t("settings.perm_add_members", "Mitglieder hinzufügen") },
+        { key: "canRemoveMembers", label: t("settings.perm_remove_members", "Mitglieder entfernen") },
+      ],
+    },
+    {
+      title: t("settings.perm_group_users", "Benutzer"),
+      icon: "person" as const,
+      color: "#06b6d4",
+      perms: [
+        { key: "canViewUsers", label: t("settings.perm_view_users", "Benutzer anzeigen") },
+        { key: "canCreateUser", label: t("settings.perm_create_user", "Benutzer erstellen") },
+        { key: "canEditUser", label: t("settings.perm_edit_user", "Benutzer bearbeiten") },
+        { key: "canDeleteUser", label: t("settings.perm_delete_user", "Benutzer löschen") },
+        { key: "canChangeUserRole", label: t("settings.perm_change_role", "Benutzerrolle ändern") },
+      ],
+    },
+    {
+      title: t("settings.perm_group_subcontractors", "Subunternehmer"),
+      icon: "construct" as const,
+      color: "#f97316",
+      perms: [
+        { key: "canCreateSubcontractor", label: t("settings.perm_create_sub", "Subunternehmer erstellen") },
+        { key: "canManageSubcontractor", label: t("settings.perm_manage_sub", "Subunternehmer verwalten") },
+      ],
+    },
+    {
+      title: t("settings.perm_group_settings", "Einstellungen"),
+      icon: "settings" as const,
+      color: "#64748b",
+      perms: [
+        { key: "canManagePermissions", label: t("settings.perm_manage_permissions", "Berechtigungen verwalten") },
+        { key: "canManageGlobalSettings", label: t("settings.perm_global_settings", "Globale Einstellungen") },
+        { key: "canManageCompanySettings", label: t("settings.perm_company_settings", "Firmeneinstellungen") },
+      ],
+    },
+    {
+      title: "GPS",
+      icon: "location" as const,
+      color: "#ef4444",
+      perms: [
+        { key: "canViewGPS", label: t("settings.perm_view_gps", "GPS anzeigen") },
+        { key: "canManageGPS", label: t("settings.perm_manage_gps", "GPS verwalten") },
+        { key: "canViewGPSUsers", label: t("settings.perm_view_gps_users", "GPS-Benutzer anzeigen") },
+      ],
+    },
+    {
+      title: t("settings.perm_group_files", "Dateien"),
+      icon: "document-attach" as const,
+      color: "#ec4899",
+      perms: [
+        { key: "canUploadFiles", label: t("settings.perm_upload_files", "Dateien hochladen") },
+        { key: "canDeleteFiles", label: t("settings.perm_delete_files", "Dateien löschen") },
+        { key: "canImportData", label: t("settings.perm_import_data", "Datenimport") },
+      ],
+    },
+    {
+      title: t("settings.perm_group_warehouse", "Lager"),
+      icon: "cube" as const,
+      color: "#7c3aed",
+      perms: [
+        { key: "canViewWarehouse", label: t("settings.perm_view_warehouse", "Lager anzeigen") },
+        { key: "canEditWarehouse", label: t("settings.perm_edit_warehouse", "Lager bearbeiten") },
+        { key: "canOrderMaterials", label: t("settings.perm_order_materials", "Materialbestellungen") },
+      ],
+    },
+    {
+      title: t("settings.perm_group_plan", "Wochenplan"),
+      icon: "calendar" as const,
+      color: "#0891b2",
+      perms: [
+        { key: "canViewPlan", label: t("settings.perm_view_plan", "Plan anzeigen") },
+        { key: "canEditPlan", label: t("settings.perm_edit_plan", "Plan bearbeiten") },
+      ],
+    },
+    {
+      title: t("settings.perm_group_general", "Allgemein"),
+      icon: "shield-checkmark" as const,
+      color: "#475569",
+      perms: [
+        { key: "canDelete", label: t("settings.perm_delete_general", "Allgemeines Löschen") },
+      ],
+    },
   ];
+
+  // Flat list for backward compat (used nowhere now, but keep for reference)
+  const permissionKeys = permissionGroups.flatMap((g) => g.perms);
 
   const fetchAllUsers = async () => {
     setUsersLoading(true);
@@ -166,27 +245,61 @@ export default function SettingsScreen() {
         .eq("id", userId)
         .single();
       if (error) throw error;
+      const role = (data?.role || allUsers.find((u) => u.id === userId)?.role || "worker") as RoleName;
+      const defaults = getRoleDefaults(role);
+      setUserRoleDefaults(defaults);
+      setUserOverrides(data?.custom_permissions || null);
       if (data?.custom_permissions) {
-        setUserPerms(data.custom_permissions as Record<string, boolean>);
+        // Merge: start from defaults, apply overrides
+        setUserPerms({ ...defaults, ...data.custom_permissions });
       } else {
-        const role = (data?.role || allUsers.find((u) => u.id === userId)?.role || "worker") as RoleName;
-        setUserPerms(getRoleDefaults(role));
+        setUserPerms({ ...defaults });
       }
     } catch (e) {
       console.error("Error loading perms:", e);
     }
   };
 
+  const resetUserPermsToDefaults = () => {
+    if (!selectedUser) return;
+    const role = (selectedUser.role || "worker") as RoleName;
+    const defaults = getRoleDefaults(role);
+    setUserPerms({ ...defaults });
+    setUserOverrides(null);
+  };
+
+  const isPermOverridden = (key: string): boolean => {
+    if (!userOverrides) return false;
+    return key in userOverrides && userOverrides[key] !== userRoleDefaults[key];
+  };
+
+  const toggleGroupCollapse = (title: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
+      return next;
+    });
+  };
+
+  const overrideCount = Object.keys(userPerms).filter((k) => userPerms[k] !== userRoleDefaults[k]).length;
+
   const saveUserPerms = async () => {
     if (!selectedUser) return;
     setPermSaving(true);
     try {
-      console.log("[saveUserPerms] Saving for user:", selectedUser.id, "perms:", JSON.stringify(userPerms));
+      // Only save differences from role defaults
+      const overridesOnly: Record<string, boolean> = {};
+      for (const key of Object.keys(userPerms)) {
+        if (userPerms[key] !== userRoleDefaults[key]) {
+          overridesOnly[key] = userPerms[key];
+        }
+      }
+      const toSave = Object.keys(overridesOnly).length > 0 ? overridesOnly : null;
       const { data, error } = await (supabase.from("profiles") as any)
-        .update({ custom_permissions: userPerms })
+        .update({ custom_permissions: toSave })
         .eq("id", selectedUser.id)
         .select("id, custom_permissions");
-      console.log("[saveUserPerms] Result:", JSON.stringify({ data, error }));
       if (error) throw error;
       setShowPermModal(false);
       setSelectedUser(null);
@@ -1012,92 +1125,181 @@ export default function SettingsScreen() {
       </Modal>
     )}
 
-    {/* Modal: Indywidualne uprawnienia */}
-    {Platform.OS === "web" ? (
-      showPermModal && (
-        <View style={[styles.modalOverlay, { position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }]}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card, maxHeight: "85%" }]}>
-            <View style={styles.modalHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  {t("settings.permissions_for") || "Uprawnienia dla"}: {selectedUser?.full_name}
-                </Text>
-                <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
-                  {t(`common.roles.${selectedUser?.role || "worker"}`)}
-                </Text>
+    {/* Modal: Indywidualne uprawnienia — zgrupowane */}
+    {(() => {
+      const permModalContent = (
+        <View style={[styles.modalContent, { backgroundColor: colors.card, maxHeight: "90%", maxWidth: 520, width: "100%" }]}>
+          {/* Header */}
+          <View style={styles.modalHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                {selectedUser?.full_name}
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <TouchableOpacity
+                  onPress={() => setShowRolePickerInPerm(!showRolePickerInPerm)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: `${getRoleColor(selectedUser?.role || "worker")}15`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}
+                >
+                  <Ionicons name={roleOptions.find(r => r.value === selectedUser?.role)?.icon as any || "person"} size={14} color={getRoleColor(selectedUser?.role || "worker")} />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: getRoleColor(selectedUser?.role || "worker") }}>
+                    {t(`common.roles.${selectedUser?.role || "worker"}`)}
+                  </Text>
+                  <Ionicons name={showRolePickerInPerm ? "chevron-up" : "chevron-down"} size={12} color={getRoleColor(selectedUser?.role || "worker")} />
+                </TouchableOpacity>
+                {overrideCount > 0 && (
+                  <View style={{ backgroundColor: "#f59e0b", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#fff" }}>
+                      {overrideCount} {t("settings.overrides", "zmian")}
+                    </Text>
+                  </View>
+                )}
               </View>
-              <TouchableOpacity onPress={() => setShowPermModal(false)}>
-                <Ionicons name="close" size={24} color={colors.textMuted} />
-              </TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: 400 }}>
-              {permissionKeys.map((perm) => (
-                <View key={perm.key} style={[styles.permToggleRow, { borderBottomColor: colors.borderLight }]}>
-                  <Text style={[styles.permToggleLabel, { color: colors.text }]}>{perm.label}</Text>
+            <TouchableOpacity onPress={() => { setShowPermModal(false); setShowRolePickerInPerm(false); }}>
+              <Ionicons name="close" size={24} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Role picker inline */}
+          {showRolePickerInPerm && (
+            <View style={{ marginBottom: 12, padding: 8, backgroundColor: colors.surfaceVariant, borderRadius: 10 }}>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted, marginBottom: 6, textTransform: "uppercase" }}>
+                {t("settings.change_role", "Zmie\u0144 funkcj\u0119")}
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {roleOptions.map((opt) => (
                   <TouchableOpacity
-                    style={[styles.twoFAToggle, userPerms[perm.key] && styles.twoFAToggleActive]}
-                    onPress={() => setUserPerms((prev) => ({ ...prev, [perm.key]: !prev[perm.key] }))}
+                    key={opt.value}
+                    onPress={async () => {
+                      if (selectedUser && opt.value !== selectedUser.role) {
+                        await changeUserRole(selectedUser.id, opt.value);
+                        setSelectedUser({ ...selectedUser, role: opt.value });
+                        const newDefaults = getRoleDefaults(opt.value as RoleName);
+                        setUserRoleDefaults(newDefaults);
+                        setUserPerms({ ...newDefaults });
+                        setUserOverrides(null);
+                      }
+                      setShowRolePickerInPerm(false);
+                    }}
+                    style={{
+                      flexDirection: "row", alignItems: "center", gap: 4,
+                      paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                      backgroundColor: selectedUser?.role === opt.value ? `${opt.color}20` : colors.card,
+                      borderWidth: 1, borderColor: selectedUser?.role === opt.value ? opt.color : colors.border,
+                    }}
                   >
-                    <View style={[styles.twoFAToggleKnob, userPerms[perm.key] && styles.twoFAToggleKnobActive]} />
+                    <Ionicons name={opt.icon as any} size={14} color={opt.color} />
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: selectedUser?.role === opt.value ? opt.color : colors.text }}>{opt.label}</Text>
                   </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Action buttons: Reset */}
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
             <TouchableOpacity
-              style={[styles.saveButton, permSaving && styles.saveButtonDisabled, { marginTop: 16 }]}
-              onPress={saveUserPerms}
-              disabled={permSaving}
+              onPress={resetUserPermsToDefaults}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: overrideCount > 0 ? "#fef3c720" : "transparent", borderWidth: 1, borderColor: overrideCount > 0 ? "#f59e0b" : colors.border }}
             >
-              <Text style={styles.saveButtonText}>
-                {permSaving ? t("common.loading", "Wird geladen...") : t("common.save", "Speichern")}
+              <Ionicons name="refresh" size={14} color={overrideCount > 0 ? "#f59e0b" : colors.textMuted} />
+              <Text style={{ fontSize: 12, fontWeight: "600", color: overrideCount > 0 ? "#f59e0b" : colors.textMuted }}>
+                {t("settings.reset_to_defaults", "Reset do domy\u015blnych")}
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
-      )
-    ) : (
-      <Modal visible={showPermModal} transparent animationType="fade" onRequestClose={() => setShowPermModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card, maxHeight: "85%" }]}>
-            <View style={styles.modalHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  {t("settings.permissions_for") || "Uprawnienia dla"}: {selectedUser?.full_name}
-                </Text>
-                <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
-                  {t(`common.roles.${selectedUser?.role || "worker"}`)}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowPermModal(false)}>
-                <Ionicons name="close" size={24} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ maxHeight: 400 }}>
-              {permissionKeys.map((perm) => (
-                <View key={perm.key} style={[styles.permToggleRow, { borderBottomColor: colors.borderLight }]}>
-                  <Text style={[styles.permToggleLabel, { color: colors.text }]}>{perm.label}</Text>
+
+          {/* Grouped permissions */}
+          <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator>
+            {permissionGroups.map((group) => {
+              const isCollapsed = collapsedGroups.has(group.title);
+              const groupOverrides = group.perms.filter(p => userPerms[p.key] !== userRoleDefaults[p.key]).length;
+              const groupEnabled = group.perms.filter(p => userPerms[p.key]).length;
+
+              return (
+                <View key={group.title} style={{ marginBottom: 4 }}>
+                  {/* Group header */}
                   <TouchableOpacity
-                    style={[styles.twoFAToggle, userPerms[perm.key] && styles.twoFAToggleActive]}
-                    onPress={() => setUserPerms((prev) => ({ ...prev, [perm.key]: !prev[perm.key] }))}
+                    onPress={() => toggleGroupCollapse(group.title)}
+                    style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 8, backgroundColor: `${group.color}08`, borderRadius: 8, marginBottom: isCollapsed ? 0 : 2 }}
                   >
-                    <View style={[styles.twoFAToggleKnob, userPerms[perm.key] && styles.twoFAToggleKnobActive]} />
+                    <Ionicons name={group.icon as any} size={16} color={group.color} />
+                    <Text style={{ flex: 1, fontSize: 13, fontWeight: "700", color: group.color, marginLeft: 8 }}>
+                      {group.title}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: colors.textMuted, marginRight: 6 }}>
+                      {groupEnabled}/{group.perms.length}
+                    </Text>
+                    {groupOverrides > 0 && (
+                      <View style={{ backgroundColor: "#f59e0b", width: 6, height: 6, borderRadius: 3, marginRight: 6 }} />
+                    )}
+                    <Ionicons name={isCollapsed ? "chevron-down" : "chevron-up"} size={16} color={colors.textMuted} />
                   </TouchableOpacity>
+
+                  {/* Group permissions */}
+                  {!isCollapsed && group.perms.map((perm) => {
+                    const isOn = !!userPerms[perm.key];
+                    const isDefault = userRoleDefaults[perm.key];
+                    const isChanged = isOn !== isDefault;
+
+                    return (
+                      <View key={perm.key} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight }}>
+                        <View style={{ flex: 1, marginRight: 12 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Text style={{ fontSize: 13, fontWeight: "500", color: colors.text }}>{perm.label}</Text>
+                            {isChanged && (
+                              <View style={{ backgroundColor: "#f59e0b", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                                <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff" }}>
+                                  {t("settings.custom", "ZMIENIONE")}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>
+                            {t("settings.default_for_role", "Domy\u015blnie")}: {isDefault ? t("common.yes", "Tak") : t("common.no", "Nie")}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.twoFAToggle, isOn && styles.twoFAToggleActive, isChanged && { borderWidth: 2, borderColor: "#f59e0b" }]}
+                          onPress={() => setUserPerms((prev) => ({ ...prev, [perm.key]: !prev[perm.key] }))}
+                        >
+                          <View style={[styles.twoFAToggleKnob, isOn && styles.twoFAToggleKnobActive]} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
                 </View>
-              ))}
-            </ScrollView>
-            <TouchableOpacity
-              style={[styles.saveButton, permSaving && styles.saveButtonDisabled, { marginTop: 16 }]}
-              onPress={saveUserPerms}
-              disabled={permSaving}
-            >
-              <Text style={styles.saveButtonText}>
-                {permSaving ? t("common.loading", "Wird geladen...") : t("common.save", "Speichern")}
-              </Text>
-            </TouchableOpacity>
-          </View>
+              );
+            })}
+          </ScrollView>
+
+          {/* Save button */}
+          <TouchableOpacity
+            style={[styles.saveButton, permSaving && styles.saveButtonDisabled, { marginTop: 16 }]}
+            onPress={saveUserPerms}
+            disabled={permSaving}
+          >
+            <Text style={styles.saveButtonText}>
+              {permSaving ? t("common.loading", "Wird geladen...") : t("common.save", "Speichern")}
+            </Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-    )}
+      );
+
+      return Platform.OS === "web" ? (
+        showPermModal && (
+          <View style={[styles.modalOverlay, { position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }]}>
+            {permModalContent}
+          </View>
+        )
+      ) : (
+        <Modal visible={showPermModal} transparent animationType="fade" onRequestClose={() => { setShowPermModal(false); setShowRolePickerInPerm(false); }}>
+          <View style={styles.modalOverlay}>
+            {permModalContent}
+          </View>
+        </Modal>
+      );
+    })()}
 
     </>
   );

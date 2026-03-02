@@ -1,27 +1,27 @@
-import { useState, useEffect, useCallback } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
-  Platform,
-  TextInput,
-} from "react-native";
-import { Link, router, useFocusEffect } from "expo-router";
-import { useTranslation } from "react-i18next";
-import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "@/src/lib/supabase/client";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
-import { useAuth } from "@/src/providers/AuthProvider";
 import { usePermissions } from "@/src/hooks/usePermissions";
-import { useTheme } from "@/src/providers/ThemeProvider";
-import { formatDate, formatDateRange } from "@/src/utils/dateFormatter";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import { supabase } from "@/src/lib/supabase/client";
 import type { Database } from "@/src/lib/supabase/database.types";
+import { useAuth } from "@/src/providers/AuthProvider";
+import { useTheme } from "@/src/providers/ThemeProvider";
+import { formatDate } from "@/src/utils/dateFormatter";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Link, router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Platform,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"] & {
   project_members?: { count: number }[];

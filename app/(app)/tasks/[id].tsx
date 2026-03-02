@@ -1,27 +1,26 @@
-import { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  TouchableOpacity,
-  Alert,
-  TextInput,
-  Modal,
-  Platform,
-} from "react-native";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
-import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
-import { useTranslation } from "react-i18next";
-import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "@/src/lib/supabase/client";
-import { useAuth } from "@/src/providers/AuthProvider";
-import { usePermissions } from "@/src/hooks/usePermissions";
 import FileAttachments from "@/components/FileAttachments";
 import { translateText } from "@/src/hooks/useAutoTranslate";
-import { useNotifications } from "@/src/providers/NotificationProvider";
+import { usePermissions } from "@/src/hooks/usePermissions";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import { supabase } from "@/src/lib/supabase/client";
 import type { Database } from "@/src/lib/supabase/database.types";
+import { useAuth } from "@/src/providers/AuthProvider";
+import { useNotifications } from "@/src/providers/NotificationProvider";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+    ActivityIndicator,
+    Alert,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from "react-native";
 
 type Task = Database["public"]["Tables"]["tasks"]["Row"] & {
   projects?: { name: string };

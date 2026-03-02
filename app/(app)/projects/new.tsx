@@ -1,26 +1,25 @@
-import { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  Platform,
-  Modal,
-  FlatList,
-  ActivityIndicator,
-} from "react-native";
-import { router } from "expo-router";
-import { useTranslation } from "react-i18next";
-import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "@/src/lib/supabase/client";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
-import { useAuth } from "@/src/providers/AuthProvider";
-import { usePermissions } from "@/src/hooks/usePermissions";
 import LocalizedDatePicker from "@/components/LocalizedDatePicker";
 import MultiSelectUsers from "@/components/MultiSelectUsers";
+import { usePermissions } from "@/src/hooks/usePermissions";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import { useAuth } from "@/src/providers/AuthProvider";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
 type ProjectStatus = "planning" | "active" | "on_hold" | "completed" | "cancelled";
 

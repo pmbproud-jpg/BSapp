@@ -1,9 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { Platform, Alert } from "react-native";
-import { supabase } from "../lib/supabase/client";
-import { supabaseAdmin } from "../lib/supabase/adminClient";
-import { useAuth } from "./AuthProvider";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { adminApi as supabaseAdmin } from "../lib/supabase/adminApi";
+import { supabase } from "../lib/supabase/client";
+import { useAuth } from "./AuthProvider";
 
 export type NotificationRow = {
   id: string;

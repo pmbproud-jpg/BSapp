@@ -1,23 +1,35 @@
-import { useState, useCallback } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, TextInput, Alert, Platform, Modal,
-} from "react-native";
-import { useFocusEffect } from "expo-router";
-import { useTranslation } from "react-i18next";
-import { Ionicons } from "@expo/vector-icons";
-import { supabaseAdmin } from "@/src/lib/supabase/adminClient";
-import { useAuth } from "@/src/providers/AuthProvider";
-import { useTheme } from "@/src/providers/ThemeProvider";
-import { useNotifications } from "@/src/providers/NotificationProvider";
 import { usePermissions } from "@/src/hooks/usePermissions";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import { useAuth } from "@/src/providers/AuthProvider";
+import { useNotifications } from "@/src/providers/NotificationProvider";
+import { useTheme } from "@/src/providers/ThemeProvider";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+    ActivityIndicator,
+    Alert,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 import ResourceCalendar from "./components/ResourceCalendar";
 
 type Vehicle = { id: string; name: string; license_plate: string; seats: number; active: boolean };
 
 function getNextMonday(): string {
   const d = new Date(); const day = d.getDay();
-  d.setDate(d.getDate() + (day === 0 ? 1 : 8 - day));
+  // If today is Monday (1), use today; otherwise go back to this week's Monday
+  // Sunday (0) → go forward 1 day to next Monday
+  if (day === 0) d.setDate(d.getDate() + 1);
+  else if (day > 1) d.setDate(d.getDate() - (day - 1));
+  // day === 1 (Monday) → keep as is
   return d.toISOString().split("T")[0];
 }
 
@@ -369,21 +381,26 @@ export default function PlanScreen() {
           }
         }
         // Zaktualizuj istniejących i dodaj nowych
-        // Pojazdy zmieniamy TYLKO edytowanemu pracownikowi, reszta zachowuje swoje
+        // Czasy i pojazdy zmieniamy TYLKO edytowanemu pracownikowi, reszta zachowuje swoje
         const editedWorkerId = editingAssign.worker_id;
         for (const wid of Array.from(newWorkerIds)) {
           if (existingWorkerIds.has(wid)) {
             const existing = sameGroup.find((x: any) => x.worker_id === wid);
             if (existing) {
               const isEditedWorker = wid === editedWorkerId;
-              const updateData: any = { departure_time: assignDeparture || null, start_time: assignStartTime || null, end_time: assignEndTime || null };
               if (isEditedWorker) {
-                updateData.vehicle_id = firstVehicleId;
-                updateData.vehicle_ids = vehicleIdsArr;
+                // Aktualizuj czasy i pojazdy TYLKO dla edytowanego pracownika
+                await (supabaseAdmin.from("plan_assignments") as any)
+                  .update({
+                    departure_time: assignDeparture || null,
+                    start_time: assignStartTime || null,
+                    end_time: assignEndTime || null,
+                    vehicle_id: firstVehicleId,
+                    vehicle_ids: vehicleIdsArr,
+                  })
+                  .eq("id", existing.id);
               }
-              await (supabaseAdmin.from("plan_assignments") as any)
-                .update(updateData)
-                .eq("id", existing.id);
+              // Pozostali pracownicy zachowują swoje dotychczasowe czasy i pojazdy
             }
           } else {
             await (supabaseAdmin.from("plan_request_workers") as any).upsert({ request_id: editingAssign.request_id, worker_id: wid }, { onConflict: "request_id,worker_id" });
@@ -922,8 +939,8 @@ export default function PlanScreen() {
   // ═══════════════════════════════════════════════════════
   // MAIN RENDER — TABS
   // ═══════════════════════════════════════════════════════
-  return (
-    <ScrollView style={[s.container, { backgroundColor: tc.background }]}>
+  const headerContent = (
+    <>
       <View style={s.titleRow}>
         <Ionicons name="calendar" size={24} color={tc.primary} />
         <Text style={[s.title, { color: tc.text }]}>{t("plan.title")}</Text>
@@ -946,6 +963,32 @@ export default function PlanScreen() {
       </View>
 
       <WeekSelector />
+    </>
+  );
+
+  // Calendar tab: render outside ScrollView so horizontal scrollbar stays visible
+  if (activeTab === "calendar") {
+    return (
+      <View style={[s.container, { backgroundColor: tc.background, flex: 1 }]}>
+        {headerContent}
+        <ResourceCalendar
+          weekDays={weekDays}
+          assignments={assignments}
+          projects={projects}
+          vehicles={vehicles}
+          workers={workers}
+          absences={absences}
+          weekStart={weekStart}
+          lang={i18n.language}
+        />
+        {renderVehicleModal()}
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={[s.container, { backgroundColor: tc.background }]}>
+      {headerContent}
 
       {/* ─── TAB: PLAN ─── */}
       {activeTab === "plan" && (<>
@@ -1223,20 +1266,6 @@ export default function PlanScreen() {
           </View>
         )}
       </>)}
-
-      {/* ─── TAB: CALENDAR ─── */}
-      {activeTab === "calendar" && (
-        <ResourceCalendar
-          weekDays={weekDays}
-          assignments={assignments}
-          projects={projects}
-          vehicles={vehicles}
-          workers={workers}
-          absences={absences}
-          weekStart={weekStart}
-          lang={i18n.language}
-        />
-      )}
 
       <View style={{ height: 40 }} />
       {renderVehicleModal()}
