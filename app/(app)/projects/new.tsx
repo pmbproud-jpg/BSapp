@@ -136,7 +136,7 @@ export default function NewProjectScreen() {
       }
       if (formData.budget) {
         const budgetNum = parseFloat(formData.budget);
-        if (!isNaN(budgetNum)) {
+        if (!isNaN(budgetNum) && budgetNum >= 0) {
           projectData.budget = budgetNum;
         }
       }
@@ -207,6 +207,7 @@ export default function NewProjectScreen() {
               onChangeText={(text) => setFormData({ ...formData, name: text })}
               placeholder={t("projects.name_placeholder")}
               placeholderTextColor="#94a3b8"
+              maxLength={200}
             />
           </View>
 
@@ -220,6 +221,7 @@ export default function NewProjectScreen() {
               onChangeText={(text) => setFormData({ ...formData, project_number: text })}
               placeholder={t("projects.project_number_placeholder") || "np. B-2024-001"}
               placeholderTextColor="#94a3b8"
+              maxLength={50}
             />
           </View>
 
@@ -236,6 +238,7 @@ export default function NewProjectScreen() {
               multiline
               numberOfLines={4}
               textAlignVertical="top"
+              maxLength={2000}
             />
           </View>
 
@@ -249,6 +252,7 @@ export default function NewProjectScreen() {
               }
               placeholder={t("projects.location_placeholder")}
               placeholderTextColor="#94a3b8"
+              maxLength={300}
             />
           </View>
 

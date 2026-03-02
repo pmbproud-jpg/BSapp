@@ -72,7 +72,7 @@ export function usePlanData(
     const rangeEnd = new Date(ws.getFullYear(), ws.getMonth() + 2, 0);
     const rStart = rangeStart.toISOString().split("T")[0];
     const rEnd = rangeEnd.toISOString().split("T")[0];
-    const { data } = await (supabaseAdmin.from("user_absences") as any)
+    const { data } = await supabaseAdmin.from("user_absences")
       .select("*, user:profiles!user_absences_user_id_fkey(id, full_name)")
       .or("status.eq.approved,type.eq.sick_leave")
       .lte("date_from", rEnd)
@@ -82,11 +82,11 @@ export function usePlanData(
   };
 
   const fetchVehicles = async () => {
-    const { data } = await (supabaseAdmin.from("vehicles") as any).select("*").eq("active", true).order("name");
+    const { data } = await supabaseAdmin.from("vehicles").select("*").eq("active", true).order("name");
     setVehicles(data || []);
   };
   const fetchProjects = async () => {
-    const { data } = await (supabaseAdmin.from("projects") as any).select("id, name, location, status, project_number").order("name");
+    const { data } = await supabaseAdmin.from("projects").select("id, name, location, status, project_number").order("name");
     setProjects(data || []);
   };
   const fetchWorkers = async () => {
@@ -95,7 +95,7 @@ export function usePlanData(
   };
 
   const fetchProjectMembers = async () => {
-    const { data } = await (supabaseAdmin.from("project_members") as any)
+    const { data } = await supabaseAdmin.from("project_members")
       .select("project_id, user_id, role, profile:profiles(id, full_name, role)")
       .order("project_id");
     if (data) {
@@ -110,19 +110,19 @@ export function usePlanData(
   };
 
   const fetchAssignments = async () => {
-    const { data: reqs } = await (supabaseAdmin.from("plan_requests") as any)
+    const { data: reqs } = await supabaseAdmin.from("plan_requests")
       .select("id, project_id, week_start, status, project:projects(id, name, location)")
       .eq("week_start", weekStart);
     if (!reqs || reqs.length === 0) { setAssignments([]); return; }
     const reqIds = reqs.map((r: any) => r.id);
-    const { data: asgn } = await (supabaseAdmin.from("plan_assignments") as any).select("*").in("request_id", reqIds);
+    const { data: asgn } = await supabaseAdmin.from("plan_assignments").select("*").in("request_id", reqIds);
     const wIds = [...new Set((asgn || []).map((a: any) => a.worker_id))];
     let pMap = new Map();
     if (wIds.length > 0) {
-      const { data: profs } = await (supabaseAdmin.from("profiles") as any).select("id, full_name, role").in("id", wIds);
+      const { data: profs } = await supabaseAdmin.from("profiles").select("id, full_name, role").in("id", wIds);
       pMap = new Map((profs || []).map((p: any) => [p.id, p]));
     }
-    const { data: freshVehicles } = await (supabaseAdmin.from("vehicles") as any).select("*").eq("active", true);
+    const { data: freshVehicles } = await supabaseAdmin.from("vehicles").select("*").eq("active", true);
     const vMap = new Map((freshVehicles || []).map((v: any) => [v.id, v]));
     setAssignments((asgn || []).map((a: any) => {
       const req = reqs.find((r: any) => r.id === a.request_id);
@@ -135,7 +135,7 @@ export function usePlanData(
   };
 
   const fetchRequests = async () => {
-    const { data } = await (supabaseAdmin.from("plan_requests") as any)
+    const { data } = await supabaseAdmin.from("plan_requests")
       .select("*, project:projects(name, location), workers:plan_request_workers(worker_id)")
       .eq("week_start", weekStart).order("created_at", { ascending: false });
     if (data) {
@@ -214,10 +214,10 @@ export function usePlanData(
     setSavingV(true);
     try {
       if (editingVehicleId) {
-        const { error } = await (supabaseAdmin.from("vehicles") as any).update({ name: vName.trim(), license_plate: vPlate.trim().toUpperCase(), seats: parseInt(vSeats) || 5 }).eq("id", editingVehicleId);
+        const { error } = await supabaseAdmin.from("vehicles").update({ name: vName.trim(), license_plate: vPlate.trim().toUpperCase(), seats: parseInt(vSeats) || 5 }).eq("id", editingVehicleId);
         if (error) throw error;
       } else {
-        const { error } = await (supabaseAdmin.from("vehicles") as any).insert({ name: vName.trim(), license_plate: vPlate.trim().toUpperCase(), seats: parseInt(vSeats) || 5, created_by: profileId || null });
+        const { error } = await supabaseAdmin.from("vehicles").insert({ name: vName.trim(), license_plate: vPlate.trim().toUpperCase(), seats: parseInt(vSeats) || 5, created_by: profileId || null });
         if (error) throw error;
       }
       setVName(""); setVPlate(""); setVSeats("5"); setEditingVehicleId(null); setShowVehicleModal(false); fetchVehicles();
@@ -228,7 +228,7 @@ export function usePlanData(
   };
   const deleteVehicle = async (vehicleId: string) => {
     try {
-      const { error } = await (supabaseAdmin.from("vehicles") as any).update({ active: false }).eq("id", vehicleId);
+      const { error } = await supabaseAdmin.from("vehicles").update({ active: false }).eq("id", vehicleId);
       if (error) throw error;
       fetchVehicles();
     } catch (e: any) {
@@ -300,7 +300,7 @@ export function usePlanData(
         const newWorkerIds = assignWorkers;
         for (const a of sameGroup) {
           if (!newWorkerIds.has(a.worker_id)) {
-            await (supabaseAdmin.from("plan_assignments") as any).delete().eq("id", a.id);
+            await supabaseAdmin.from("plan_assignments").delete().eq("id", a.id);
           }
         }
         const editedWorkerId = editingAssign.worker_id;
@@ -310,7 +310,7 @@ export function usePlanData(
             if (existing) {
               const isEditedWorker = wid === editedWorkerId;
               if (isEditedWorker) {
-                await (supabaseAdmin.from("plan_assignments") as any)
+                await supabaseAdmin.from("plan_assignments")
                   .update({
                     departure_time: assignDeparture || null,
                     start_time: assignStartTime || null,
@@ -322,8 +322,8 @@ export function usePlanData(
               }
             }
           } else {
-            await (supabaseAdmin.from("plan_request_workers") as any).upsert({ request_id: editingAssign.request_id, worker_id: wid }, { onConflict: "request_id,worker_id" });
-            await (supabaseAdmin.from("plan_assignments") as any).upsert({
+            await supabaseAdmin.from("plan_request_workers").upsert({ request_id: editingAssign.request_id, worker_id: wid }, { onConflict: "request_id,worker_id" });
+            await supabaseAdmin.from("plan_assignments").upsert({
               request_id: editingAssign.request_id, worker_id: wid, day_of_week: editingAssign.day_of_week,
               vehicle_id: firstVehicleId, vehicle_ids: vehicleIdsArr, departure_time: assignDeparture || null,
               start_time: assignStartTime || null, end_time: assignEndTime || null,
@@ -332,18 +332,18 @@ export function usePlanData(
           }
         }
       } else {
-        let { data: existingReq } = await (supabaseAdmin.from("plan_requests") as any)
+        let { data: existingReq } = await supabaseAdmin.from("plan_requests")
           .select("id").eq("project_id", assignProject).eq("week_start", weekStart).maybeSingle();
         let requestId: string;
         if (existingReq) { requestId = existingReq.id; }
         else {
-          const { data: newReq, error } = await (supabaseAdmin.from("plan_requests") as any)
+          const { data: newReq, error } = await supabaseAdmin.from("plan_requests")
             .insert({ project_id: assignProject, week_start: weekStart, requested_by: profileId || null, status: "published" }).select().single();
           if (error) throw error; requestId = newReq.id;
         }
         for (const wid of Array.from(assignWorkers)) {
-          await (supabaseAdmin.from("plan_request_workers") as any).upsert({ request_id: requestId, worker_id: wid }, { onConflict: "request_id,worker_id" });
-          await (supabaseAdmin.from("plan_assignments") as any).upsert({
+          await supabaseAdmin.from("plan_request_workers").upsert({ request_id: requestId, worker_id: wid }, { onConflict: "request_id,worker_id" });
+          await supabaseAdmin.from("plan_assignments").upsert({
             request_id: requestId, worker_id: wid, day_of_week: selectedDay.dayOfWeek,
             vehicle_id: firstVehicleId, vehicle_ids: vehicleIdsArr, departure_time: assignDeparture || null,
             start_time: assignStartTime || null, end_time: assignEndTime || null,
@@ -375,7 +375,7 @@ export function usePlanData(
   };
 
   const deleteAssign = async (id: string) => {
-    await (supabaseAdmin.from("plan_assignments") as any).delete().eq("id", id);
+    await supabaseAdmin.from("plan_assignments").delete().eq("id", id);
     fetchAssignments();
   };
 
@@ -405,18 +405,18 @@ export function usePlanData(
     try {
       const vehicleIdsArr = Array.from(orderVehicles);
       if (orderEditingId) {
-        await (supabaseAdmin.from("plan_requests") as any)
+        await supabaseAdmin.from("plan_requests")
           .update({ project_id: orderProject, notes: orderNotes.trim() || null, vehicle_ids: vehicleIdsArr })
           .eq("id", orderEditingId);
-        await (supabaseAdmin.from("plan_request_workers") as any).delete().eq("request_id", orderEditingId);
+        await supabaseAdmin.from("plan_request_workers").delete().eq("request_id", orderEditingId);
         const rows = Array.from(orderWorkers).map((wid) => ({ request_id: orderEditingId, worker_id: wid }));
-        await (supabaseAdmin.from("plan_request_workers") as any).insert(rows);
+        await supabaseAdmin.from("plan_request_workers").insert(rows);
       } else {
-        const { data: req, error } = await (supabaseAdmin.from("plan_requests") as any)
+        const { data: req, error } = await supabaseAdmin.from("plan_requests")
           .insert({ project_id: orderProject, week_start: weekStart, requested_by: profileId || null, notes: orderNotes.trim() || null, vehicle_ids: vehicleIdsArr }).select().single();
         if (error) throw error;
         const rows = Array.from(orderWorkers).map((wid) => ({ request_id: req.id, worker_id: wid }));
-        await (supabaseAdmin.from("plan_request_workers") as any).insert(rows);
+        await supabaseAdmin.from("plan_request_workers").insert(rows);
       }
       const msg = orderEditingId ? (t("common.saved") || "Gespeichert") : t("plan.request_sent");
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
@@ -438,9 +438,9 @@ export function usePlanData(
         });
     if (!confirmed) return;
     try {
-      await (supabaseAdmin.from("plan_request_workers") as any).delete().eq("request_id", id);
-      await (supabaseAdmin.from("plan_assignments") as any).delete().eq("request_id", id);
-      await (supabaseAdmin.from("plan_requests") as any).delete().eq("id", id);
+      await supabaseAdmin.from("plan_request_workers").delete().eq("request_id", id);
+      await supabaseAdmin.from("plan_assignments").delete().eq("request_id", id);
+      await supabaseAdmin.from("plan_requests").delete().eq("id", id);
       if (orderEditingId === id) resetOrderForm();
       fetchRequests();
     } catch (e: any) {

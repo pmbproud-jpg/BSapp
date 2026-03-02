@@ -1048,15 +1048,15 @@ export default function ProjectDetailsScreen() {
             <ScrollView style={{ maxHeight: 500 }}>
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>{t("projects.name")} *</Text>
-                <TextInput style={styles.editInput} value={editForm.name} onChangeText={(v) => setEditForm({ ...editForm, name: v })} placeholder={t("projects.name_placeholder")} placeholderTextColor="#94a3b8" />
+                <TextInput style={styles.editInput} value={editForm.name} onChangeText={(v) => setEditForm({ ...editForm, name: v })} placeholder={t("projects.name_placeholder")} placeholderTextColor="#94a3b8" maxLength={200} />
               </View>
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>{t("projects.description")}</Text>
-                <TextInput style={[styles.editInput, { minHeight: 80, textAlignVertical: "top" }]} value={editForm.description} onChangeText={(v) => setEditForm({ ...editForm, description: v })} multiline placeholderTextColor="#94a3b8" />
+                <TextInput style={[styles.editInput, { minHeight: 80, textAlignVertical: "top" }]} value={editForm.description} onChangeText={(v) => setEditForm({ ...editForm, description: v })} multiline placeholderTextColor="#94a3b8" maxLength={2000} />
               </View>
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>{t("projects.location")}</Text>
-                <TextInput style={styles.editInput} value={editForm.location} onChangeText={(v) => setEditForm({ ...editForm, location: v })} placeholderTextColor="#94a3b8" />
+                <TextInput style={styles.editInput} value={editForm.location} onChangeText={(v) => setEditForm({ ...editForm, location: v })} placeholderTextColor="#94a3b8" maxLength={300} />
               </View>
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>{t("projects.statusLabel")}</Text>
@@ -1070,15 +1070,15 @@ export default function ProjectDetailsScreen() {
               </View>
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>{t("projects.budget")} (EUR)</Text>
-                <TextInput style={styles.editInput} value={editForm.budget} onChangeText={(v) => setEditForm({ ...editForm, budget: v })} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#94a3b8" />
+                <TextInput style={styles.editInput} value={editForm.budget} onChangeText={(v) => setEditForm({ ...editForm, budget: v })} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#94a3b8" maxLength={15} />
               </View>
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>{t("projects.start_date")}</Text>
-                <TextInput style={styles.editInput} value={editForm.start_date} onChangeText={(v) => setEditForm({ ...editForm, start_date: v })} placeholder="YYYY-MM-DD" placeholderTextColor="#94a3b8" />
+                <TextInput style={styles.editInput} value={editForm.start_date} onChangeText={(v) => setEditForm({ ...editForm, start_date: v })} placeholder="YYYY-MM-DD" placeholderTextColor="#94a3b8" maxLength={10} />
               </View>
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>{t("projects.end_date")}</Text>
-                <TextInput style={styles.editInput} value={editForm.end_date} onChangeText={(v) => setEditForm({ ...editForm, end_date: v })} placeholder="YYYY-MM-DD" placeholderTextColor="#94a3b8" />
+                <TextInput style={styles.editInput} value={editForm.end_date} onChangeText={(v) => setEditForm({ ...editForm, end_date: v })} placeholder="YYYY-MM-DD" placeholderTextColor="#94a3b8" maxLength={10} />
               </View>
               {/* PM */}
               <View style={styles.editField}>

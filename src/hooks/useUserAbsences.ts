@@ -55,7 +55,7 @@ export function useUserAbsences(
   const fetchAbsences = useCallback(async () => {
     if (!userId) return;
     try {
-      const { data } = await (supabaseAdmin.from("user_absences") as any)
+      const { data } = await supabaseAdmin.from("user_absences")
         .select("*, approver:profiles!user_absences_approved_by_fkey(full_name)")
         .eq("user_id", userId)
         .order("date_from", { ascending: false });
@@ -81,7 +81,7 @@ export function useUserAbsences(
     try {
       const days = countWorkdays(absDateFrom, absDateTo);
       const isSickLeave = absType === "sick_leave";
-      await (supabaseAdmin.from("user_absences") as any).insert({
+      await supabaseAdmin.from("user_absences").insert({
         user_id: userId,
         type: absType,
         date_from: absDateFrom,
@@ -106,7 +106,7 @@ export function useUserAbsences(
 
   const approveAbsence = async (absId: string) => {
     try {
-      await (supabaseAdmin.from("user_absences") as any)
+      await supabaseAdmin.from("user_absences")
         .update({ status: "approved", approved_by: currentUserId, approved_at: new Date().toISOString() })
         .eq("id", absId);
       fetchAbsences();
@@ -119,7 +119,7 @@ export function useUserAbsences(
 
   const rejectAbsence = async (absId: string) => {
     try {
-      await (supabaseAdmin.from("user_absences") as any)
+      await supabaseAdmin.from("user_absences")
         .update({ status: "rejected", approved_by: currentUserId, approved_at: new Date().toISOString() })
         .eq("id", absId);
       fetchAbsences();
@@ -134,7 +134,7 @@ export function useUserAbsences(
     const confirmMsg = t("users.abs_delete_confirm") || "Abwesenheit löschen?";
     const doDelete = async () => {
       try {
-        await (supabaseAdmin.from("user_absences") as any).delete().eq("id", absId);
+        await supabaseAdmin.from("user_absences").delete().eq("id", absId);
         fetchAbsences();
       } catch (e: any) {
         Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message);

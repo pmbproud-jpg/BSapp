@@ -107,7 +107,7 @@ export function useWarehouseTools(
   // ── DATA ──
   const loadData = async () => {
     try {
-      const { data, error } = await (supabaseAdmin.from("warehouse_items") as any)
+      const { data, error } = await supabaseAdmin.from("warehouse_items")
         .select("*")
         .order("iv_pds", { ascending: true });
       if (error) throw error;
@@ -193,13 +193,13 @@ export function useWarehouseTools(
       }
 
       if (editingItem) {
-        const { error } = await (supabaseAdmin.from("warehouse_items") as any)
+        const { error } = await supabaseAdmin.from("warehouse_items")
           .update(payload)
           .eq("id", editingItem.id);
         if (error) throw error;
       } else {
         payload.created_by = profileId || null;
-        const { error } = await (supabaseAdmin.from("warehouse_items") as any)
+        const { error } = await supabaseAdmin.from("warehouse_items")
           .insert(payload);
         if (error) throw error;
       }
@@ -227,7 +227,7 @@ export function useWarehouseTools(
         });
     if (!confirmed) return;
     try {
-      const { error } = await (supabaseAdmin.from("warehouse_items") as any)
+      const { error } = await supabaseAdmin.from("warehouse_items")
         .delete()
         .eq("id", item.id);
       if (error) throw error;
@@ -326,7 +326,7 @@ export function useWarehouseTools(
     let inserted = 0;
     for (let i = 0; i < itemsToInsert.length; i += 50) {
       const batch = itemsToInsert.slice(i, i + 50);
-      const { error } = await (supabaseAdmin.from("warehouse_items") as any).insert(batch);
+      const { error } = await supabaseAdmin.from("warehouse_items").insert(batch);
       if (error) {
         console.error("Batch insert error:", error);
       } else {
@@ -403,7 +403,7 @@ export function useWarehouseTools(
     }
     if (!statusUserItem) return;
     try {
-      const { error } = await (supabaseAdmin.from("warehouse_items") as any)
+      const { error } = await supabaseAdmin.from("warehouse_items")
         .update({ assigned_to: userId, status: userId ? userName : null })
         .eq("id", statusUserItem.id);
       if (error) throw error;
@@ -427,7 +427,7 @@ export function useWarehouseTools(
     if (!notesItem) return;
     setNotesSaving(true);
     try {
-      const { error } = await (supabaseAdmin.from("warehouse_items") as any)
+      const { error } = await supabaseAdmin.from("warehouse_items")
         .update({ notes: notesText.trim() || null, is_damaged: notesDamaged })
         .eq("id", notesItem.id);
       if (error) throw error;

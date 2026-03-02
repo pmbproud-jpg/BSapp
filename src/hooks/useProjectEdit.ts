@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Alert } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import type { Database } from "@/src/lib/supabase/database.types";
+import { isValidDate } from "@/src/utils/helpers";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 
@@ -31,7 +32,7 @@ export function useProjectEdit(
 
   const fetchAllUsers = async () => {
     try {
-      let query = (supabaseAdmin.from("profiles") as any)
+      let query = supabaseAdmin.from("profiles")
         .select("id, full_name, email, role")
         .order("full_name");
       if (profile?.company_id) {
@@ -57,7 +58,7 @@ export function useProjectEdit(
       bauleiter_id: proj.bauleiter_id || "",
     });
     try {
-      const { data } = await (supabaseAdmin.from("profiles") as any)
+      const { data } = await supabaseAdmin.from("profiles")
         .select("id, full_name, email, role")
         .eq("company_id", profile?.company_id)
         .order("full_name");
@@ -79,7 +80,7 @@ export function useProjectEdit(
       if (editForm.project_manager_id && !blId) {
         const memberIds = members.map((m: any) => m.user_id);
         if (memberIds.length > 0) {
-          const { data: memberProfiles } = await (supabaseAdmin.from("profiles") as any)
+          const { data: memberProfiles } = await supabaseAdmin.from("profiles")
             .select("id, role")
             .in("id", memberIds);
           const blUser = (memberProfiles || []).find((p: any) => p.role === "bauleiter");
@@ -94,12 +95,12 @@ export function useProjectEdit(
         status: editForm.status,
         project_manager_id: editForm.project_manager_id || null,
         bauleiter_id: blId,
-        start_date: editForm.start_date || null,
-        end_date: editForm.end_date || null,
+        start_date: editForm.start_date && isValidDate(editForm.start_date) ? editForm.start_date : null,
+        end_date: editForm.end_date && isValidDate(editForm.end_date) ? editForm.end_date : null,
       };
       if (editForm.budget) {
         const budgetNum = parseFloat(editForm.budget);
-        updateData.budget = isNaN(budgetNum) ? null : budgetNum;
+        updateData.budget = isNaN(budgetNum) || budgetNum < 0 ? null : budgetNum;
       } else {
         updateData.budget = null;
       }
@@ -108,7 +109,7 @@ export function useProjectEdit(
       if (editForm.project_manager_id) {
         const pmInTeam = members.some((m: any) => m.user_id === editForm.project_manager_id);
         if (!pmInTeam) {
-          await (supabaseAdmin.from("project_members") as any)
+          await supabaseAdmin.from("project_members")
             .upsert({ project_id: projectId!, user_id: editForm.project_manager_id, role: "member" }, { onConflict: "project_id,user_id" });
         }
       }
@@ -116,12 +117,12 @@ export function useProjectEdit(
       if (blId) {
         const blInTeam = members.some((m: any) => m.user_id === blId);
         if (!blInTeam) {
-          await (supabaseAdmin.from("project_members") as any)
+          await supabaseAdmin.from("project_members")
             .upsert({ project_id: projectId!, user_id: blId, role: "member" }, { onConflict: "project_id,user_id" });
         }
       }
 
-      const { error } = await (supabaseAdmin.from("projects") as any)
+      const { error } = await supabaseAdmin.from("projects")
         .update(updateData)
         .eq("id", projectId!);
       if (error) throw error;

@@ -18,7 +18,7 @@ export async function fetchProfileMap(
   userIds: string[]
 ): Promise<Record<string, string>> {
   if (!userIds.length) return {};
-  const { data: profiles } = await (adminApi.from("profiles") as any)
+  const { data: profiles } = await adminApi.from("profiles")
     .select("id, full_name")
     .in("id", userIds);
   const map: Record<string, string> = {};
@@ -37,7 +37,7 @@ export async function fetchProfilesByIds(
   select: string = "id, full_name, email"
 ): Promise<ProfileWithEmail[]> {
   if (!userIds.length) return [];
-  const { data } = await (adminApi.from("profiles") as any)
+  const { data } = await adminApi.from("profiles")
     .select(select)
     .in("id", userIds)
     .order("full_name");
@@ -48,7 +48,7 @@ export async function fetchProfilesByIds(
  * Pobiera wszystkich pracowników (id, full_name, role), posortowanych po nazwisku.
  */
 export async function fetchAllWorkers(): Promise<ProfileWithRole[]> {
-  const { data } = await (adminApi.from("profiles") as any)
+  const { data } = await adminApi.from("profiles")
     .select("id, full_name, role")
     .order("full_name");
   return (data || []) as ProfileWithRole[];
@@ -59,7 +59,7 @@ export async function fetchAllWorkers(): Promise<ProfileWithRole[]> {
  * Filtruje tych bez full_name.
  */
 export async function fetchAllUsers(): Promise<{ id: string; full_name: string }[]> {
-  const { data } = await (adminApi.from("profiles") as any)
+  const { data } = await adminApi.from("profiles")
     .select("id, full_name")
     .order("full_name");
   return ((data || []) as ProfileBasic[])

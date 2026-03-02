@@ -451,7 +451,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
   const fetchPlans = async () => {
     setLoadingPlans(true);
     try {
-      const { data, error } = await (supabaseAdmin.from("project_plans") as any)
+      const { data, error } = await supabaseAdmin.from("project_plans")
         .select("*")
         .eq("project_id", projectId)
         .eq("is_active", true)
@@ -481,7 +481,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
   const fetchPins = async (planId: string) => {
     setLoadingPins(true);
     try {
-      const { data, error } = await (supabaseAdmin.from("plan_pins") as any)
+      const { data, error } = await supabaseAdmin.from("plan_pins")
         .select("*")
         .eq("plan_id", planId)
         .order("created_at", { ascending: false });
@@ -490,7 +490,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
       const assigneeIds = [...new Set((data || []).filter((p: any) => p.assigned_to).map((p: any) => p.assigned_to))];
       let assigneeMap = new Map<string, any>();
       if (assigneeIds.length > 0) {
-        const { data: profiles } = await (supabaseAdmin.from("profiles") as any)
+        const { data: profiles } = await supabaseAdmin.from("profiles")
           .select("id, full_name, role")
           .in("id", assigneeIds);
         assigneeMap = new Map((profiles || []).map((p: any) => [p.id, p]));
@@ -567,7 +567,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
         .getPublicUrl(fileName);
 
       // Insert plan record
-      const { error: insertError } = await (supabaseAdmin.from("project_plans") as any).insert({
+      const { error: insertError } = await supabaseAdmin.from("project_plans").insert({
         project_id: projectId,
         name: uploadName.trim(),
         description: uploadDescription.trim() || null,
@@ -665,7 +665,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
 
       if (editingPin?.id) {
         // ── Update existing pin ──
-        const { error } = await (supabaseAdmin.from("plan_pins") as any)
+        const { error } = await supabaseAdmin.from("plan_pins")
           .update({
             title: pinData.title,
             description: pinData.description,
@@ -691,16 +691,16 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
             due_date: pinData.due_date || null,
             updated_at: new Date().toISOString(),
           };
-          await (supabaseAdmin.from("tasks") as any)
+          await supabaseAdmin.from("tasks")
             .update(taskUpdate)
             .eq("id", editingPin.task_id);
 
           // Update task_assignees
-          await (supabaseAdmin.from("task_assignees") as any)
+          await supabaseAdmin.from("task_assignees")
             .delete()
             .eq("task_id", editingPin.task_id);
           if (pinData.assigned_to) {
-            await (supabaseAdmin.from("task_assignees") as any).insert({
+            await supabaseAdmin.from("task_assignees").insert({
               task_id: editingPin.task_id,
               user_id: pinData.assigned_to,
               assigned_by: profile?.id || null,
@@ -726,7 +726,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
         let newTask: any = null;
         let taskError: any = null;
         {
-          const res = await (supabaseAdmin.from("tasks") as any)
+          const res = await supabaseAdmin.from("tasks")
             .insert(taskData)
             .select("id")
             .single();
@@ -737,7 +737,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
         // Fallback: retry without created_by if column doesn't exist
         if (taskError && (taskError.message?.includes("created_by") || taskError.code === "PGRST204")) {
           delete taskData.created_by;
-          const retry = await (supabaseAdmin.from("tasks") as any)
+          const retry = await supabaseAdmin.from("tasks")
             .insert(taskData)
             .select("id")
             .single();
@@ -755,7 +755,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
 
           // Insert into task_assignees if assigned
           if (pinData.assigned_to) {
-            await (supabaseAdmin.from("task_assignees") as any).insert({
+            await supabaseAdmin.from("task_assignees").insert({
               task_id: newTask.id,
               user_id: pinData.assigned_to,
               assigned_by: profile?.id || null,
@@ -773,7 +773,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
           }
         }
 
-        const { error } = await (supabaseAdmin.from("plan_pins") as any).insert(pinData);
+        const { error } = await supabaseAdmin.from("plan_pins").insert(pinData);
         if (error) throw error;
       }
 
@@ -805,10 +805,10 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
       // Delete linked task if exists
       const pinToDelete = pins.find((p) => p.id === pinId);
       if (pinToDelete?.task_id) {
-        await (supabaseAdmin.from("task_assignees") as any).delete().eq("task_id", pinToDelete.task_id);
-        await (supabaseAdmin.from("tasks") as any).delete().eq("id", pinToDelete.task_id);
+        await supabaseAdmin.from("task_assignees").delete().eq("task_id", pinToDelete.task_id);
+        await supabaseAdmin.from("tasks").delete().eq("id", pinToDelete.task_id);
       }
-      await (supabaseAdmin.from("plan_pins") as any).delete().eq("id", pinId);
+      await supabaseAdmin.from("plan_pins").delete().eq("id", pinId);
       setShowPinDetail(false);
       setEditingPin(null);
       fetchPins(selectedPlan.id);
@@ -828,7 +828,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
         });
     if (!confirmed) return;
     try {
-      await (supabaseAdmin.from("project_plans") as any).delete().eq("id", planId);
+      await supabaseAdmin.from("project_plans").delete().eq("id", planId);
       if (selectedPlan?.id === planId) {
         setSelectedPlan(null);
         setShowPlanList(true);

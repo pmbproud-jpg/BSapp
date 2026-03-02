@@ -35,7 +35,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
   const fetchSettings = useCallback(async () => {
     try {
-      const { data, error } = await (supabaseAdmin.from("company_settings") as any)
+      const { data, error } = await supabaseAdmin.from("company_settings")
         .select("id, company_name, logo_url")
         .limit(1)
         .single();
@@ -50,7 +50,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
             if (signedData?.signedUrl) {
               data.logo_url = signedData.signedUrl;
               // Update in DB so next time it loads faster
-              await (supabaseAdmin.from("company_settings") as any)
+              await supabaseAdmin.from("company_settings")
                 .update({ logo_url: signedData.signedUrl })
                 .eq("id", data.id);
             }
@@ -72,7 +72,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const updateCompany = async (name: string, logoUrl: string | null) => {
     if (!settings?.id) return;
     try {
-      const { error } = await (supabaseAdmin.from("company_settings") as any)
+      const { error } = await supabaseAdmin.from("company_settings")
         .update({
           company_name: name,
           logo_url: logoUrl,

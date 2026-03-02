@@ -57,14 +57,14 @@ export function useProjectData(projectId: string | undefined, profileId: string 
       // Pobierz nazwy PM i BL
       const proj: any = data;
       if (proj.project_manager_id) {
-        const { data: pm } = await (supabaseAdmin.from("profiles") as any)
+        const { data: pm } = await supabaseAdmin.from("profiles")
           .select("full_name, email")
           .eq("id", proj.project_manager_id)
           .single();
         setPmName(pm?.full_name || pm?.email || "");
       }
       if (proj.bauleiter_id) {
-        const { data: bl } = await (supabaseAdmin.from("profiles") as any)
+        const { data: bl } = await supabaseAdmin.from("profiles")
           .select("full_name, email")
           .eq("id", proj.bauleiter_id)
           .single();
@@ -92,7 +92,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
       // Pobierz task_assignees dla wszystkich zadań
       let assigneesMap: Record<string, string[]> = {};
       if (taskIds.length > 0) {
-        const { data: assignees } = await (supabaseAdmin.from("task_assignees") as any)
+        const { data: assignees } = await supabaseAdmin.from("task_assignees")
           .select("task_id, user_id")
           .in("task_id", taskIds);
         (assignees || []).forEach((a: any) => {
@@ -113,7 +113,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
       ];
       let profileMap: Record<string, string> = {};
       if (userIds.length > 0) {
-        const { data: profiles } = await (supabaseAdmin.from("profiles") as any)
+        const { data: profiles } = await supabaseAdmin.from("profiles")
           .select("id, full_name, email")
           .in("id", userIds);
         (profiles || []).forEach((p: any) => {
@@ -156,7 +156,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
 
   const fetchFolders = async () => {
     try {
-      const { data, error } = await (supabaseAdmin.from("attachment_folders") as any)
+      const { data, error } = await supabaseAdmin.from("attachment_folders")
         .select("*")
         .eq("project_id", projectId!)
         .order("name", { ascending: true });
@@ -169,7 +169,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
 
   const fetchFolderAttachments = async (folderId: string) => {
     try {
-      const { data, error } = await (supabaseAdmin.from("project_attachments") as any)
+      const { data, error } = await supabaseAdmin.from("project_attachments")
         .select("*")
         .eq("project_id", projectId!)
         .eq("folder_id", folderId)
@@ -184,7 +184,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
   const createFolder = async () => {
     if (!newFolderName.trim()) return;
     try {
-      const { error } = await (supabaseAdmin.from("attachment_folders") as any).insert({
+      const { error } = await supabaseAdmin.from("attachment_folders").insert({
         project_id: projectId!,
         name: newFolderName.trim(),
         created_by: profileId || null,
@@ -202,7 +202,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
   const deleteFolder = async (folderId: string, folderName: string) => {
     const doDelete = async () => {
       try {
-        const { error } = await (supabaseAdmin.from("attachment_folders") as any)
+        const { error } = await supabaseAdmin.from("attachment_folders")
           .delete().eq("id", folderId);
         if (error) throw error;
         setOpenFolderId(null);
@@ -299,7 +299,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
         });
     if (!confirmed) return;
     try {
-      const { error } = await (supabaseAdmin.from("tasks") as any).delete().eq("id", taskId);
+      const { error } = await supabaseAdmin.from("tasks").delete().eq("id", taskId);
       if (error) throw error;
       // Refetch all po usunięciu
       await Promise.all([fetchProjectTasks(), fetchAttachments()]);
@@ -324,7 +324,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
     if (!confirmed) return false;
 
     try {
-      const { error } = await (supabaseAdmin.from("projects") as any)
+      const { error } = await supabaseAdmin.from("projects")
         .delete()
         .eq("id", projectId!);
       if (error) throw error;

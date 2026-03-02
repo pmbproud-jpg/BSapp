@@ -186,7 +186,7 @@ export function useDashboardData(
 
   const fetchPendingAbsences = async () => {
     try {
-      const { data } = await (supabaseAdmin.from("user_absences") as any)
+      const { data } = await supabaseAdmin.from("user_absences")
         .select("id")
         .eq("status", "pending");
       setPendingAbsencesCount(data?.length || 0);

@@ -162,7 +162,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         data: { ...data, original_type: type !== safeType ? type : undefined },
       };
       console.log("[sendNotification] Sending:", JSON.stringify(payload));
-      const { data: result, error } = await (supabaseAdmin.from("notifications") as any).insert(payload).select();
+      const { data: result, error } = await supabaseAdmin.from("notifications").insert(payload).select();
       if (error) {
         console.error("[sendNotification] DB error:", JSON.stringify(error));
       } else {

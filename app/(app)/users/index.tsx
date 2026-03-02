@@ -4,7 +4,7 @@ import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { useAuth } from "@/src/providers/AuthProvider";
-import { openLink } from "@/src/utils/helpers";
+import { isValidEmail, openLink } from "@/src/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -152,7 +152,7 @@ export default function UsersScreen() {
       else Alert.alert(t("common.error"), t("users.name_required") || "Vollständiger Name ist erforderlich");
       return;
     }
-    if (!newUser.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newUser.email.trim())) {
+    if (!newUser.email.trim() || !isValidEmail(newUser.email)) {
       if (Platform.OS === "web") window.alert(t("users.email_required") || "Bitte gültige E-Mail eingeben");
       else Alert.alert(t("common.error"), t("users.email_required") || "Bitte gültige E-Mail eingeben");
       return;
@@ -180,7 +180,7 @@ export default function UsersScreen() {
       // Wait for database trigger to create profile, then update with role/company
       await new Promise((r) => setTimeout(r, 1500));
 
-      const { error: profileError } = await (supabaseAdmin.from("profiles") as any)
+      const { error: profileError } = await supabaseAdmin.from("profiles")
         .update({
           full_name: newUser.full_name.trim(),
           phone: newUser.phone.trim() || null,
@@ -216,7 +216,7 @@ export default function UsersScreen() {
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
       return;
     }
-    if (!newSub.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newSub.email.trim())) {
+    if (!newSub.email.trim() || !isValidEmail(newSub.email)) {
       const msg = t("users.email_required") || "Bitte gültige E-Mail eingeben";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
       return;
@@ -246,7 +246,7 @@ export default function UsersScreen() {
       const userId = authData.user.id;
       await new Promise((r) => setTimeout(r, 1500));
 
-      const { error: profileError } = await (supabaseAdmin.from("profiles") as any)
+      const { error: profileError } = await supabaseAdmin.from("profiles")
         .update({
           full_name: newSub.full_name.trim(),
           phone: newSub.phone.trim() || null,
@@ -275,7 +275,7 @@ export default function UsersScreen() {
 
   const renewAccess = async (userId: string, newDate: string) => {
     try {
-      const { error } = await (supabaseAdmin.from("profiles") as any)
+      const { error } = await supabaseAdmin.from("profiles")
         .update({ access_expires_at: newDate })
         .eq("id", userId);
       if (error) throw error;
@@ -366,7 +366,7 @@ export default function UsersScreen() {
       return;
     }
 
-    const isEmail = (v: any) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim());
+    const isEmail = (v: any) => isValidEmail(String(v));
     const isPhone = (v: any) => /^\+?\d[\d\s\-]{5,}$/.test(String(v).trim());
     const isRole = (v: any) => {
       const roles = ["admin", "management", "project_manager", "bauleiter", "worker", "office_worker", "logistics", "purchasing", "bl", "pm"];
@@ -514,7 +514,7 @@ export default function UsersScreen() {
               .maybeSingle();
 
             if (profileData) {
-              await (supabaseAdmin.from("profiles") as any)
+              await supabaseAdmin.from("profiles")
                 .update({
                   full_name: user.full_name,
                   phone: user.phone || null,
@@ -623,7 +623,7 @@ export default function UsersScreen() {
     const doDelete = async () => {
       try {
         // 1. Delete profile first
-        const { error: profileError } = await (supabaseAdmin.from("profiles") as any)
+        const { error: profileError } = await supabaseAdmin.from("profiles")
           .delete()
           .eq("id", userId);
         if (profileError) console.error("Profile delete error:", profileError);

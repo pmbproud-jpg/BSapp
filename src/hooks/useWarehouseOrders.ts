@@ -32,14 +32,14 @@ export function useWarehouseOrders(t: any) {
     setOrdersLoading(true);
     try {
       // Fetch material orders
-      const { data: matData, error: matErr } = await (supabaseAdmin.from("project_material_orders") as any)
+      const { data: matData, error: matErr } = await supabaseAdmin.from("project_material_orders")
         .select("*, material:warehouse_materials(nazwa, art_nr, dlugosc, szerokosc, wysokosc, waga), project:projects(name, project_number)")
         .order("created_at", { ascending: false });
       if (matErr) console.error("Material orders error:", matErr);
       const matOrders = (matData || []).map((o: any) => ({ ...o, order_type: "material" }));
 
       // Fetch tool orders
-      const { data: toolData, error: toolErr } = await (supabaseAdmin.from("project_tool_orders") as any)
+      const { data: toolData, error: toolErr } = await supabaseAdmin.from("project_tool_orders")
         .select("*, tool:warehouse_items(beschreibung, art_nr, hersteller, kategorie, serial_nummer), project:projects(name, project_number)")
         .order("created_at", { ascending: false });
       if (toolErr) console.error("Tool orders error:", toolErr);
@@ -66,7 +66,7 @@ export function useWarehouseOrders(t: any) {
 
   const markOrdered = async (orderId: string) => {
     try {
-      const { error } = await (supabaseAdmin.from("project_material_orders") as any)
+      const { error } = await supabaseAdmin.from("project_material_orders")
         .update({ status: "ordered", ordered_at: new Date().toISOString() })
         .eq("id", orderId);
       if (error) throw error;
@@ -78,7 +78,7 @@ export function useWarehouseOrders(t: any) {
 
   const updateDeliveryDate = async (orderId: string, date: string) => {
     try {
-      const { error } = await (supabaseAdmin.from("project_material_orders") as any)
+      const { error } = await supabaseAdmin.from("project_material_orders")
         .update({ data_dostawy: date, status: "delivered" })
         .eq("id", orderId);
       if (error) throw error;
@@ -110,7 +110,7 @@ export function useWarehouseOrders(t: any) {
         ordered_at: orderForm.ordered_at.trim() || null,
         data_dostawy: orderForm.data_dostawy.trim() || null,
       };
-      const { error } = await (supabaseAdmin.from(table) as any)
+      const { error } = await supabaseAdmin.from(table)
         .update(payload)
         .eq("id", editingOrder.id);
       if (error) throw error;
@@ -140,7 +140,7 @@ export function useWarehouseOrders(t: any) {
     if (!confirmed) return;
     try {
       const table = editingOrder?.order_type === "tool" ? "project_tool_orders" : "project_material_orders";
-      const { error } = await (supabaseAdmin.from(table) as any)
+      const { error } = await supabaseAdmin.from(table)
         .delete()
         .eq("id", orderId);
       if (error) throw error;

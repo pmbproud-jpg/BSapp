@@ -60,7 +60,7 @@ export default function AbsencesScreen() {
   const fetchAbsences = async () => {
     if (!refreshing) setLoading(true);
     try {
-      let query = (supabaseAdmin.from("user_absences") as any)
+      let query = supabaseAdmin.from("user_absences")
         .select("*, user:profiles!user_absences_user_id_fkey(full_name)")
         .order("created_at", { ascending: false });
 
@@ -82,7 +82,7 @@ export default function AbsencesScreen() {
 
   const approveAbsence = async (absId: string) => {
     try {
-      await (supabaseAdmin.from("user_absences") as any)
+      await supabaseAdmin.from("user_absences")
         .update({
           status: "approved",
           approved_by: profile?.id || null,
@@ -101,7 +101,7 @@ export default function AbsencesScreen() {
 
   const rejectAbsence = async (absId: string) => {
     try {
-      await (supabaseAdmin.from("user_absences") as any)
+      await supabaseAdmin.from("user_absences")
         .update({
           status: "rejected",
           approved_by: profile?.id || null,
@@ -122,7 +122,7 @@ export default function AbsencesScreen() {
     const confirmMsg = t("users.abs_delete_confirm") || "Abwesenheit löschen?";
     const doDelete = async () => {
       try {
-        await (supabaseAdmin.from("user_absences") as any).delete().eq("id", absId);
+        await supabaseAdmin.from("user_absences").delete().eq("id", absId);
         fetchAbsences();
       } catch (e: any) {
         Platform.OS === "web"

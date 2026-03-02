@@ -75,7 +75,7 @@ export function useWarehouseMaterials(
   // ── DATA ──
   const loadMaterials = async () => {
     try {
-      const { data, error } = await (supabaseAdmin.from("warehouse_materials") as any)
+      const { data, error } = await supabaseAdmin.from("warehouse_materials")
         .select("*")
         .order("pozycja", { ascending: true });
       if (error) throw error;
@@ -131,11 +131,11 @@ export function useWarehouseMaterials(
         min_stan: matForm.min_stan ? parseFloat(matForm.min_stan) : null,
       };
       if (editingMat) {
-        const { error } = await (supabaseAdmin.from("warehouse_materials") as any).update(payload).eq("id", editingMat.id);
+        const { error } = await supabaseAdmin.from("warehouse_materials").update(payload).eq("id", editingMat.id);
         if (error) throw error;
       } else {
         payload.created_by = profileId || null;
-        const { error } = await (supabaseAdmin.from("warehouse_materials") as any).insert(payload);
+        const { error } = await supabaseAdmin.from("warehouse_materials").insert(payload);
         if (error) throw error;
       }
       setShowMatModal(false);
@@ -162,7 +162,7 @@ export function useWarehouseMaterials(
         });
     if (!confirmed) return;
     try {
-      const { error } = await (supabaseAdmin.from("warehouse_materials") as any).delete().eq("id", item.id);
+      const { error } = await supabaseAdmin.from("warehouse_materials").delete().eq("id", item.id);
       if (error) throw error;
       setSelectedMat(null);
       loadMaterials();
@@ -242,7 +242,7 @@ export function useWarehouseMaterials(
     let inserted = 0;
     for (let i = 0; i < toInsert.length; i += 50) {
       const batch = toInsert.slice(i, i + 50);
-      const { error } = await (supabaseAdmin.from("warehouse_materials") as any).insert(batch);
+      const { error } = await supabaseAdmin.from("warehouse_materials").insert(batch);
       if (error) console.error("Batch insert error:", error);
       else inserted += batch.length;
     }

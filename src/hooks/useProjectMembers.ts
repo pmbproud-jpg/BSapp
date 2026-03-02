@@ -32,7 +32,7 @@ export function useProjectMembers(
 
   const fetchMembers = async () => {
     try {
-      const { data, error } = await (supabaseAdmin.from("project_members") as any)
+      const { data, error } = await supabaseAdmin.from("project_members")
         .select("*")
         .eq("project_id", projectId!)
         .order("joined_at", { ascending: false });
@@ -42,7 +42,7 @@ export function useProjectMembers(
       // Pobierz profile członków
       const membersWithProfiles = await Promise.all(
         (data || []).map(async (m: any) => {
-          const { data: prof } = await (supabaseAdmin.from("profiles") as any)
+          const { data: prof } = await supabaseAdmin.from("profiles")
             .select("full_name, email, role")
             .eq("id", m.user_id)
             .single();
@@ -59,12 +59,12 @@ export function useProjectMembers(
 
   const addMember = async (userId: string) => {
     try {
-      const { error } = await (supabaseAdmin.from("project_members") as any)
+      const { error } = await supabaseAdmin.from("project_members")
         .insert({ project_id: projectId!, user_id: userId, role: "member" });
       if (error) throw error;
 
       // Sprawdź rolę dodawanego użytkownika i automatycznie ustaw PM/BL w projekcie
-      const { data: addedUser } = await (supabaseAdmin.from("profiles") as any)
+      const { data: addedUser } = await supabaseAdmin.from("profiles")
         .select("id, role, full_name, email")
         .eq("id", userId)
         .single();
@@ -75,7 +75,7 @@ export function useProjectMembers(
         if (addedUser.role === "project_manager") {
           updateData.project_manager_id = userId;
           const currentMembers = [...members, { user_id: userId, profile: addedUser }];
-          const { data: memberProfiles } = await (supabaseAdmin.from("profiles") as any)
+          const { data: memberProfiles } = await supabaseAdmin.from("profiles")
             .select("id, role")
             .in("id", currentMembers.map((m: any) => m.user_id));
           const blUser = (memberProfiles || []).find((p: any) => p.role === "bauleiter");
@@ -87,7 +87,7 @@ export function useProjectMembers(
           const proj: any = project;
           if (!proj?.project_manager_id) {
             const currentMembers = [...members, { user_id: userId, profile: addedUser }];
-            const { data: memberProfiles } = await (supabaseAdmin.from("profiles") as any)
+            const { data: memberProfiles } = await supabaseAdmin.from("profiles")
               .select("id, role")
               .in("id", currentMembers.map((m: any) => m.user_id));
             const pmUser = (memberProfiles || []).find((p: any) => p.role === "project_manager");
@@ -96,7 +96,7 @@ export function useProjectMembers(
         }
 
         if (Object.keys(updateData).length > 0) {
-          await (supabaseAdmin.from("projects") as any)
+          await supabaseAdmin.from("projects")
             .update(updateData)
             .eq("id", projectId!);
         }
@@ -136,7 +136,7 @@ export function useProjectMembers(
     if (!confirmed) return;
 
     try {
-      const { error } = await (supabaseAdmin.from("project_members") as any)
+      const { error } = await supabaseAdmin.from("project_members")
         .delete()
         .eq("id", memberId);
       if (error) throw error;
@@ -150,7 +150,7 @@ export function useProjectMembers(
     setUsersLoading(true);
     setShowAddMember(true);
     try {
-      const { data, error } = await (supabaseAdmin.from("profiles") as any)
+      const { data, error } = await supabaseAdmin.from("profiles")
         .select("id, full_name, email, role")
         .eq("company_id", profile?.company_id)
         .order("full_name");

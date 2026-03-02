@@ -24,7 +24,7 @@ export function useGPSTracking() {
         accuracy: Location.Accuracy.Balanced,
       });
 
-      await (supabaseAdmin.from("user_locations") as any).insert({
+      await supabaseAdmin.from("user_locations").insert({
         user_id: userId,
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,

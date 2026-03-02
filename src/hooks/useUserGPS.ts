@@ -18,7 +18,7 @@ export function useUserGPS(userId: string | undefined, t: any) {
   const fetchLastLocation = useCallback(async () => {
     if (!userId) return;
     try {
-      const { data } = await (supabaseAdmin.from("user_locations") as any)
+      const { data } = await supabaseAdmin.from("user_locations")
         .select("*")
         .eq("user_id", userId)
         .order("recorded_at", { ascending: false })
@@ -28,7 +28,7 @@ export function useUserGPS(userId: string | undefined, t: any) {
         setLastLocation(data);
       } else {
         // Fallback: read from profiles.last_latitude/last_longitude
-        const { data: profileData } = await (supabaseAdmin.from("profiles") as any)
+        const { data: profileData } = await supabaseAdmin.from("profiles")
           .select("last_latitude, last_longitude, last_location_at")
           .eq("id", userId)
           .single();
@@ -52,7 +52,7 @@ export function useUserGPS(userId: string | undefined, t: any) {
     try {
       const dayStart = `${date}T00:00:00`;
       const dayEnd = `${date}T23:59:59`;
-      const { data } = await (supabaseAdmin.from("user_locations") as any)
+      const { data } = await supabaseAdmin.from("user_locations")
         .select("*")
         .eq("user_id", userId)
         .gte("recorded_at", dayStart)
@@ -69,7 +69,7 @@ export function useUserGPS(userId: string | undefined, t: any) {
     if (!userId) return;
     setGpsTogglingLoading(true);
     try {
-      const { error } = await (supabaseAdmin.from("profiles") as any)
+      const { error } = await supabaseAdmin.from("profiles")
         .update({ gps_enabled: value })
         .eq("id", userId);
       if (error) throw error;

@@ -181,7 +181,7 @@ export default function ImportProjectsScreen() {
         location: loc || undefined,
         start_date: parseDate(row[colStart >= 0 ? colStart : 3]),
         end_date: parseDate(row[colEnd >= 0 ? colEnd : 4]),
-        budget: parseFloat(str(row[colBudget >= 0 ? colBudget : 5])) || undefined,
+        budget: (() => { const b = parseFloat(str(row[colBudget >= 0 ? colBudget : 5])); return !isNaN(b) && b > 0 ? b : undefined; })(),
       };
     });
 

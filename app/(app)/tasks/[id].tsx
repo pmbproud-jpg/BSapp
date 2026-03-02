@@ -6,6 +6,7 @@ import { supabase } from "@/src/lib/supabase/client";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { useNotifications } from "@/src/providers/NotificationProvider";
+import { isValidDate } from "@/src/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
@@ -96,19 +97,19 @@ export default function TaskDetailsScreen() {
   const fetchUsersForProject = async (projectId: string) => {
     try {
       // 1. Pracownicy z planu dziennego
-      const { data: planReqs } = await (supabaseAdmin.from("plan_requests") as any)
+      const { data: planReqs } = await supabaseAdmin.from("plan_requests")
         .select("id")
         .eq("project_id", projectId);
 
       let planWorkerIds: string[] = [];
       if (planReqs && planReqs.length > 0) {
         const reqIds = planReqs.map((r: any) => r.id);
-        const { data: planAssign } = await (supabaseAdmin.from("plan_assignments") as any)
+        const { data: planAssign } = await supabaseAdmin.from("plan_assignments")
           .select("worker_id")
           .in("request_id", reqIds);
         if (planAssign && planAssign.length > 0) {
           planWorkerIds = [...new Set(planAssign.map((a: any) => a.worker_id))] as string[];
-          const { data: pw } = await (supabaseAdmin.from("profiles") as any)
+          const { data: pw } = await supabaseAdmin.from("profiles")
             .select("id, full_name, email")
             .in("id", planWorkerIds)
             .order("full_name");
@@ -117,14 +118,14 @@ export default function TaskDetailsScreen() {
       }
 
       // 2. Członkowie projektu (bez tych z planu)
-      const { data: members } = await (supabaseAdmin.from("project_members") as any)
+      const { data: members } = await supabaseAdmin.from("project_members")
         .select("user_id")
         .eq("project_id", projectId);
 
       if (members && members.length > 0) {
         const memberIds = members.map((m: any) => m.user_id).filter((mid: string) => !planWorkerIds.includes(mid));
         if (memberIds.length > 0) {
-          const { data: mp } = await (supabaseAdmin.from("profiles") as any)
+          const { data: mp } = await supabaseAdmin.from("profiles")
             .select("id, full_name, email")
             .in("id", memberIds)
             .order("full_name");
@@ -137,13 +138,13 @@ export default function TaskDetailsScreen() {
       const allMembers = members ? members.map((m: any) => m.user_id) : [];
       const combined = [...new Set([...allPlan, ...allMembers])];
       if (combined.length > 0) {
-        const { data: combinedProfiles } = await (supabaseAdmin.from("profiles") as any)
+        const { data: combinedProfiles } = await supabaseAdmin.from("profiles")
           .select("id, full_name, email")
           .in("id", combined)
           .order("full_name");
         setUsers(combinedProfiles || []);
       } else {
-        const { data, error } = await (supabaseAdmin.from("profiles") as any)
+        const { data, error } = await supabaseAdmin.from("profiles")
           .select("id, full_name, email")
           .order("full_name");
         if (!error) setUsers(data || []);
@@ -157,7 +158,7 @@ export default function TaskDetailsScreen() {
     if (!task) return;
     // Pobierz aktualnych przypisanych z task_assignees
     let existingAssignees: string[] = [];
-    const { data: assignees } = await (supabaseAdmin.from("task_assignees") as any)
+    const { data: assignees } = await supabaseAdmin.from("task_assignees")
       .select("user_id").eq("task_id", id);
     if (assignees && assignees.length > 0) {
       existingAssignees = assignees.map((a: any) => a.user_id);
@@ -189,7 +190,7 @@ export default function TaskDetailsScreen() {
         status: editForm.status,
         priority: editForm.priority,
         assigned_to: primaryAssigned,
-        due_date: editForm.due_date || null,
+        due_date: editForm.due_date && isValidDate(editForm.due_date) ? editForm.due_date : null,
         edited_by: profile?.id || null,
         edited_at: new Date().toISOString(),
       };
@@ -208,19 +209,19 @@ export default function TaskDetailsScreen() {
       if (error) throw error;
 
       // Pobierz starych przypisanych przed synchronizacją
-      const { data: oldAssignees } = await (supabaseAdmin.from("task_assignees") as any)
+      const { data: oldAssignees } = await supabaseAdmin.from("task_assignees")
         .select("user_id").eq("task_id", id);
       const oldIds = new Set((oldAssignees || []).map((a: any) => a.user_id));
 
       // Synchronizuj task_assignees
-      await (supabaseAdmin.from("task_assignees") as any).delete().eq("task_id", id);
+      await supabaseAdmin.from("task_assignees").delete().eq("task_id", id);
       if (editForm.assigned_to.length > 0) {
         const rows = editForm.assigned_to.map((uid: string) => ({
           task_id: id,
           user_id: uid,
           assigned_by: profile?.id || null,
         }));
-        await (supabaseAdmin.from("task_assignees") as any).insert(rows);
+        await supabaseAdmin.from("task_assignees").insert(rows);
       }
 
       // Wyślij powiadomienia do nowo przypisanych pracowników
@@ -245,7 +246,7 @@ export default function TaskDetailsScreen() {
 
   const fetchLinkedPin = async (taskId: string) => {
     try {
-      const { data: pin } = await (supabaseAdmin.from("plan_pins") as any)
+      const { data: pin } = await supabaseAdmin.from("plan_pins")
         .select("*, plan:project_plans!plan_pins_plan_id_fkey(id, name, project_id)")
         .eq("task_id", taskId)
         .maybeSingle();
@@ -271,22 +272,22 @@ export default function TaskDetailsScreen() {
       // Pobierz profil created_by i edited_by osobno (brak FK w bazie)
       let enriched: any = { ...(data as any) };
       if (data && (data as any).created_by) {
-        const { data: cbUser } = await (supabaseAdmin.from("profiles") as any)
+        const { data: cbUser } = await supabaseAdmin.from("profiles")
           .select("full_name").eq("id", (data as any).created_by).single();
         if (cbUser) enriched.created_by_user = cbUser;
       }
       if (data && (data as any).edited_by) {
-        const { data: ebUser } = await (supabaseAdmin.from("profiles") as any)
+        const { data: ebUser } = await supabaseAdmin.from("profiles")
           .select("full_name").eq("id", (data as any).edited_by).single();
         if (ebUser) enriched.edited_by_user = ebUser;
       }
 
       // Pobierz wszystkich przypisanych z task_assignees
-      const { data: assignees } = await (supabaseAdmin.from("task_assignees") as any)
+      const { data: assignees } = await supabaseAdmin.from("task_assignees")
         .select("user_id").eq("task_id", id);
       if (assignees && assignees.length > 0) {
         const aIds = assignees.map((a: any) => a.user_id);
-        const { data: aProfiles } = await (supabaseAdmin.from("profiles") as any)
+        const { data: aProfiles } = await supabaseAdmin.from("profiles")
           .select("id, full_name, email").in("id", aIds);
         enriched.all_assignees = (aProfiles || []).map((p: any) => p.full_name || p.email || "");
       } else if (enriched.assigned_user?.full_name) {
@@ -842,6 +843,7 @@ export default function TaskDetailsScreen() {
                 placeholder={t("tasks.add_comment")}
                 placeholderTextColor="#94a3b8"
                 multiline
+                maxLength={2000}
               />
               <TouchableOpacity
                 style={[
@@ -880,6 +882,7 @@ export default function TaskDetailsScreen() {
                   onChangeText={(v) => setEditForm({ ...editForm, title: v })}
                   placeholder={t("tasks.title_placeholder")}
                   placeholderTextColor="#94a3b8"
+                  maxLength={300}
                 />
               </View>
               <View style={styles.editField}>
@@ -891,6 +894,7 @@ export default function TaskDetailsScreen() {
                   placeholder={t("tasks.description_placeholder")}
                   placeholderTextColor="#94a3b8"
                   multiline
+                  maxLength={5000}
                 />
               </View>
               {/* Auto-translate PL↔DE in edit modal */}

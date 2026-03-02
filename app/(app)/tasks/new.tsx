@@ -103,19 +103,19 @@ export default function NewTaskScreen() {
       let planWorkerIds: string[] = [];
 
       // 1. Pracownicy z planu dziennego
-      const { data: planReqs } = await (supabaseAdmin.from("plan_requests") as any)
+      const { data: planReqs } = await supabaseAdmin.from("plan_requests")
         .select("id")
         .eq("project_id", project_id);
 
       if (planReqs && planReqs.length > 0) {
         const reqIds = planReqs.map((r: any) => r.id);
-        const { data: planAssign } = await (supabaseAdmin.from("plan_assignments") as any)
+        const { data: planAssign } = await supabaseAdmin.from("plan_assignments")
           .select("worker_id")
           .in("request_id", reqIds);
 
         if (planAssign && planAssign.length > 0) {
           planWorkerIds = [...new Set(planAssign.map((a: any) => a.worker_id))] as string[];
-          const { data: pw } = await (supabaseAdmin.from("profiles") as any)
+          const { data: pw } = await supabaseAdmin.from("profiles")
             .select("*")
             .in("id", planWorkerIds)
             .order("full_name");
@@ -124,14 +124,14 @@ export default function NewTaskScreen() {
       }
 
       // 2. Członkowie projektu (bez tych z planu)
-      const { data: members } = await (supabaseAdmin.from("project_members") as any)
+      const { data: members } = await supabaseAdmin.from("project_members")
         .select("user_id")
         .eq("project_id", project_id);
 
       if (members && members.length > 0) {
         const memberIds = members.map((m: any) => m.user_id).filter((mid: string) => !planWorkerIds.includes(mid));
         if (memberIds.length > 0) {
-          const { data: mp } = await (supabaseAdmin.from("profiles") as any)
+          const { data: mp } = await supabaseAdmin.from("profiles")
             .select("*")
             .in("id", memberIds)
             .order("full_name");
@@ -144,7 +144,7 @@ export default function NewTaskScreen() {
       const allMembers = members ? members.map((m: any) => m.user_id) : [];
       const combined = [...new Set([...allPlan, ...allMembers])];
       if (combined.length > 0) {
-        const { data: cp } = await (supabaseAdmin.from("profiles") as any)
+        const { data: cp } = await supabaseAdmin.from("profiles")
           .select("*")
           .in("id", combined)
           .order("full_name");
@@ -278,7 +278,7 @@ export default function NewTaskScreen() {
         }
 
         const { data: urlData } = supabaseAdmin.storage.from("attachments").getPublicUrl(filePath);
-        await (supabaseAdmin.from("task_attachments") as any).insert({
+        await supabaseAdmin.from("task_attachments").insert({
           task_id: taskId,
           file_name: file.name,
           file_url: urlData.publicUrl,
@@ -331,7 +331,7 @@ export default function NewTaskScreen() {
       if (error && (error.message?.includes("created_by") || error.code === "PGRST204")) {
         console.warn("[TASK] Retrying without created_by...");
         delete taskData.created_by;
-        const retry = await (supabaseAdmin.from("tasks") as any).insert(taskData).select().single();
+        const retry = await supabaseAdmin.from("tasks").insert(taskData).select().single();
         data = retry.data;
         error = retry.error;
       }
@@ -345,7 +345,7 @@ export default function NewTaskScreen() {
           user_id: uid,
           assigned_by: profile?.id || null,
         }));
-        const { error: assignError } = await (supabaseAdmin.from("task_assignees") as any).insert(assigneeRows);
+        const { error: assignError } = await supabaseAdmin.from("task_assignees").insert(assigneeRows);
         if (assignError) console.warn("[TASK] Error inserting task_assignees:", assignError);
       }
 
@@ -410,6 +410,7 @@ export default function NewTaskScreen() {
               onChangeText={(text) => setFormData({ ...formData, title: text })}
               placeholder={t("tasks.title_placeholder")}
               placeholderTextColor="#94a3b8"
+              maxLength={300}
             />
           </View>
 
@@ -426,6 +427,7 @@ export default function NewTaskScreen() {
               multiline
               numberOfLines={4}
               textAlignVertical="top"
+              maxLength={5000}
             />
           </View>
 

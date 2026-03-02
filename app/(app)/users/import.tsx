@@ -169,7 +169,7 @@ export default function ImportUsersScreen() {
               .maybeSingle();
 
             if (profileData) {
-              await (supabaseAdmin.from("profiles") as any)
+              await supabaseAdmin.from("profiles")
                 .update({
                   full_name: user.full_name,
                   phone: user.phone || null,

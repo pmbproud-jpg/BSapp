@@ -43,5 +43,8 @@ app-example
 /ios
 /android
 
+# Netlify
+.netlify/
+
 # archives
 *.zip

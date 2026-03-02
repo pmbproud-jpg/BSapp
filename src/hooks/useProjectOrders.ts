@@ -33,9 +33,9 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
   const fetchMaterialsAndOrders = async () => {
     if (!projectId) return;
     try {
-      const { data: mats } = await (supabaseAdmin.from("warehouse_materials") as any).select("*").order("nazwa");
+      const { data: mats } = await supabaseAdmin.from("warehouse_materials").select("*").order("nazwa");
       setMaterialsList(mats || []);
-      const { data: ords, error: ordErr } = await (supabaseAdmin.from("project_material_orders") as any)
+      const { data: ords, error: ordErr } = await supabaseAdmin.from("project_material_orders")
         .select("*, material:warehouse_materials(nazwa, art_nr, dlugosc, szerokosc, wysokosc, waga)")
         .eq("project_id", projectId)
         .order("created_at", { ascending: false });
@@ -56,7 +56,7 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
     if (!orderForm.material_id || !orderForm.ilosc) return;
     setOrderSaving(true);
     try {
-      const { error } = await (supabaseAdmin.from("project_material_orders") as any).insert({
+      const { error } = await supabaseAdmin.from("project_material_orders").insert({
         project_id: projectId,
         material_id: orderForm.material_id,
         ilosc: parseFloat(orderForm.ilosc),
@@ -99,7 +99,7 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
         ordered_by: userId,
         status: "pending",
       }));
-      const { error } = await (supabaseAdmin.from("project_material_orders") as any).insert(rows);
+      const { error } = await supabaseAdmin.from("project_material_orders").insert(rows);
       if (error) throw error;
       setShowOrderModal(false);
       setOrderCart({});
@@ -121,9 +121,9 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
   const fetchToolsAndOrders = async () => {
     if (!projectId) return;
     try {
-      const { data: tools } = await (supabaseAdmin.from("warehouse_items") as any).select("*").order("beschreibung");
+      const { data: tools } = await supabaseAdmin.from("warehouse_items").select("*").order("beschreibung");
       setToolsList(tools || []);
-      const { data: ords, error: ordErr } = await (supabaseAdmin.from("project_tool_orders") as any)
+      const { data: ords, error: ordErr } = await supabaseAdmin.from("project_tool_orders")
         .select("*, tool:warehouse_items(beschreibung, art_nr, hersteller, kategorie, serial_nummer)")
         .eq("project_id", projectId)
         .order("created_at", { ascending: false });
@@ -157,7 +157,7 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
         ordered_by: userId,
         status: "pending",
       }));
-      const { error } = await (supabaseAdmin.from("project_tool_orders") as any).insert(rows);
+      const { error } = await supabaseAdmin.from("project_tool_orders").insert(rows);
       if (error) throw error;
       setShowToolOrderModal(false);
       setToolOrderCart({});

@@ -198,7 +198,7 @@ export default function SettingsScreen() {
           .eq("id", profile.id);
 
         // Insert into user_locations so it appears in user profile GPS view
-        await (supabaseAdmin.from("user_locations") as any)
+        await supabaseAdmin.from("user_locations")
           .insert({
             user_id: profile.id,
             latitude: gpsData.lat,

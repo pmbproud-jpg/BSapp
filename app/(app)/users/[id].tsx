@@ -216,7 +216,7 @@ export default function UserProfileScreen() {
     if (!id || !canEdit) return;
     setSaving(true);
     try {
-      const { error } = await (supabaseAdmin.from("profiles") as any)
+      const { error } = await supabaseAdmin.from("profiles")
         .update({
           full_name: editData.full_name.trim(),
           phone: editData.phone.trim() || null,
@@ -254,7 +254,7 @@ export default function UserProfileScreen() {
   const toggleVisibility = async (field: "hide_phone" | "hide_email", value: boolean) => {
     if (!id) return;
     try {
-      const { error } = await (supabaseAdmin.from("profiles") as any)
+      const { error } = await supabaseAdmin.from("profiles")
         .update({ [field]: value })
         .eq("id", id);
       if (error) throw error;

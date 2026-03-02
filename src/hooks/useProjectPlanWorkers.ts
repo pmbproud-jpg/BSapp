@@ -26,21 +26,21 @@ export function useProjectPlanWorkers(
       monday.setDate(d.getDate() - (dayOfWeek - 1));
       const weekStart = monday.toISOString().split("T")[0];
 
-      const { data: reqs } = await (supabaseAdmin.from("plan_requests") as any)
+      const { data: reqs } = await supabaseAdmin.from("plan_requests")
         .select("id")
         .eq("project_id", projectId!)
         .eq("week_start", weekStart);
       if (!reqs || reqs.length === 0) { setPlanWorkers([]); return; }
       const reqIds = reqs.map((r: any) => r.id);
 
-      const { data: asgn } = await (supabaseAdmin.from("plan_assignments") as any)
+      const { data: asgn } = await supabaseAdmin.from("plan_assignments")
         .select("worker_id, start_time, end_time, vehicle_id, departure_time")
         .in("request_id", reqIds)
         .eq("day_of_week", dayOfWeek);
       if (!asgn || asgn.length === 0) { setPlanWorkers([]); return; }
 
       const workerIds = [...new Set(asgn.map((a: any) => a.worker_id))];
-      const { data: profiles } = await (supabaseAdmin.from("profiles") as any)
+      const { data: profiles } = await supabaseAdmin.from("profiles")
         .select("id, full_name, email, role")
         .in("id", workerIds)
         .order("full_name");
@@ -64,7 +64,7 @@ export function useProjectPlanWorkers(
     setPlanWorkerSearch("");
     setShowAddPlanWorker(true);
     try {
-      const { data } = await (supabaseAdmin.from("profiles") as any)
+      const { data } = await supabaseAdmin.from("profiles")
         .select("id, full_name, email, role")
         .eq("company_id", profile?.company_id)
         .order("full_name");
@@ -85,7 +85,7 @@ export function useProjectPlanWorkers(
       monday.setDate(d.getDate() - (dayOfWeek - 1));
       const weekStart = monday.toISOString().split("T")[0];
 
-      let { data: reqs } = await (supabaseAdmin.from("plan_requests") as any)
+      let { data: reqs } = await supabaseAdmin.from("plan_requests")
         .select("id")
         .eq("project_id", projectId!)
         .eq("week_start", weekStart);
@@ -94,7 +94,7 @@ export function useProjectPlanWorkers(
       if (reqs && reqs.length > 0) {
         requestId = reqs[0].id;
       } else {
-        const { data: newReq, error: reqErr } = await (supabaseAdmin.from("plan_requests") as any)
+        const { data: newReq, error: reqErr } = await supabaseAdmin.from("plan_requests")
           .insert({ project_id: projectId!, week_start: weekStart, requested_by: profile?.id, status: "published" })
           .select("id")
           .single();
@@ -102,7 +102,7 @@ export function useProjectPlanWorkers(
         requestId = newReq.id;
       }
 
-      const { error: asgnErr } = await (supabaseAdmin.from("plan_assignments") as any)
+      const { error: asgnErr } = await supabaseAdmin.from("plan_assignments")
         .insert({ request_id: requestId, worker_id: userId, day_of_week: dayOfWeek });
       if (asgnErr) throw asgnErr;
 

@@ -37,6 +37,25 @@ export const countWorkdays = (from: string, to: string): number => {
 };
 
 /**
+ * Walidacja adresu email — bardziej rygorystyczna niż prosty regex.
+ */
+export const isValidEmail = (email: string): boolean => {
+  const trimmed = email.trim();
+  if (trimmed.length > 254) return false;
+  return /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/.test(trimmed);
+};
+
+/**
+ * Walidacja daty w formacie YYYY-MM-DD.
+ * Sprawdza czy data jest poprawna (nie np. 2025-13-45).
+ */
+export const isValidDate = (dateStr: string): boolean => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const d = new Date(dateStr + "T00:00:00");
+  return !isNaN(d.getTime()) && d.toISOString().startsWith(dateStr);
+};
+
+/**
  * Pure JS base64 decode — fallback dla Hermes gdzie atob może nie istnieć.
  */
 export const base64Decode = (input: string): string => {
