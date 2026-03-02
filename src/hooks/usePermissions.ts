@@ -102,68 +102,12 @@ export function usePermissions() {
   const isLeadership = isAdmin || isManagement || isPM;
   const isOfficeStaff = isOfficeWorker || isLogistics || isPurchasing;
 
-  // Domyślne uprawnienia z macierzy ról
-  const roleDefaults: Record<string, boolean> = {
-    // Dashboard
-    canViewAllCharts: isAdminOrManagement,
-    canViewOwnCharts: isPM || isBL,
-    // Projekty
-    canCreateProject: isAdminOrManagement || isPM,
-    canEditProject: isAdminOrManagement || isPM,
-    canDeleteProject: isAdminOrManagement,
-    canViewAllProjects: isAdminOrManagement || isOfficeWorker || isLogistics || isPurchasing || isWarehouseManager,
-    // Zadania
-    canCreateTask: isAdminOrManagement || isPM || isBL,
-    canEditTask: isAdminOrManagement || isPM,
-    canDeleteTask: isAdminOrManagement,
-    canAssignTask: isAdminOrManagement || isPM || isBL,
-    canAddTaskComments: isAdminOrManagement || isPM || isBL || isWorker,
-    canChangeTaskStatus: isAdminOrManagement || isPM || isBL || isWorker,
-    // Członkowie
-    canManageMembers: isAdminOrManagement || isPM,
-    canAddMembers: isAdminOrManagement || isPM,
-    canRemoveMembers: isAdminOrManagement,
-    // Użytkownicy
-    canViewUsers: !isSubcontractor,
-    canCreateUser: isAdminOrManagement,
-    canEditUser: isAdminOrManagement,
-    canDeleteUser: isAdmin,
-    canChangeUserRole: isAdmin,
-    // Podwykonawcy
-    canCreateSubcontractor: isAdminOrManagement,
-    canManageSubcontractor: isAdminOrManagement,
-    // Ustawienia
-    canManagePermissions: isAdmin,
-    canManageGlobalSettings: isAdmin,
-    canManageCompanySettings: isAdminOrManagement,
-    // GPS
-    canViewGPS: isAdminOrManagement,
-    canManageGPS: isAdminOrManagement,
-    canViewGPSUsers: isAdminOrManagement,
-    // Pliki
-    canUploadFiles: isAdminOrManagement || isPM || isBL || isWorker,
-    canDeleteFiles: isAdminOrManagement,
-    // Import
-    canImportData: isAdminOrManagement || isLogistics || isPurchasing || isWarehouseManager,
-    // Magazyn
-    canViewWarehouse: isAdminOrManagement || isPM || isBL || isOfficeWorker || isLogistics || isPurchasing || isWarehouseManager,
-    canEditWarehouse: isAdminOrManagement || isPurchasing || isWarehouseManager,
-    canOrderMaterials: isAdminOrManagement || isPM || isBL || isWarehouseManager || isPurchasing,
-    // Plan
-    canViewPlan: isAdminOrManagement || isPM || isBL || isWorker || isLogistics || isOfficeWorker || isPurchasing || isWarehouseManager,
-    canEditPlan: isAdminOrManagement || isLogistics,
-    // Ogólne
-    canDelete: isAdminOrManagement,
-  };
+  // Domyślne uprawnienia z macierzy ról (zdefiniowane w getRoleDefaults)
+  const roleDefaults = getRoleDefaults(role);
 
   // Indywidualne nadpisania z profilu Supabase (kolumna custom_permissions jsonb)
   const overrides: Record<string, boolean> | null =
     (profile as any)?.custom_permissions ?? null;
-
-  // Debug: log profile and overrides
-  if (profile) {
-    console.log("[usePermissions] role:", role, "overrides:", overrides ? JSON.stringify(overrides) : "null", "profile keys:", Object.keys(profile));
-  }
 
   // Funkcja pomocnicza: zwraca indywidualną wartość jeśli istnieje, inaczej domyślną z macierzy
   const perm = (key: string, roleDefault: boolean): boolean => {

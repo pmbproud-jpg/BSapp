@@ -1,8 +1,20 @@
 const nodemailer = require("nodemailer");
 
+const ALLOWED_ORIGIN = "https://bsapp-management.netlify.app";
+
+function sanitize(str) {
+  if (!str) return "";
+  return String(str).replace(/[<>"'&]/g, (c) => ({
+    '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;'
+  }[c] || c));
+}
+
 exports.handler = async (event) => {
+  const origin = event.headers?.origin || event.headers?.Origin || "";
+  const allowedOrigin = origin === ALLOWED_ORIGIN ? ALLOWED_ORIGIN : ALLOWED_ORIGIN;
+
   const headers = {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
@@ -29,7 +41,20 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: "Missing: to, actionLink" }) };
     }
 
-    const name = userName || to;
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: "Invalid email" }) };
+    }
+
+    // Validate actionLink — must be from our domain or Supabase
+    const allowedPrefixes = ["https://bsapp-management.netlify.app", "https://ocdcvjpmgwsymuhtnhqc.supabase.co"];
+    if (!allowedPrefixes.some((p) => actionLink.startsWith(p))) {
+      return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: "Invalid action link" }) };
+    }
+
+    // Sanitize user-provided strings to prevent XSS in email HTML
+    const name = sanitize(userName || to);
+    const safeLink = encodeURI(actionLink);
 
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
@@ -59,7 +84,7 @@ exports.handler = async (event) => {
     </p>
     
     <div style="text-align: center; margin: 32px 0;">
-      <a href="${actionLink}" 
+      <a href="${safeLink}" 
          style="background: #2563eb; color: #fff; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 16px; display: inline-block;">
         Passwort erstellen
       </a>
@@ -67,7 +92,7 @@ exports.handler = async (event) => {
 
     <p style="color: #64748b; font-size: 13px; line-height: 1.5;">
       Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:<br>
-      <a href="${actionLink}" style="color: #2563eb; word-break: break-all;">${actionLink}</a>
+      <a href="${safeLink}" style="color: #2563eb; word-break: break-all;">${safeLink}</a>
     </p>
 
     <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
@@ -81,7 +106,7 @@ exports.handler = async (event) => {
     </p>
     
     <div style="text-align: center; margin: 32px 0;">
-      <a href="${actionLink}" 
+      <a href="${safeLink}" 
          style="background: #2563eb; color: #fff; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 16px; display: inline-block;">
         Utwórz hasło
       </a>
@@ -90,7 +115,7 @@ exports.handler = async (event) => {
     <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
     
     <p style="color: #94a3b8; font-size: 12px; text-align: center;">
-      Login: <strong>${to}</strong><br>
+      Login: <strong>${sanitize(to)}</strong><br>
       Dieser Link ist 24 Stunden gültig. / Ten link jest ważny 24 godziny.
     </p>
   </div>

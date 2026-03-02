@@ -65,7 +65,7 @@ function getMonthDays(refDate: string | Date, lang: string) {
 export default function ResourceCalendar({ weekDays, assignments, projects, vehicles, workers, absences, weekStart, lang }: Props) {
   const { t } = useTranslation();
   const { colors: tc, isDark } = useTheme();
-  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["active", "planning"]));
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["active"]));
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -78,11 +78,6 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
       return n;
     });
   };
-
-  const filteredProjects = useMemo(() => {
-    if (statusFilters.size === 0) return projects;
-    return projects.filter((p: any) => statusFilters.has(p.status));
-  }, [projects, statusFilters]);
 
   // Mapa: projectId -> dateString -> assignments[]
   const assignmentMap = useMemo(() => {
@@ -102,6 +97,17 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
     }
     return map;
   }, [assignments, weekStart]);
+
+  const filteredProjects = useMemo(() => {
+    let filtered = statusFilters.size === 0 ? projects : projects.filter((p: any) => statusFilters.has(p.status));
+    // Sort: projects with assignments first, then by name
+    return [...filtered].sort((a: any, b: any) => {
+      const aHas = assignmentMap.has(a.id) ? 0 : 1;
+      const bHas = assignmentMap.has(b.id) ? 0 : 1;
+      if (aHas !== bHas) return aHas - bHas;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [projects, statusFilters, assignmentMap]);
 
   const vehicleMap = useMemo(() => {
     const m = new Map<string, any>();
@@ -176,33 +182,39 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
     return weekDays;
   }, [viewMode, weekDays, selectedDayIdx, monthDate, weekStart, lang]);
 
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   // On web: fill the screen; on mobile: fixed widths with horizontal scroll
   const isWeb = Platform.OS === "web";
+  const tableMaxHeight = isWeb ? Math.max(300, windowHeight - 280) : 700;
   const numDays = visibleDays.length;
-  const PROJECT_COL_WIDTH = isWeb ? Math.max(180, Math.min(280, windowWidth * 0.18)) : 280;
+  const PROJECT_COL_WIDTH = isWeb ? Math.max(140, Math.min(200, windowWidth * 0.14)) : 220;
+  const availableWidth = windowWidth - PROJECT_COL_WIDTH - 2;
   const DAY_COL_WIDTH = isWeb
-    ? Math.max(80, (windowWidth - PROJECT_COL_WIDTH - 2) / numDays)
+    ? (viewMode === "day"
+      ? availableWidth
+      : viewMode === "month"
+        ? Math.max(90, availableWidth / numDays)
+        : Math.max(120, availableWidth / numDays))
     : (viewMode === "day" ? 500 : viewMode === "month" ? 110 : 200);
 
   // Pasek tekstu — wspólny komponent
   const Bar = ({ color, label, bold }: { color: string; label: string; bold?: boolean }) => (
     <View style={{
       backgroundColor: color,
-      borderRadius: 3,
-      paddingHorizontal: 6,
-      paddingVertical: Platform.OS === "web" ? 3 : 2,
-      marginBottom: 2,
+      borderRadius: 2,
+      paddingHorizontal: 4,
+      paddingVertical: Platform.OS === "web" ? 1.5 : 1,
+      marginBottom: 1,
       ...(Platform.OS === "web" ? { WebkitFontSmoothing: "antialiased", MozOsxFontSmoothing: "grayscale" } as any : {}),
     }}>
       <Text style={{
-        fontSize: viewMode === "month" ? 10 : 13,
-        lineHeight: viewMode === "month" ? 14 : 18,
+        fontSize: viewMode === "month" ? 8 : 10,
+        lineHeight: viewMode === "month" ? 11 : 14,
         color: "#ffffff",
-        fontWeight: bold ? "800" : "700",
-        letterSpacing: 0.2,
-        ...(Platform.OS === "web" ? { textShadow: "0px 1px 2px rgba(0,0,0,0.5)" } as any : {}),
+        fontWeight: bold ? "800" : "600",
+        letterSpacing: 0.1,
+        ...(Platform.OS === "web" ? { textShadow: "0px 1px 1px rgba(0,0,0,0.4)" } as any : {}),
       }} numberOfLines={1}>
         {label}
       </Text>
@@ -360,18 +372,27 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
       </View>
 
       {/* Scrollable table */}
-      <ScrollView horizontal={!isWeb} showsHorizontalScrollIndicator={isWeb}>
-        <View>
+      {isWeb ? (
+        React.createElement('div', {
+          style: {
+            maxHeight: tableMaxHeight,
+            overflowX: 'auto',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            flex: 1,
+          },
+        },
+        <View style={{ minWidth: PROJECT_COL_WIDTH + DAY_COL_WIDTH * numDays }}>
           {/* Header row */}
           <View style={{ flexDirection: "row", borderBottomWidth: 2, borderBottomColor: "#00897b" }}>
             <View style={{
               width: PROJECT_COL_WIDTH,
               backgroundColor: isDark ? "#0e2433" : "#e0f2f1",
               borderRightWidth: 2, borderRightColor: "#00897b",
-              paddingVertical: 10, paddingHorizontal: 10,
+              paddingVertical: 6, paddingHorizontal: 6,
               justifyContent: "center",
             }}>
-              <Text style={{ fontSize: 14, fontWeight: "800", color: "#00897b" }}>{t("plan.project", "Projekt")}</Text>
+              <Text style={{ fontSize: 10, fontWeight: "800", color: "#00897b" }}>{t("plan.project", "Projekt")}</Text>
             </View>
             {visibleDays.map((day: any, di: number) => (
               <View
@@ -392,19 +413,19 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
               >
                 {viewMode === "month" ? (
                   <>
-                    <Text style={{ fontSize: 11, fontWeight: "800", color: day.isToday ? "#1b5e20" : (isDark ? "#a5d6a7" : "#1b5e20") }}>
+                    <Text style={{ fontSize: 9, fontWeight: "800", color: day.isToday ? "#1b5e20" : (isDark ? "#a5d6a7" : "#1b5e20") }}>
                       {day.shortName}
                     </Text>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: day.isToday ? "#2e7d32" : (isDark ? "#81c784" : "#2e7d32") }}>
+                    <Text style={{ fontSize: 10, fontWeight: "700", color: day.isToday ? "#2e7d32" : (isDark ? "#81c784" : "#2e7d32") }}>
                       {day.dayNum}
                     </Text>
                   </>
                 ) : (
                   <>
-                    <Text style={{ fontSize: 13, fontWeight: "800", color: day.isToday ? "#1b5e20" : (isDark ? "#a5d6a7" : "#1b5e20") }}>
+                    <Text style={{ fontSize: 10, fontWeight: "800", color: day.isToday ? "#1b5e20" : (isDark ? "#a5d6a7" : "#1b5e20") }}>
                       {dayFullName(day)}
                     </Text>
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: day.isToday ? "#2e7d32" : (isDark ? "#81c784" : "#388e3c"), marginTop: 1 }}>
+                    <Text style={{ fontSize: 10, fontWeight: "600", color: day.isToday ? "#2e7d32" : (isDark ? "#81c784" : "#388e3c"), marginTop: 0 }}>
                       {day.dayNum}.{day.monthNum.toString().padStart(2, "0")}.{new Date(day.date).getFullYear()}
                     </Text>
                   </>
@@ -419,12 +440,12 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
               width: PROJECT_COL_WIDTH,
               backgroundColor: isDark ? "#2d1215" : "#fef2f2",
               borderRightWidth: 2, borderRightColor: "#00897b",
-              paddingVertical: 8, paddingHorizontal: 10,
+              paddingVertical: 4, paddingHorizontal: 6,
               justifyContent: "center",
             }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Ionicons name="person-remove" size={14} color="#ef4444" />
-                <Text style={{ fontSize: 13, fontWeight: "800", color: "#ef4444" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Ionicons name="person-remove" size={12} color="#ef4444" />
+                <Text style={{ fontSize: 10, fontWeight: "800", color: "#ef4444" }}>
                   {t("plan.abs_title", "Abwesenheiten")}
                 </Text>
               </View>
@@ -443,17 +464,17 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                       : (day.isWeekend ? (isDark ? "#33291a" : "#fffbeb") : (isDark ? "#0f172a" : "#fff")),
                     borderRightWidth: 1,
                     borderRightColor: isDark ? "#334155" : "#e0e0e0",
-                    paddingVertical: 4,
-                    paddingHorizontal: 3,
+                    paddingVertical: 2,
+                    paddingHorizontal: 2,
                     alignItems: "center",
                     justifyContent: "center",
-                    minHeight: 36,
+                    minHeight: 28,
                   }}
                   activeOpacity={0.6}
                 >
                   {dayAbs.length > 0 ? (
-                    <View style={{ backgroundColor: "#ef4444", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
-                      <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800" }}>
+                    <View style={{ backgroundColor: "#ef4444", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <Text style={{ color: "#fff", fontSize: 9, fontWeight: "800" }}>
                         {dayAbs.length} ✗
                       </Text>
                     </View>
@@ -464,7 +485,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
           </View>
 
           {/* Project rows */}
-          <ScrollView showsVerticalScrollIndicator={Platform.OS === "web"} style={{ maxHeight: 700 }}>
+          <View>
             {filteredProjects.length === 0 && (
               <View style={{ padding: 30, alignItems: "center" }}>
                 <Ionicons name="calendar-outline" size={40} color={tc.textMuted} />
@@ -486,8 +507,8 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                 const rows = vIds.size + dayAssigns.length;
                 if (rows > maxRows) maxRows = rows;
               }
-              const barH = viewMode === "month" ? 18 : 24;
-              const minRowHeight = Math.max(maxRows * barH + 10, 55);
+              const barH = viewMode === "month" ? 14 : 18;
+              const minRowHeight = Math.max(maxRows * barH + 6, 38);
               const rowBg = projIdx % 2 === 0
                 ? (isDark ? "#0f172a" : "#ffffff")
                 : (isDark ? "#1a2332" : "#f5f5f5");
@@ -508,21 +529,21 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                     borderRightWidth: 2,
                     borderRightColor: "#00897b",
                     backgroundColor: rowBg,
-                    paddingVertical: 8,
-                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    paddingHorizontal: 6,
                     justifyContent: "center",
                   }}>
-                    <Text style={{ fontSize: 13, fontWeight: "800", color: tc.text, lineHeight: 18 }} numberOfLines={2}>
+                    <Text style={{ fontSize: 10, fontWeight: "800", color: tc.text, lineHeight: 13 }} numberOfLines={2}>
                       {proj.name}{proj.project_number ? ` ${proj.project_number}` : ""}
                     </Text>
                     {proj.location ? (
-                      <Text style={{ fontSize: 11, color: tc.textMuted, marginTop: 2, lineHeight: 15 }} numberOfLines={1}>
+                      <Text style={{ fontSize: 9, color: tc.textMuted, marginTop: 1, lineHeight: 12 }} numberOfLines={1}>
                         {proj.location}
                       </Text>
                     ) : null}
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: statusColor(proj.status) }} />
-                      <Text style={{ fontSize: 10, color: statusColor(proj.status), fontWeight: "700" }}>{statusLabel(proj.status)}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: statusColor(proj.status) }} />
+                      <Text style={{ fontSize: 8, color: statusColor(proj.status), fontWeight: "700" }}>{statusLabel(proj.status)}</Text>
                     </View>
                   </View>
 
@@ -549,8 +570,8 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                           width: DAY_COL_WIDTH,
                           borderRightWidth: 1,
                           borderRightColor: isDark ? "#334155" : "#e0e0e0",
-                          paddingVertical: 3,
-                          paddingHorizontal: 3,
+                          paddingVertical: 2,
+                          paddingHorizontal: 2,
                           backgroundColor: cellBg,
                         }}
                       >
@@ -558,17 +579,26 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                           const veh = vehicleMap.get(vid);
                           if (!veh) return null;
                           const vColor = vehicleColorMap.get(vid) || "#666";
+                          // Find departure time from any assignment using this vehicle
+                          const vAssign = dayAssigns.find((a: any) => {
+                            const ids = Array.isArray(a.vehicle_ids) ? a.vehicle_ids : (a.vehicle_id ? [a.vehicle_id] : []);
+                            return ids.includes(vid);
+                          });
+                          const depTime = vAssign?.departure_time ? ` ${(vAssign.departure_time || "").slice(0, 5)}` : "";
                           const label = viewMode === "month"
                             ? veh.license_plate
-                            : `${veh.name} ${veh.license_plate}`;
+                            : `${veh.name} (${veh.license_plate})${depTime}`;
                           return <Bar key={vid} color={vColor} label={label} bold />;
                         })}
                         {dayAssigns.map((a: any, ai: number) => {
                           const wColor = workerColorMap.get(a.worker_id) || "#888";
                           const wName = a.worker?.full_name || "?";
+                          const timeStr = a.start_time && a.end_time
+                            ? ` ${(a.start_time || "").slice(0, 5)}-${(a.end_time || "").slice(0, 5)}`
+                            : "";
                           const label = viewMode === "month"
                             ? (wName.split(" ")[0] || "?")
-                            : wName;
+                            : `${wName}${timeStr}`;
                           return <Bar key={a.id || ai} color={wColor} label={label} />;
                         })}
                       </View>
@@ -577,9 +607,34 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                 </View>
               );
             })}
+          </View>
+        </View>
+        )
+      ) : (
+      <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+        <View>
+          {/* Header row (mobile) */}
+          <View style={{ flexDirection: "row", borderBottomWidth: 2, borderBottomColor: "#00897b" }}>
+            <View style={{
+              width: PROJECT_COL_WIDTH,
+              backgroundColor: isDark ? "#0e2433" : "#e0f2f1",
+              borderRightWidth: 2, borderRightColor: "#00897b",
+              paddingVertical: 6, paddingHorizontal: 6,
+              justifyContent: "center",
+            }}>
+              <Text style={{ fontSize: 10, fontWeight: "800", color: "#00897b" }}>{t("plan.project", "Projekt")}</Text>
+            </View>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 700 }}>
+            {filteredProjects.map((proj: any, projIdx: number) => (
+              <View key={proj.id} style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: isDark ? "#334155" : "#e0e0e0" }}>
+                <Text style={{ fontSize: 10, color: tc.text }}>{proj.name}</Text>
+              </View>
+            ))}
           </ScrollView>
         </View>
       </ScrollView>
+      )}
 
       {/* Absence popup */}
       {absPopup && (
