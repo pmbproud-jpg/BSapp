@@ -1,4 +1,5 @@
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import { base64Decode } from "@/src/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -223,22 +224,6 @@ export default function FileAttachments({
     }
   };
 
-  // Pure JS base64 decode (fallback for Hermes where atob may not exist)
-  const base64Decode = (input: string): string => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-    let str = input.replace(/=+$/, "");
-    let output = "";
-    for (let i = 0; i < str.length; i += 4) {
-      const a = chars.indexOf(str.charAt(i));
-      const b = chars.indexOf(str.charAt(i + 1));
-      const c = chars.indexOf(str.charAt(i + 2));
-      const d = chars.indexOf(str.charAt(i + 3));
-      output += String.fromCharCode((a << 2) | (b >> 4));
-      if (c !== -1 && c !== 64) output += String.fromCharCode(((b & 15) << 4) | (c >> 2));
-      if (d !== -1 && d !== 64) output += String.fromCharCode(((c & 3) << 6) | d);
-    }
-    return output;
-  };
 
   // Extract storage path from full Supabase URL
   // e.g. https://xxx.supabase.co/storage/v1/object/public/attachments/project/123/file.jpg

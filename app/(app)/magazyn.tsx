@@ -13,6 +13,7 @@ import {
     View,
 } from "react-native";
 
+import { orderStatusColors } from "@/src/constants/colors";
 import { usePermissions } from "@/src/hooks/usePermissions";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
@@ -1776,8 +1777,7 @@ export default function MagazynScreen() {
                   </View>
                   {/* Table rows */}
                   {filteredOrders.map((order: any, idx: number) => {
-                    const statusColors: Record<string, string> = { pending: "#f59e0b", ordered: "#3b82f6", approved: "#10b981", rejected: "#ef4444", delivered: "#10b981" };
-                    const sc = statusColors[order.status] || "#94a3b8";
+                    const sc = orderStatusColors[order.status] || "#94a3b8";
                     return (
                       <TouchableOpacity
                         key={order.id}

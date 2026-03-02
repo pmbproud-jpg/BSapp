@@ -1,5 +1,6 @@
 import FileAttachments from "@/components/FileAttachments";
 import KanbanBoard from "@/components/KanbanBoard";
+import { orderStatusColors } from "@/src/constants/colors";
 import { usePermissions } from "@/src/hooks/usePermissions";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
@@ -1579,8 +1580,7 @@ export default function ProjectDetailsScreen() {
                       ))}
                     </View>
                     {projectOrders.map((order: any, idx: number) => {
-                      const statusColors: Record<string, string> = { pending: "#f59e0b", ordered: "#3b82f6", approved: "#10b981", rejected: "#ef4444", delivered: "#10b981" };
-                      const sc = statusColors[order.status] || "#94a3b8";
+                      const sc = orderStatusColors[order.status] || "#94a3b8";
                       const dt = order.created_at ? new Date(order.created_at) : null;
                       return (
                         <View key={order.id} style={{ flexDirection: "row", backgroundColor: idx % 2 === 0 ? tc.card : (tc.background || "#f8fafc"), borderBottomWidth: 1, borderBottomColor: tc.border || "#e2e8f0", paddingVertical: 8, alignItems: "center" }}>
@@ -1641,8 +1641,7 @@ export default function ProjectDetailsScreen() {
                       ))}
                     </View>
                     {projectToolOrders.map((order: any, idx: number) => {
-                      const statusColors: Record<string, string> = { pending: "#f59e0b", ordered: "#3b82f6", approved: "#10b981", rejected: "#ef4444", delivered: "#10b981" };
-                      const sc = statusColors[order.status] || "#94a3b8";
+                      const sc = orderStatusColors[order.status] || "#94a3b8";
                       const dt = order.created_at ? new Date(order.created_at) : null;
                       return (
                         <View key={order.id} style={{ flexDirection: "row", backgroundColor: idx % 2 === 0 ? tc.card : (tc.background || "#f8fafc"), borderBottomWidth: 1, borderBottomColor: tc.border || "#e2e8f0", paddingVertical: 8, alignItems: "center" }}>

@@ -1,7 +1,9 @@
+import { roleColors, roleIcons, projectStatusColors as statusColors } from "@/src/constants/colors";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { useAuth } from "@/src/providers/AuthProvider";
+import { countWorkdays, openLink } from "@/src/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
@@ -21,18 +23,6 @@ import {
     View,
 } from "react-native";
 
-const openLink = (url: string) => {
-  if (Platform.OS === "web") {
-    const a = document.createElement("a");
-    a.href = url;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  } else {
-    Linking.openURL(url);
-  }
-};
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 type UserRole = Database["public"]["Tables"]["profiles"]["Row"]["role"];
@@ -46,39 +36,6 @@ type ProjectInfo = {
   joined_at: string;
 };
 
-const roleColors: Record<string, string> = {
-  admin: "#ef4444",
-  management: "#f59e0b",
-  project_manager: "#3b82f6",
-  bauleiter: "#10b981",
-  worker: "#64748b",
-  subcontractor: "#8b5cf6",
-  office_worker: "#06b6d4",
-  logistics: "#f97316",
-  purchasing: "#ec4899",
-  warehouse_manager: "#7c3aed",
-};
-
-const roleIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
-  admin: "shield",
-  management: "briefcase",
-  project_manager: "clipboard",
-  bauleiter: "construct",
-  worker: "hammer",
-  subcontractor: "people",
-  office_worker: "desktop",
-  logistics: "cube",
-  purchasing: "cart",
-  warehouse_manager: "file-tray-stacked",
-};
-
-const statusColors: Record<string, string> = {
-  planning: "#8b5cf6",
-  active: "#10b981",
-  on_hold: "#f59e0b",
-  completed: "#6b7280",
-  cancelled: "#ef4444",
-};
 
 export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -257,18 +214,6 @@ export default function UserProfileScreen() {
     return s;
   };
   const statusColor = (s: string) => s === "approved" ? "#10b981" : s === "rejected" ? "#ef4444" : "#f59e0b";
-
-  const countWorkdays = (from: string, to: string) => {
-    let count = 0;
-    const d = new Date(from);
-    const end = new Date(to);
-    while (d <= end) {
-      const dow = d.getDay();
-      if (dow !== 0 && dow !== 6) count++;
-      d.setDate(d.getDate() + 1);
-    }
-    return count;
-  };
 
   const usedVacationDays = absences
     .filter((a: any) => a.type === "vacation" && a.status !== "rejected")

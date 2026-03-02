@@ -4,6 +4,7 @@ import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { useAuth } from "@/src/providers/AuthProvider";
+import { openLink } from "@/src/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -12,7 +13,6 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
-    Linking,
     Platform,
     RefreshControl,
     ScrollView,
@@ -20,22 +20,9 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import * as XLSX from "xlsx";
-
-const openLink = (url: string) => {
-  if (Platform.OS === "web") {
-    const a = document.createElement("a");
-    a.href = url;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  } else {
-    Linking.openURL(url);
-  }
-};
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 

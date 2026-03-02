@@ -1,3 +1,4 @@
+import { absenceStatusColors } from "@/src/constants/colors";
 import { usePermissions } from "@/src/hooks/usePermissions";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { useAuth } from "@/src/providers/AuthProvider";
@@ -158,11 +159,7 @@ export default function AbsencesScreen() {
     approved: t("users.abs_approved") || "Genehmigt",
     rejected: t("users.abs_rejected") || "Abgelehnt",
   };
-  const statusColors: Record<string, string> = {
-    pending: "#f59e0b",
-    approved: "#10b981",
-    rejected: "#ef4444",
-  };
+  const statusColors = absenceStatusColors;
 
   const fmtDate = (d: string) => {
     const dt = new Date(d);
