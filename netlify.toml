@@ -6,7 +6,7 @@
 [build.environment]
   NODE_VERSION = "18"
   EXPO_PUBLIC_SUPABASE_URL = "https://ocdcvjpmgwsymuhtnhqc.supabase.co"
-  EXPO_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jZGN2anBtZ3dzeW11aHRuaHFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMzE1NTUsImV4cCI6MjA4NTcwNzU1NX0.xOFkDQNlVEzaF9I7JSZRvBRhmLFa407VY8jPSjCHwno"
+  EXPO_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_giNAWm5tIonGPbTPPATy_A_hhZweuxu"
   EXPO_PUBLIC_SITE_URL = "https://bsapp-management.netlify.app"
   # WAŻNE: SUPABASE_SERVICE_ROLE_KEY (bez prefiksu EXPO_PUBLIC_) musi być ustawiony
   # w Netlify Dashboard → Site settings → Environment variables.

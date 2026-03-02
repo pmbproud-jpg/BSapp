@@ -15,8 +15,13 @@
 const { createClient } = require("@supabase/supabase-js");
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+// Service Role Key MUSI być ustawiony w Netlify env variables (bez prefiksu EXPO_PUBLIC_)
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("FATAL: SUPABASE_SERVICE_ROLE_KEY is not set in environment variables");
+}
 const ALLOWED_ORIGIN = "https://bsapp-management.netlify.app";
 
 // Tables that are allowed to be accessed via this proxy
@@ -51,7 +56,7 @@ const ALLOWED_AUTH_ACTIONS = new Set([
 
 function getHeaders(origin) {
   return {
-    "Access-Control-Allow-Origin": origin === ALLOWED_ORIGIN ? ALLOWED_ORIGIN : ALLOWED_ORIGIN,
+    "Access-Control-Allow-Origin": origin === ALLOWED_ORIGIN ? ALLOWED_ORIGIN : "",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Content-Type": "application/json",
@@ -286,6 +291,10 @@ exports.handler = async (event) => {
 
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
+  }
+
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: "Server misconfigured: missing service role key" }) };
   }
 
   // Verify user is authenticated via their JWT

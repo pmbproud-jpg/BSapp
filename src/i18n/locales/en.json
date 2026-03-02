@@ -20,6 +20,11 @@
     "none": "None",
     "all": "All",
     "close": "Close",
+    "yes": "Yes",
+    "no": "No",
+    "something_went_wrong": "Something went wrong",
+    "unknown_error": "Unknown error",
+    "try_again": "Try again",
     "roles": {
       "admin": "Administrator",
       "bauleiter": "Site Manager",

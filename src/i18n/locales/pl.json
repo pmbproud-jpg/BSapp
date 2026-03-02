@@ -20,6 +20,11 @@
     "none": "Brak",
     "all": "Wszystkie",
     "close": "Zamknij",
+    "yes": "Tak",
+    "no": "Nie",
+    "something_went_wrong": "Coś poszło nie tak",
+    "unknown_error": "Nieznany błąd",
+    "try_again": "Spróbuj ponownie",
     "roles": {
       "admin": "Administrator",
       "bauleiter": "Kierownik Budowy",
