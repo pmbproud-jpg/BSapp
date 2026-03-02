@@ -19,6 +19,7 @@ import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { useTheme } from "@/src/providers/ThemeProvider";
+import { fetchProfileMap } from "@/src/services/profileService";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
@@ -252,12 +253,7 @@ export default function MagazynScreen() {
 
       // Fetch profile names for ordered_by users
       const userIds = [...new Set(combined.map((o: any) => o.ordered_by).filter(Boolean))];
-      let profileMap: Record<string, string> = {};
-      if (userIds.length > 0) {
-        const { data: profiles } = await (supabaseAdmin.from("profiles") as any)
-          .select("id, full_name").in("id", userIds);
-        (profiles || []).forEach((p: any) => { profileMap[p.id] = p.full_name || ""; });
-      }
+      const profileMap = await fetchProfileMap(userIds);
       const enriched = combined.map((o: any) => ({
         ...o,
         ordered_by_profile: { full_name: profileMap[o.ordered_by] || null },
@@ -370,13 +366,8 @@ export default function MagazynScreen() {
         .order("iv_pds", { ascending: true });
       if (error) throw error;
       // Enrich with assigned_to profile names
-      const assignedIds = [...new Set((data || []).map((i: any) => i.assigned_to).filter(Boolean))];
-      let profileMap: Record<string, string> = {};
-      if (assignedIds.length > 0) {
-        const { data: profiles } = await (supabaseAdmin.from("profiles") as any)
-          .select("id, full_name").in("id", assignedIds);
-        (profiles || []).forEach((p: any) => { profileMap[p.id] = p.full_name || ""; });
-      }
+      const assignedIds = [...new Set((data || []).map((i: any) => i.assigned_to).filter(Boolean))] as string[];
+      const profileMap = await fetchProfileMap(assignedIds);
       const enriched = (data || []).map((i: any) => ({
         ...i,
         assigned_to_profile: i.assigned_to ? { full_name: profileMap[i.assigned_to] || null } : null,

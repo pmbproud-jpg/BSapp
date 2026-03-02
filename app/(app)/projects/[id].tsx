@@ -1,5 +1,4 @@
 import FileAttachments from "@/components/FileAttachments";
-import KanbanBoard from "@/components/KanbanBoard";
 import { orderStatusColors } from "@/src/constants/colors";
 import { usePermissions } from "@/src/hooks/usePermissions";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
@@ -8,6 +7,7 @@ import type { Database } from "@/src/lib/supabase/database.types";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { useNotifications } from "@/src/providers/NotificationProvider";
 import { useTheme } from "@/src/providers/ThemeProvider";
+import { fetchProfileMap } from "@/src/services/profileService";
 import { exportToExcel, exportToPDF } from "@/src/utils/exportData";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
@@ -181,14 +181,8 @@ export default function ProjectDetailsScreen() {
         .order("created_at", { ascending: false });
       if (ordErr) { console.error("Orders fetch error:", ordErr); setProjectOrders([]); return; }
       // Separately fetch profile names for ordered_by users
-      const userIds = [...new Set((ords || []).map((o: any) => o.ordered_by).filter(Boolean))];
-      let profileMap: Record<string, string> = {};
-      if (userIds.length > 0) {
-        const { data: profiles } = await (supabaseAdmin.from("profiles") as any)
-          .select("id, full_name").in("id", userIds);
-        (profiles || []).forEach((p: any) => { profileMap[p.id] = p.full_name || ""; });
-      }
-      // Attach profile info to orders
+      const userIds = [...new Set((ords || []).map((o: any) => o.ordered_by).filter(Boolean))] as string[];
+      const profileMap = await fetchProfileMap(userIds);
       const enriched = (ords || []).map((o: any) => ({
         ...o,
         ordered_by_profile: { full_name: profileMap[o.ordered_by] || null },
@@ -274,13 +268,8 @@ export default function ProjectDetailsScreen() {
         .eq("project_id", id)
         .order("created_at", { ascending: false });
       if (ordErr) { console.error("Tool orders fetch error:", ordErr); setProjectToolOrders([]); return; }
-      const userIds = [...new Set((ords || []).map((o: any) => o.ordered_by).filter(Boolean))];
-      let profileMap: Record<string, string> = {};
-      if (userIds.length > 0) {
-        const { data: profiles } = await (supabaseAdmin.from("profiles") as any)
-          .select("id, full_name").in("id", userIds);
-        (profiles || []).forEach((p: any) => { profileMap[p.id] = p.full_name || ""; });
-      }
+      const userIds = [...new Set((ords || []).map((o: any) => o.ordered_by).filter(Boolean))] as string[];
+      const profileMap = await fetchProfileMap(userIds);
       const enriched = (ords || []).map((o: any) => ({
         ...o,
         ordered_by_profile: { full_name: profileMap[o.ordered_by] || null },

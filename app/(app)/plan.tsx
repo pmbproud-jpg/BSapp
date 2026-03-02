@@ -3,6 +3,7 @@ import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { useNotifications } from "@/src/providers/NotificationProvider";
 import { useTheme } from "@/src/providers/ThemeProvider";
+import { fetchAllWorkers, fetchProfileMap } from "@/src/services/profileService";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -164,8 +165,8 @@ export default function PlanScreen() {
     setProjects(data || []);
   };
   const fetchWorkers = async () => {
-    const { data } = await (supabaseAdmin.from("profiles") as any).select("id, full_name, role").order("full_name");
-    setWorkers(data || []);
+    const data = await fetchAllWorkers();
+    setWorkers(data);
   };
 
   const fetchProjectMembers = async () => {
@@ -215,10 +216,10 @@ export default function PlanScreen() {
       .select("*, project:projects(name, location), workers:plan_request_workers(worker_id)")
       .eq("week_start", weekStart).order("created_at", { ascending: false });
     if (data) {
-      const allWIds = [...new Set(data.flatMap((r: any) => [...(r.workers || []).map((w: any) => w.worker_id), r.requested_by]))];
+      const allWIds = [...new Set(data.flatMap((r: any) => [...(r.workers || []).map((w: any) => w.worker_id), r.requested_by]))] as string[];
       if (allWIds.length > 0) {
-        const { data: profs } = await (supabaseAdmin.from("profiles") as any).select("id, full_name").in("id", allWIds);
-        const pm = new Map((profs || []).map((p: any) => [p.id, p]));
+        const profMap = await fetchProfileMap(allWIds);
+        const pm = new Map(Object.entries(profMap).map(([id, name]) => [id, { id, full_name: name }]));
         for (const req of data) {
           req.requester = pm.get(req.requested_by) || { full_name: null };
           req.workers = (req.workers || []).map((w: any) => ({ ...w, profile: pm.get(w.worker_id) || null }));
