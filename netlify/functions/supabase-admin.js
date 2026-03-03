@@ -31,7 +31,7 @@ const ALLOWED_TABLES = new Set([
   "vehicles", "plan_assignments", "plan_requests", "plan_request_workers",
   "user_absences", "user_locations", "notifications", "company_settings",
   "warehouse_items", "warehouse_materials", "project_material_orders",
-  "project_tool_orders", "attachment_folders", "project_plans", "project_plan_pins",
+  "project_tool_orders", "attachment_folders", "project_plans", "plan_pins",
 ]);
 
 // DB actions that are allowed
