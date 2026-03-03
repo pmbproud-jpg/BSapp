@@ -1,11 +1,11 @@
 import { translateText } from "@/src/hooks/useAutoTranslate";
+import { useProjectPlansData } from "@/src/hooks/useProjectPlansData";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { useNotifications } from "@/src/providers/NotificationProvider";
 import { useTheme } from "@/src/providers/ThemeProvider";
 import { Ionicons } from "@expo/vector-icons";
-import * as DocumentPicker from "expo-document-picker";
-import * as ImagePicker from "expo-image-picker";
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -363,20 +363,24 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
   const { colors: tc, isDark } = useTheme();
   const { sendNotification } = useNotifications();
 
-  // State: plans
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [loadingPlans, setLoadingPlans] = useState(true);
-  const [uploadingPlan, setUploadingPlan] = useState(false);
+  // ─── Data hook ─────────────────────────────────────────────
+  const plansData = useProjectPlansData(projectId, profile?.id, initialPlanId);
+  const {
+    plans, selectedPlan, setSelectedPlan, loadingPlans, uploadingPlan,
+    showPlanList, setShowPlanList,
+    fetchPlans, deletePlan: deletePlanAction,
+    showUploadModal, setShowUploadModal,
+    uploadName, setUploadName, uploadFloor, setUploadFloor,
+    uploadDescription, setUploadDescription, uploadFile, setUploadFile,
+    pickFile, pickImage, uploadPlan,
+    pins, loadingPins, fetchPins,
+    savePin: savePinAction, deletePin: deletePinAction, addPinPhoto: addPinPhotoAction,
+  } = plansData;
 
-  // State: pins
-  const [pins, setPins] = useState<Pin[]>([]);
-  const [loadingPins, setLoadingPins] = useState(false);
+  // State: pin UI
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
   const [addingPin, setAddingPin] = useState(false);
   const [savingPin, setSavingPin] = useState(false);
-
-  // State: pin list panel
   const [showPinListPanel, setShowPinListPanel] = useState(false);
 
   // State: pin form
@@ -388,13 +392,6 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
   const [pinAssignedTo, setPinAssignedTo] = useState<string | null>(null);
   const [pinDueDate, setPinDueDate] = useState("");
   const [pinPhotos, setPinPhotos] = useState<string[]>([]);
-
-  // State: upload plan form
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadName, setUploadName] = useState("");
-  const [uploadFloor, setUploadFloor] = useState("");
-  const [uploadDescription, setUploadDescription] = useState("");
-  const [uploadFile, setUploadFile] = useState<any>(null);
 
   // State: zoom/pan
   const [scale, setScale] = useState(1);
@@ -414,14 +411,11 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
   const [pinTranslatedDesc, setPinTranslatedDesc] = useState("");
   const [pinTranslateDir, setPinTranslateDir] = useState<"pl|de" | "de|pl">("pl|de");
 
-  // State: filters
+  // State: filters & UI
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [showWorkerPicker, setShowWorkerPicker] = useState(false);
   const [showPinDetail, setShowPinDetail] = useState(false);
   const [editingPin, setEditingPin] = useState<Pin | null>(null);
-
-  // State: plan list view
-  const [showPlanList, setShowPlanList] = useState(true);
 
   // ─── Fetch ──────────────────────────────────────────────────
   useEffect(() => {
@@ -434,353 +428,42 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
     }
   }, [selectedPlan?.id]);
 
-  // Highlight pin when navigating from task (don't open modal)
+  // Highlight pin when navigating from task
   const [highlightedPinId, setHighlightedPinId] = useState<string | null>(null);
   useEffect(() => {
     if (initialPinId && pins.length > 0) {
       const targetPin = pins.find((p) => p.id === initialPinId);
       if (targetPin) {
         setHighlightedPinId(targetPin.id);
-        // Auto-clear highlight after 5 seconds
         const timer = setTimeout(() => setHighlightedPinId(null), 5000);
         return () => clearTimeout(timer);
       }
     }
   }, [initialPinId, pins]);
 
-  const fetchPlans = async () => {
-    setLoadingPlans(true);
-    try {
-      const { data, error } = await supabaseAdmin.from("project_plans")
-        .select("*")
-        .eq("project_id", projectId)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setPlans(data || []);
-      if (data && data.length > 0 && !selectedPlan) {
-        // If navigating from a task with a linked pin, auto-select that plan
-        if (initialPlanId) {
-          const targetPlan = data.find((p: Plan) => p.id === initialPlanId);
-          if (targetPlan) {
-            setSelectedPlan(targetPlan);
-            setShowPlanList(false);
-            return;
-          }
-        }
-        setSelectedPlan(data[0]);
-        setShowPlanList(false);
-      }
-    } catch (e) {
-      console.error("Error fetching plans:", e);
-    } finally {
-      setLoadingPlans(false);
-    }
-  };
-
-  const fetchPins = async (planId: string) => {
-    setLoadingPins(true);
-    try {
-      const { data, error } = await supabaseAdmin.from("plan_pins")
-        .select("*")
-        .eq("plan_id", planId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      // Resolve assignees
-      const assigneeIds = [...new Set((data || []).filter((p: any) => p.assigned_to).map((p: any) => p.assigned_to))];
-      let assigneeMap = new Map<string, any>();
-      if (assigneeIds.length > 0) {
-        const { data: profiles } = await supabaseAdmin.from("profiles")
-          .select("id, full_name, role")
-          .in("id", assigneeIds);
-        assigneeMap = new Map((profiles || []).map((p: any) => [p.id, p]));
-      }
-      setPins((data || []).map((p: any) => ({
-        ...p,
-        photos: Array.isArray(p.photos) ? p.photos : [],
-        assignee: p.assigned_to ? assigneeMap.get(p.assigned_to) || null : null,
-      })));
-    } catch (e) {
-      console.error("Error fetching pins:", e);
-    } finally {
-      setLoadingPins(false);
-    }
-  };
-
-  // ─── Upload Plan ────────────────────────────────────────────
-  const pickFile = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ["image/*", "application/pdf"],
-        copyToCacheDirectory: true,
-      });
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setUploadFile(result.assets[0]);
-      }
-    } catch (e) {
-      console.error("Error picking file:", e);
-    }
-  };
-
-  const pickImage = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.8,
-      });
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setUploadFile(result.assets[0]);
-      }
-    } catch (e) {
-      console.error("Error picking image:", e);
-    }
-  };
-
-  const uploadPlan = async () => {
-    if (!uploadFile || !uploadName.trim()) return;
-    setUploadingPlan(true);
-    try {
-      const ext = uploadFile.name?.split(".").pop() || uploadFile.uri?.split(".").pop() || "png";
-      const fileType = ext === "pdf" ? "pdf" : "image";
-      const fileName = `${projectId}/${Date.now()}_${uploadName.replace(/\s+/g, "_")}.${ext}`;
-
-      // Upload to Supabase Storage
-      let fileBody: any;
-      if (Platform.OS === "web") {
-        const response = await fetch(uploadFile.uri);
-        fileBody = await response.blob();
-      } else {
-        const response = await fetch(uploadFile.uri);
-        fileBody = await response.blob();
-      }
-
-      const { error: uploadError } = await supabaseAdmin.storage
-        .from("project-plans")
-        .upload(fileName, fileBody, {
-          contentType: ext === "pdf" ? "application/pdf" : `image/${ext}`,
-          upsert: false,
-        });
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabaseAdmin.storage
-        .from("project-plans")
-        .getPublicUrl(fileName);
-
-      // Insert plan record
-      const { error: insertError } = await supabaseAdmin.from("project_plans").insert({
-        project_id: projectId,
-        name: uploadName.trim(),
-        description: uploadDescription.trim() || null,
-        floor_level: uploadFloor.trim() || null,
-        file_url: urlData.publicUrl,
-        file_type: fileType,
-        created_by: profile?.id,
-      });
-      if (insertError) throw insertError;
-
-      // Reset form
-      setUploadName("");
-      setUploadFloor("");
-      setUploadDescription("");
-      setUploadFile(null);
-      setShowUploadModal(false);
-      fetchPlans();
-    } catch (e: any) {
-      console.error("Error uploading plan:", e);
-      const msg = e?.message || "Upload error";
-      if (Platform.OS === "web") window.alert(msg);
-      else Alert.alert("Error", msg);
-    } finally {
-      setUploadingPlan(false);
-    }
-  };
-
-  // ─── Pin Actions ────────────────────────────────────────────
+  // ─── Pin Actions (wrappers around hook) ─────────────────────
   const handlePlanPress = (evt: any) => {
     if (!addingPin || !selectedPlan) return;
     const { locationX, locationY } = evt.nativeEvent;
-    const xPercent = (locationX / (containerSize.width || 1)) * 100;
-    const yPercent = (locationY / (containerSize.height || 1)) * 100;
-
-    // Clamp to 0-100
-    const x = Math.max(0, Math.min(100, xPercent));
-    const y = Math.max(0, Math.min(100, yPercent));
-
-    // Open pin form with position
-    setPinTitle("");
-    setPinDescription("");
-    setPinStatus("open");
-    setPinPriority("medium");
-    setPinCategory("");
-    setPinAssignedTo(null);
-    setPinDueDate("");
-    setPinPhotos([]);
+    const x = Math.max(0, Math.min(100, (locationX / (containerSize.width || 1)) * 100));
+    const y = Math.max(0, Math.min(100, (locationY / (containerSize.height || 1)) * 100));
+    setPinTitle(""); setPinDescription(""); setPinStatus("open"); setPinPriority("medium");
+    setPinCategory(""); setPinAssignedTo(null); setPinDueDate(""); setPinPhotos([]);
     setEditingPin({ x_percent: x, y_percent: y } as any);
     setShowPinDetail(true);
     setAddingPin(false);
   };
 
-  // Map pin status → task status
-  const pinStatusToTaskStatus = (ps: string): string => {
-    if (ps === "open") return "todo";
-    if (ps === "in_progress") return "in_progress";
-    if (ps === "resolved" || ps === "closed") return "completed";
-    return "todo";
-  };
-
   const savePin = async () => {
-    if (!pinTitle.trim() || !selectedPlan) return;
     setSavingPin(true);
     try {
-      const pinData: any = {
-        plan_id: selectedPlan.id,
-        title: pinTitle.trim(),
-        description: pinDescription.trim() || null,
-        status: pinStatus,
-        priority: pinPriority,
-        category: pinCategory || null,
-        assigned_to: pinAssignedTo || null,
-        due_date: pinDueDate || null,
-        photos: pinPhotos,
-        created_by: profile?.id,
-      };
-
-      // ── Build task data matching pin ──
-      const taskData: any = {
-        title: `📌 ${pinData.title}`,
-        description: pinData.description ? `[Plan: ${selectedPlan.name}]\n${pinData.description}` : `[Plan: ${selectedPlan.name}]`,
-        project_id: projectId,
-        status: pinStatusToTaskStatus(pinData.status),
-        priority: pinData.priority === "critical" ? "high" : pinData.priority,
-        created_by: profile?.id || null,
-      };
-      if (pinData.assigned_to) {
-        taskData.assigned_to = pinData.assigned_to;
-        taskData.assigned_by = profile?.id || null;
-        taskData.assigned_at = new Date().toISOString();
-      }
-      if (pinData.due_date) {
-        taskData.due_date = pinData.due_date;
-      }
-
-      if (editingPin?.id) {
-        // ── Update existing pin ──
-        const { error } = await supabaseAdmin.from("plan_pins")
-          .update({
-            title: pinData.title,
-            description: pinData.description,
-            status: pinData.status,
-            priority: pinData.priority,
-            category: pinData.category,
-            assigned_to: pinData.assigned_to,
-            due_date: pinData.due_date,
-            photos: pinData.photos,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", editingPin.id);
-        if (error) throw error;
-
-        // ── Sync linked task ──
-        if (editingPin.task_id) {
-          const taskUpdate: any = {
-            title: taskData.title,
-            description: taskData.description,
-            status: taskData.status,
-            priority: taskData.priority,
-            assigned_to: pinData.assigned_to || null,
-            due_date: pinData.due_date || null,
-            updated_at: new Date().toISOString(),
-          };
-          await supabaseAdmin.from("tasks")
-            .update(taskUpdate)
-            .eq("id", editingPin.task_id);
-
-          // Update task_assignees
-          await supabaseAdmin.from("task_assignees")
-            .delete()
-            .eq("task_id", editingPin.task_id);
-          if (pinData.assigned_to) {
-            await supabaseAdmin.from("task_assignees").insert({
-              task_id: editingPin.task_id,
-              user_id: pinData.assigned_to,
-              assigned_by: profile?.id || null,
-            });
-
-            // Send notification if assigned worker changed
-            if (pinData.assigned_to !== editingPin.assigned_to && pinData.assigned_to !== profile?.id) {
-              const notifTitle = t("notifications.task_assigned_title", "Nowe zadanie");
-              const notifBody = `📌 ${pinData.title} • ${selectedPlan.name}`;
-              sendNotification(pinData.assigned_to, notifTitle, notifBody, "task_assigned", {
-                task_id: editingPin.task_id,
-                project_id: projectId,
-              });
-            }
-          }
-        }
-      } else {
-        // ── Create new pin + task ──
-        pinData.x_percent = editingPin?.x_percent ?? 50;
-        pinData.y_percent = editingPin?.y_percent ?? 50;
-
-        // 1. Create task first
-        let newTask: any = null;
-        let taskError: any = null;
-        {
-          const res = await supabaseAdmin.from("tasks")
-            .insert(taskData)
-            .select("id")
-            .single();
-          newTask = res.data;
-          taskError = res.error;
-        }
-
-        // Fallback: retry without created_by if column doesn't exist
-        if (taskError && (taskError.message?.includes("created_by") || taskError.code === "PGRST204")) {
-          delete taskData.created_by;
-          const retry = await supabaseAdmin.from("tasks")
-            .insert(taskData)
-            .select("id")
-            .single();
-          newTask = retry.data;
-          taskError = retry.error;
-        }
-
-        if (taskError) {
-          console.warn("Error creating task for pin:", taskError);
-        }
-
-        // 2. Link task_id to pin
-        if (newTask?.id) {
-          pinData.task_id = newTask.id;
-
-          // Insert into task_assignees if assigned
-          if (pinData.assigned_to) {
-            await supabaseAdmin.from("task_assignees").insert({
-              task_id: newTask.id,
-              user_id: pinData.assigned_to,
-              assigned_by: profile?.id || null,
-            });
-          }
-
-          // Send notification to assigned worker
-          if (pinData.assigned_to && pinData.assigned_to !== profile?.id) {
-            const notifTitle = t("notifications.task_assigned_title", "Nowe zadanie");
-            const notifBody = `📌 ${pinData.title} • ${selectedPlan.name}`;
-            sendNotification(pinData.assigned_to, notifTitle, notifBody, "task_assigned", {
-              task_id: newTask.id,
-              project_id: projectId,
-            });
-          }
-        }
-
-        const { error } = await supabaseAdmin.from("plan_pins").insert(pinData);
-        if (error) throw error;
-      }
-
-      setShowPinDetail(false);
-      setEditingPin(null);
-      fetchPins(selectedPlan.id);
-      onTaskCreated?.();
+      await savePinAction(
+        { title: pinTitle, description: pinDescription, status: pinStatus, priority: pinPriority, category: pinCategory, assignedTo: pinAssignedTo, dueDate: pinDueDate, photos: pinPhotos },
+        editingPin,
+        sendNotification,
+        t,
+        () => { setShowPinDetail(false); setEditingPin(null); onTaskCreated?.(); },
+      );
     } catch (e: any) {
       console.error("Error saving pin:", e);
       const msg = e?.message || "Error";
@@ -792,81 +475,17 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
   };
 
   const deletePin = async (pinId: string) => {
-    const confirmed = Platform.OS === "web"
-      ? window.confirm(t("common.delete") + "?")
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(t("common.delete"), t("common.confirm") + "?", [
-            { text: t("common.cancel"), style: "cancel", onPress: () => resolve(false) },
-            { text: t("common.delete"), style: "destructive", onPress: () => resolve(true) },
-          ]);
-        });
-    if (!confirmed || !selectedPlan) return;
-    try {
-      // Delete linked task if exists
-      const pinToDelete = pins.find((p) => p.id === pinId);
-      if (pinToDelete?.task_id) {
-        await supabaseAdmin.from("task_assignees").delete().eq("task_id", pinToDelete.task_id);
-        await supabaseAdmin.from("tasks").delete().eq("id", pinToDelete.task_id);
-      }
-      await supabaseAdmin.from("plan_pins").delete().eq("id", pinId);
-      setShowPinDetail(false);
-      setEditingPin(null);
-      fetchPins(selectedPlan.id);
-    } catch (e) {
-      console.error("Error deleting pin:", e);
-    }
+    await deletePinAction(pinId, t);
+    setShowPinDetail(false);
+    setEditingPin(null);
   };
 
   const deletePlan = async (planId: string) => {
-    const confirmed = Platform.OS === "web"
-      ? window.confirm(t("common.delete") + "?")
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(t("common.delete"), t("common.confirm") + "?", [
-            { text: t("common.cancel"), style: "cancel", onPress: () => resolve(false) },
-            { text: t("common.delete"), style: "destructive", onPress: () => resolve(true) },
-          ]);
-        });
-    if (!confirmed) return;
-    try {
-      await supabaseAdmin.from("project_plans").delete().eq("id", planId);
-      if (selectedPlan?.id === planId) {
-        setSelectedPlan(null);
-        setShowPlanList(true);
-      }
-      fetchPlans();
-    } catch (e) {
-      console.error("Error deleting plan:", e);
-    }
+    await deletePlanAction(planId, t);
   };
 
-  // ─── Upload pin photo ───────────────────────────────────────
   const addPinPhoto = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.7,
-      });
-      if (result.canceled || !result.assets?.length) return;
-      const asset = result.assets[0];
-      const ext = asset.uri.split(".").pop() || "jpg";
-      const fileName = `pins/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-
-      const { error: uploadError } = await supabaseAdmin.storage
-        .from("project-plans")
-        .upload(fileName, blob, { contentType: `image/${ext}` });
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabaseAdmin.storage
-        .from("project-plans")
-        .getPublicUrl(fileName);
-
-      setPinPhotos((prev) => [...prev, urlData.publicUrl]);
-    } catch (e) {
-      console.error("Error uploading pin photo:", e);
-    }
+    await addPinPhotoAction(pinPhotos, setPinPhotos);
   };
 
   // ─── Filtered pins ─────────────────────────────────────────
