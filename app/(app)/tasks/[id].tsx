@@ -247,12 +247,19 @@ export default function TaskDetailsScreen() {
   const fetchLinkedPin = async (taskId: string) => {
     try {
       const { data: pin } = await supabaseAdmin.from("plan_pins")
-        .select("*, plan:project_plans!plan_pins_plan_id_fkey(id, name, project_id)")
+        .select("*")
         .eq("task_id", taskId)
         .maybeSingle();
       if (pin) {
         setLinkedPin(pin);
-        setLinkedPlan(pin.plan || null);
+        // Fetch linked plan separately (adminApi doesn't support joins)
+        if (pin.plan_id) {
+          const { data: plan } = await supabaseAdmin.from("project_plans")
+            .select("id, name, project_id")
+            .eq("id", pin.plan_id)
+            .single();
+          if (plan) setLinkedPlan(plan);
+        }
       }
     } catch (e) {
       console.error("Error fetching linked pin:", e);
