@@ -300,6 +300,8 @@ export function useProjectData(projectId: string | undefined, profileId: string 
         });
     if (!confirmed) return;
     try {
+      // Unlink plan pin before deleting (no ON DELETE CASCADE on plan_pins.task_id)
+      await supabaseAdmin.from("plan_pins").update({ task_id: null }).eq("task_id", taskId);
       const { error } = await supabaseAdmin.from("tasks").delete().eq("id", taskId);
       if (error) throw error;
       // Refetch all po usunięciu
