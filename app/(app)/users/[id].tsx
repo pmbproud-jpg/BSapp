@@ -696,18 +696,18 @@ export default function UserProfileScreen() {
 
       {/* Absences / Vacation Section */}
       <View style={styles.section}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <Text style={styles.sectionTitle}>
+        <View style={{ marginBottom: 12 }}>
+          <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>
             <Ionicons name="calendar" size={16} color="#ef4444" />{" "}
             {t("users.abs_title") || "Abwesenheiten / Urlaub"}
           </Text>
           {(canEdit || canApproveAbsence) && !absShowForm && (
             <TouchableOpacity
               onPress={() => setAbsShowForm(true)}
-              style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#eff6ff", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#2563eb", paddingVertical: 12, borderRadius: 12, shadowColor: "#2563eb", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }}
             >
-              <Ionicons name="add" size={16} color="#2563eb" />
-              <Text style={{ color: "#2563eb", fontWeight: "600", fontSize: 13 }}>{t("users.abs_add") || "Eintragen"}</Text>
+              <Ionicons name="add-circle-outline" size={20} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>{t("users.abs_add") || "Eintragen"}</Text>
             </TouchableOpacity>
           )}
         </View>

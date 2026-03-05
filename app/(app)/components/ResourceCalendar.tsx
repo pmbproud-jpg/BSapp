@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, Modal,
-  useWindowDimensions,
+  PanResponder, useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -28,6 +28,7 @@ type Props = {
   absences: any[];
   weekStart: string;
   lang: string;
+  onSwipeWeek?: (dir: -1 | 1) => void;
 };
 
 type ViewMode = "day" | "week" | "month";
@@ -62,7 +63,7 @@ function getMonthDays(refDate: string | Date, lang: string) {
   return days;
 }
 
-export default function ResourceCalendar({ weekDays, assignments, projects, vehicles, workers, absences, weekStart, lang }: Props) {
+export default function ResourceCalendar({ weekDays, assignments, projects, vehicles, workers, absences, weekStart, lang, onSwipeWeek }: Props) {
   const { t } = useTranslation();
   const { colors: tc, isDark } = useTheme();
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["active"]));
@@ -70,6 +71,22 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [absPopup, setAbsPopup] = useState<{ date: string; items: any[] } | null>(null);
+
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
+
+  const calSwipe = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 30 && Math.abs(gs.dy) < 40,
+    onPanResponderRelease: (_, gs) => {
+      const dir = gs.dx > 50 ? -1 : gs.dx < -50 ? 1 : 0;
+      if (!dir) return;
+      if (viewModeRef.current === "month") {
+        setMonthOffset(p => p + dir);
+      } else {
+        onSwipeWeek?.(dir as -1 | 1);
+      }
+    },
+  })).current;
 
   const toggleStatus = (s: string) => {
     setStatusFilters((prev) => {
@@ -188,7 +205,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
   const isWeb = Platform.OS === "web";
   const tableMaxHeight = isWeb ? Math.max(300, windowHeight - 280) : 700;
   const numDays = visibleDays.length;
-  const PROJECT_COL_WIDTH = isWeb ? Math.max(140, Math.min(200, windowWidth * 0.14)) : 220;
+  const PROJECT_COL_WIDTH = isWeb ? Math.max(140, Math.min(200, windowWidth * 0.14)) : 130;
   const availableWidth = windowWidth - PROJECT_COL_WIDTH - 2;
   const DAY_COL_WIDTH = isWeb
     ? (viewMode === "day"
@@ -196,7 +213,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
       : viewMode === "month"
         ? Math.max(90, availableWidth / numDays)
         : Math.max(120, availableWidth / numDays))
-    : (viewMode === "day" ? 500 : viewMode === "month" ? 110 : 200);
+    : (viewMode === "day" ? 400 : viewMode === "month" ? 80 : 140);
 
   // Pasek tekstu — wspólny komponent
   const Bar = ({ color, label, bold }: { color: string; label: string; bold?: boolean }) => (
@@ -273,7 +290,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View {...calSwipe.panHandlers}>
       {/* Tytuł + KW + widok */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, marginBottom: 8 }}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -346,8 +363,8 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
         </ScrollView>
       )}
 
-      {/* Status filters */}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 16, marginBottom: 10 }}>
+      {/* Status filters — compact horizontal scroll */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8, paddingLeft: 16 }} contentContainerStyle={{ gap: 6, paddingRight: 16 }}>
         {STATUS_FILTERS.map((s) => {
           const active = statusFilters.has(s);
           return (
@@ -369,7 +386,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* Scrollable table */}
       {isWeb ? (
@@ -612,7 +629,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
         )
       ) : (
       <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-        <View>
+        <View style={{ minWidth: PROJECT_COL_WIDTH + DAY_COL_WIDTH * numDays }}>
           {/* Header row (mobile) */}
           <View style={{ flexDirection: "row", borderBottomWidth: 2, borderBottomColor: "#00897b" }}>
             <View style={{
@@ -624,14 +641,212 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
             }}>
               <Text style={{ fontSize: 10, fontWeight: "800", color: "#00897b" }}>{t("plan.project", "Projekt")}</Text>
             </View>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 700 }}>
-            {filteredProjects.map((proj: any, projIdx: number) => (
-              <View key={proj.id} style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: isDark ? "#334155" : "#e0e0e0" }}>
-                <Text style={{ fontSize: 10, color: tc.text }}>{proj.name}</Text>
+            {visibleDays.map((day: any, di: number) => (
+              <View
+                key={di}
+                style={{
+                  width: DAY_COL_WIDTH,
+                  backgroundColor: day.isToday
+                    ? (isDark ? "#1b5e20" : "#c8e6c9")
+                    : day.isWeekend
+                      ? (isDark ? "#33291a" : "#fff8e1")
+                      : (isDark ? "#0e2433" : "#e0f2f1"),
+                  borderRightWidth: 1,
+                  borderRightColor: "#00897b",
+                  paddingVertical: 6,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {viewMode === "month" ? (
+                  <>
+                    <Text style={{ fontSize: 9, fontWeight: "800", color: day.isToday ? "#1b5e20" : (isDark ? "#a5d6a7" : "#1b5e20") }}>
+                      {day.shortName}
+                    </Text>
+                    <Text style={{ fontSize: 10, fontWeight: "700", color: day.isToday ? "#2e7d32" : (isDark ? "#81c784" : "#2e7d32") }}>
+                      {day.dayNum}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 10, fontWeight: "800", color: day.isToday ? "#1b5e20" : (isDark ? "#a5d6a7" : "#1b5e20") }}>
+                      {dayFullName(day)}
+                    </Text>
+                    <Text style={{ fontSize: 10, fontWeight: "600", color: day.isToday ? "#2e7d32" : (isDark ? "#81c784" : "#388e3c") }}>
+                      {day.dayNum}.{day.monthNum.toString().padStart(2, "0")}
+                    </Text>
+                  </>
+                )}
               </View>
             ))}
-          </ScrollView>
+          </View>
+
+          {/* Absences row (mobile) */}
+          <View style={{ flexDirection: "row", borderBottomWidth: 2, borderBottomColor: "#ef4444" }}>
+            <View style={{
+              width: PROJECT_COL_WIDTH,
+              backgroundColor: isDark ? "#2d1215" : "#fef2f2",
+              borderRightWidth: 2, borderRightColor: "#00897b",
+              paddingVertical: 4, paddingHorizontal: 6,
+              justifyContent: "center",
+            }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Ionicons name="person-remove" size={12} color="#ef4444" />
+                <Text style={{ fontSize: 10, fontWeight: "800", color: "#ef4444" }}>
+                  {t("plan.abs_title", "Abwesenheiten")}
+                </Text>
+              </View>
+            </View>
+            {visibleDays.map((day: any, di: number) => {
+              const dayAbs = absencesByDate.get(day.date) || [];
+              return (
+                <TouchableOpacity
+                  key={di}
+                  disabled={dayAbs.length === 0}
+                  onPress={() => dayAbs.length > 0 && setAbsPopup({ date: day.date, items: dayAbs })}
+                  style={{
+                    width: DAY_COL_WIDTH,
+                    backgroundColor: dayAbs.length > 0
+                      ? (isDark ? "#2d1215" : "#fef2f2")
+                      : (day.isWeekend ? (isDark ? "#33291a" : "#fffbeb") : (isDark ? "#0f172a" : "#fff")),
+                    borderRightWidth: 1,
+                    borderRightColor: isDark ? "#334155" : "#e0e0e0",
+                    paddingVertical: 2,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minHeight: 28,
+                  }}
+                  activeOpacity={0.6}
+                >
+                  {dayAbs.length > 0 ? (
+                    <View style={{ backgroundColor: "#ef4444", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <Text style={{ color: "#fff", fontSize: 9, fontWeight: "800" }}>
+                        {dayAbs.length} ✗
+                      </Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Project rows (mobile) */}
+          {filteredProjects.length === 0 && (
+            <View style={{ padding: 30, alignItems: "center" }}>
+              <Ionicons name="calendar-outline" size={40} color={tc.textMuted} />
+              <Text style={{ color: tc.textMuted, fontSize: 14, marginTop: 8 }}>{t("plan.no_projects", "Brak projektów")}</Text>
+            </View>
+          )}
+          {filteredProjects.map((proj: any, projIdx: number) => {
+            const projAssignments = assignmentMap.get(proj.id);
+            let maxRows = 0;
+            for (const day of visibleDays) {
+              const dayAssigns = projAssignments?.get(day.date) || [];
+              const vIds = new Set<string>();
+              for (const a of dayAssigns) {
+                if (a.vehicle_ids && Array.isArray(a.vehicle_ids)) {
+                  for (const vid of a.vehicle_ids) vIds.add(vid);
+                } else if (a.vehicle_id) vIds.add(a.vehicle_id);
+              }
+              const rows = vIds.size + dayAssigns.length;
+              if (rows > maxRows) maxRows = rows;
+            }
+            const barH = viewMode === "month" ? 14 : 18;
+            const minRowHeight = Math.max(maxRows * barH + 6, 38);
+            const rowBg = projIdx % 2 === 0
+              ? (isDark ? "#0f172a" : "#ffffff")
+              : (isDark ? "#1a2332" : "#f5f5f5");
+
+            return (
+              <View
+                key={proj.id}
+                style={{
+                  flexDirection: "row",
+                  borderBottomWidth: 1,
+                  borderBottomColor: isDark ? "#334155" : "#e0e0e0",
+                  minHeight: minRowHeight,
+                }}
+              >
+                <View style={{
+                  width: PROJECT_COL_WIDTH,
+                  borderRightWidth: 2,
+                  borderRightColor: "#00897b",
+                  backgroundColor: rowBg,
+                  paddingVertical: 4,
+                  paddingHorizontal: 6,
+                  justifyContent: "center",
+                }}>
+                  <Text style={{ fontSize: 10, fontWeight: "800", color: tc.text, lineHeight: 13 }} numberOfLines={2}>
+                    {proj.name}{proj.project_number ? ` ${proj.project_number}` : ""}
+                  </Text>
+                  {proj.location ? (
+                    <Text style={{ fontSize: 9, color: tc.textMuted, marginTop: 1, lineHeight: 12 }} numberOfLines={1}>
+                      {proj.location}
+                    </Text>
+                  ) : null}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: statusColor(proj.status) }} />
+                    <Text style={{ fontSize: 8, color: statusColor(proj.status), fontWeight: "700" }}>{statusLabel(proj.status)}</Text>
+                  </View>
+                </View>
+
+                {visibleDays.map((day: any, di: number) => {
+                  const dayAssigns = projAssignments?.get(day.date) || [];
+                  const dayVehicleIds = new Set<string>();
+                  for (const a of dayAssigns) {
+                    if (a.vehicle_ids && Array.isArray(a.vehicle_ids)) {
+                      for (const vid of a.vehicle_ids) dayVehicleIds.add(vid);
+                    } else if (a.vehicle_id) dayVehicleIds.add(a.vehicle_id);
+                  }
+                  const cellBg = day.isToday
+                    ? (isDark ? "#1b5e2030" : "#e8f5e9")
+                    : day.isWeekend
+                      ? (isDark ? "#33291a30" : "#fffde7")
+                      : rowBg;
+
+                  return (
+                    <View
+                      key={di}
+                      style={{
+                        width: DAY_COL_WIDTH,
+                        borderRightWidth: 1,
+                        borderRightColor: isDark ? "#334155" : "#e0e0e0",
+                        paddingVertical: 2,
+                        paddingHorizontal: 2,
+                        backgroundColor: cellBg,
+                      }}
+                    >
+                      {Array.from(dayVehicleIds).map((vid) => {
+                        const veh = vehicleMap.get(vid);
+                        if (!veh) return null;
+                        const vColor = vehicleColorMap.get(vid) || "#666";
+                        const vAssign = dayAssigns.find((a: any) => {
+                          const ids = Array.isArray(a.vehicle_ids) ? a.vehicle_ids : (a.vehicle_id ? [a.vehicle_id] : []);
+                          return ids.includes(vid);
+                        });
+                        const depTime = vAssign?.departure_time ? ` ${(vAssign.departure_time || "").slice(0, 5)}` : "";
+                        const label = viewMode === "month"
+                          ? veh.license_plate
+                          : `${veh.name} (${veh.license_plate})${depTime}`;
+                        return <Bar key={vid} color={vColor} label={label} bold />;
+                      })}
+                      {dayAssigns.map((a: any, ai: number) => {
+                        const wColor = workerColorMap.get(a.worker_id) || "#888";
+                        const wName = a.worker?.full_name || "?";
+                        const timeStr = a.start_time && a.end_time
+                          ? ` ${(a.start_time || "").slice(0, 5)}-${(a.end_time || "").slice(0, 5)}`
+                          : "";
+                        const label = viewMode === "month"
+                          ? (wName.split(" ")[0] || "?")
+                          : `${wName}${timeStr}`;
+                        return <Bar key={a.id || ai} color={wColor} label={label} />;
+                      })}
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
       )}

@@ -10,12 +10,47 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 
-function AppHeader() {
+function AppHeader({ compact = false }: { compact?: boolean }) {
   const { user, profile, signOut } = useAuth();
   const { unreadCount } = useNotifications();
   const { companyName, logoUrl } = useCompany();
   const { colors } = useTheme();
   const { t } = useTranslation();
+
+  if (compact) {
+    return (
+      <SafeAreaView edges={["top"]} style={{ backgroundColor: colors.headerBg }}>
+        <View style={[styles.compactHeader, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+          <View style={styles.compactLeft}>
+            {logoUrl ? (
+              <Image source={{ uri: logoUrl }} style={{ width: 22, height: 22, borderRadius: 4 }} resizeMode="contain" />
+            ) : (
+              <Ionicons name="business" size={18} color={colors.primary} />
+            )}
+            <Text style={[styles.compactName, { color: colors.text }]} numberOfLines={1}>{companyName}</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => router.push("/(app)/notifications" as any)}
+              style={styles.notifButton}
+            >
+              <Ionicons name="notifications-outline" size={20} color={colors.textSecondary} />
+              {unreadCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={signOut} style={styles.logoutButton}>
+              <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={["top"]} style={{ backgroundColor: colors.headerBg }}>
@@ -78,7 +113,7 @@ export default function AppLayout() {
     <Tabs
       screenOptions={{
         headerShown: true,
-        header: () => <AppHeader />,
+        header: () => <AppHeader compact />,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
@@ -99,6 +134,7 @@ export default function AppLayout() {
         name="dashboard"
         options={{
           title: t("navigation.dashboard"),
+          header: () => <AppHeader />,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home" size={size} color={color} />
           ),
@@ -179,6 +215,26 @@ export default function AppLayout() {
 }
 
 const styles = StyleSheet.create({
+  compactHeader: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  compactLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  compactName: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginLeft: 8,
+    maxWidth: 200,
+  },
   header: {
     paddingTop: 8,
     paddingBottom: 12,

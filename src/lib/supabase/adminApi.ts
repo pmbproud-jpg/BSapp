@@ -18,9 +18,12 @@
  *   →  adminApi.auth.admin.createUser(opts)
  */
 
+import { Platform } from "react-native";
 import { supabase } from "./client";
 
-const PROXY_URL = "/.netlify/functions/supabase-admin";
+const PROXY_URL = Platform.OS === "web"
+  ? "/.netlify/functions/supabase-admin"
+  : `${process.env.EXPO_PUBLIC_APP_URL || "https://bsapp-management.netlify.app"}/.netlify/functions/supabase-admin`;
 
 // ─── Helpers ───
 

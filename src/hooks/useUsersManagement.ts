@@ -22,6 +22,7 @@ export function useUsersManagement(
   profile: any,
   t: any,
   fetchUsers: () => Promise<void>,
+  defaultPassword?: string | null,
 ) {
   // ─── Add User ───
   const [showAddUser, setShowAddUser] = useState(false);
@@ -53,7 +54,7 @@ export function useUsersManagement(
 
     setAddUserLoading(true);
     try {
-      const tempPassword = `Temp${Date.now()}!`;
+      const tempPassword = defaultPassword || `Temp${Date.now()}!`;
 
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: newUser.email.trim(),
@@ -111,7 +112,7 @@ export function useUsersManagement(
 
     setAddSubLoading(true);
     try {
-      const tempPassword = `Sub${Date.now()}!`;
+      const tempPassword = defaultPassword || `Sub${Date.now()}!`;
 
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: newSub.email.trim(),
@@ -421,7 +422,7 @@ export function useUsersManagement(
 
       for (const user of usersWithEmail) {
         try {
-          const tempPassword = `Temp${Math.random().toString(36).slice(2)}!`;
+          const tempPassword = defaultPassword || `Temp${Math.random().toString(36).slice(2)}!`;
           const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email: user.email, password: tempPassword, email_confirm: true,
             user_metadata: { full_name: user.full_name, phone: user.phone || "" },

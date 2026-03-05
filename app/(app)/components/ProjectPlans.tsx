@@ -673,8 +673,8 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
     return (
       <View style={{ flex: 1 }}>
         {/* Header */}
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
             {onBack && (
               <TouchableOpacity onPress={onBack} style={{ padding: 4 }}>
                 <Ionicons name="arrow-back" size={22} color={tc.text} />
@@ -685,21 +685,30 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
             </Text>
           </View>
           <TouchableOpacity
-            style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: tc.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}
+            style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: tc.primary, paddingVertical: 14, borderRadius: 12, shadowColor: tc.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }}
             onPress={() => setShowUploadModal(true)}
           >
-            <Ionicons name="cloud-upload-outline" size={18} color="#fff" />
-            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{t("plans.upload", "Dodaj plan")}</Text>
+            <Ionicons name="cloud-upload-outline" size={22} color="#fff" />
+            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{t("plans.upload", "Dodaj plan")}</Text>
           </TouchableOpacity>
         </View>
 
         {loadingPlans ? (
           <ActivityIndicator size="large" color={tc.primary} style={{ marginTop: 40 }} />
         ) : plans.length === 0 ? (
-          <View style={{ alignItems: "center", paddingVertical: 60 }}>
-            <Ionicons name="map-outline" size={64} color={tc.textMuted} />
-            <Text style={{ color: tc.textMuted, fontSize: 16, marginTop: 12 }}>{t("plans.no_plans", "Brak planów")}</Text>
-            <Text style={{ color: tc.textMuted, fontSize: 13, marginTop: 4 }}>{t("plans.upload_hint", "Dodaj plan PDF lub zdjęcie")}</Text>
+          <View style={{ alignItems: "center", paddingVertical: 40, paddingHorizontal: 24 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: tc.primary + "15", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
+              <Ionicons name="map-outline" size={40} color={tc.primary} />
+            </View>
+            <Text style={{ color: tc.text, fontSize: 18, fontWeight: "700", marginBottom: 6 }}>{t("plans.no_plans", "Brak planów")}</Text>
+            <Text style={{ color: tc.textMuted, fontSize: 14, textAlign: "center", marginBottom: 20 }}>{t("plans.upload_hint", "Dodaj plan PDF lub zdjęcie")}</Text>
+            <TouchableOpacity
+              style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: tc.primary, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14, shadowColor: tc.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 5 }}
+              onPress={() => setShowUploadModal(true)}
+            >
+              <Ionicons name="cloud-upload-outline" size={24} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 17 }}>{t("plans.upload", "Dodaj plan")}</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           plans.map((plan) => (

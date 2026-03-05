@@ -5,12 +5,13 @@ import { useNotifications } from "@/src/providers/NotificationProvider";
 import { useTheme } from "@/src/providers/ThemeProvider";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
     Alert,
     Modal,
+    PanResponder,
     Platform,
     ScrollView,
     StyleSheet,
@@ -80,6 +81,22 @@ export default function PlanScreen() {
   const [activeTab, setActiveTab] = useState<"plan" | "orders" | "calendar">(isBL ? "orders" : "plan");
   const [weekStart, setWeekStart] = useState(getNextMonday());
 
+  const goWeek = useCallback((dir: -1 | 1) => {
+    setWeekStart((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() + dir * 7);
+      return d.toISOString().split("T")[0];
+    });
+  }, []);
+
+  const swipeRef = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 30 && Math.abs(gs.dy) < 40,
+    onPanResponderRelease: (_, gs) => {
+      if (gs.dx > 50) setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d.toISOString().split("T")[0]; });
+      else if (gs.dx < -50) setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d.toISOString().split("T")[0]; });
+    },
+  })).current;
+
   // ─── Plan Data Hook ───
   const plan = usePlanData(weekStart, profile?.id ?? undefined, sendNotification, t, i18n.language, dayFull);
   const {
@@ -123,16 +140,16 @@ export default function PlanScreen() {
 
   // ─── WEEK SELECTOR (shared) ────────────────────────────
   const WeekSelector = () => (
-    <View style={[s.card, { backgroundColor: tc.card, borderColor: tc.border }]}>
+    <View style={[s.card, { backgroundColor: tc.card, borderColor: tc.border }]} {...swipeRef.panHandlers}>
       <View style={s.weekRow}>
-        <TouchableOpacity onPress={() => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d.toISOString().split("T")[0]); }} style={[s.weekBtn, { borderColor: tc.border }]}>
+        <TouchableOpacity onPress={() => goWeek(-1)} style={[s.weekBtn, { borderColor: tc.border }]}>
           <Ionicons name="chevron-back" size={20} color={tc.textSecondary} />
         </TouchableOpacity>
         <View style={{ alignItems: "center" }}>
           <Text style={[s.weekLabel, { color: tc.text }]}>{fmtWeek(weekStart)}</Text>
           <Text style={{ fontSize: 12, color: tc.textMuted, marginTop: 2 }}>{t("plan.week")}</Text>
         </View>
-        <TouchableOpacity onPress={() => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d.toISOString().split("T")[0]); }} style={[s.weekBtn, { borderColor: tc.border }]}>
+        <TouchableOpacity onPress={() => goWeek(1)} style={[s.weekBtn, { borderColor: tc.border }]}>
           <Ionicons name="chevron-forward" size={20} color={tc.textSecondary} />
         </TouchableOpacity>
       </View>
@@ -519,16 +536,16 @@ export default function PlanScreen() {
       {/* Tab switcher */}
       <View style={[s.tabs, { borderColor: tc.border }]}>
         <TouchableOpacity style={[s.tab, activeTab === "plan" && { backgroundColor: tc.primary }]} onPress={() => setActiveTab("plan")}>
-          <Ionicons name="calendar-outline" size={16} color={activeTab === "plan" ? "#fff" : tc.textSecondary} />
-          <Text style={[s.tabText, { color: activeTab === "plan" ? "#fff" : tc.textSecondary }]} numberOfLines={1}>{t("plan.tab_plan")}</Text>
+          <Ionicons name="calendar-outline" size={18} color={activeTab === "plan" ? "#fff" : tc.textSecondary} />
+          <Text style={[s.tabText, { color: activeTab === "plan" ? "#fff" : tc.textSecondary }]} numberOfLines={1} adjustsFontSizeToFit>{t("plan.tab_plan")}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[s.tab, activeTab === "orders" && { backgroundColor: tc.primary }]} onPress={() => setActiveTab("orders")}>
-          <Ionicons name="people-outline" size={16} color={activeTab === "orders" ? "#fff" : tc.textSecondary} />
-          <Text style={[s.tabText, { color: activeTab === "orders" ? "#fff" : tc.textSecondary }]} numberOfLines={1}>{t("plan.tab_orders")}</Text>
+          <Ionicons name="people-outline" size={18} color={activeTab === "orders" ? "#fff" : tc.textSecondary} />
+          <Text style={[s.tabText, { color: activeTab === "orders" ? "#fff" : tc.textSecondary }]} numberOfLines={1} adjustsFontSizeToFit>{t("plan.tab_orders")}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[s.tab, activeTab === "calendar" && { backgroundColor: tc.primary }]} onPress={() => setActiveTab("calendar")}>
-          <Ionicons name="grid-outline" size={16} color={activeTab === "calendar" ? "#fff" : tc.textSecondary} />
-          <Text style={[s.tabText, { color: activeTab === "calendar" ? "#fff" : tc.textSecondary }]} numberOfLines={1}>{t("plan.tab_calendar", "Kalender")}</Text>
+          <Ionicons name="grid-outline" size={18} color={activeTab === "calendar" ? "#fff" : tc.textSecondary} />
+          <Text style={[s.tabText, { color: activeTab === "calendar" ? "#fff" : tc.textSecondary }]} numberOfLines={1} adjustsFontSizeToFit>{t("plan.tab_calendar", "Kalender")}</Text>
         </TouchableOpacity>
       </View>
 
@@ -536,10 +553,10 @@ export default function PlanScreen() {
     </>
   );
 
-  // Calendar tab: render outside ScrollView so horizontal scrollbar stays visible
+  // Calendar tab: wrap in ScrollView so the whole screen scrolls on mobile
   if (activeTab === "calendar") {
     return (
-      <View style={[s.container, { backgroundColor: tc.background, flex: 1 }]}>
+      <ScrollView style={[s.container, { backgroundColor: tc.background }]}>
         {headerContent}
         <ResourceCalendar
           weekDays={weekDays}
@@ -550,9 +567,10 @@ export default function PlanScreen() {
           absences={absences}
           weekStart={weekStart}
           lang={i18n.language}
+          onSwipeWeek={goWeek}
         />
         {renderVehicleModal()}
-      </View>
+      </ScrollView>
     );
   }
 
@@ -562,7 +580,7 @@ export default function PlanScreen() {
 
       {/* ─── TAB: PLAN ─── */}
       {activeTab === "plan" && (<>
-        <View style={s.daysGrid}>
+        <View style={s.daysGrid} {...swipeRef.panHandlers}>
           {weekDays.map((day) => {
             const c = dayCount(day.dayOfWeek);
             const dayAbsCount = absences.filter((a: any) => day.date >= a.date_from && day.date <= a.date_to).length;
@@ -846,11 +864,11 @@ export default function PlanScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, paddingTop: 12 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  titleRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, marginBottom: 8 },
-  title: { fontSize: 22, fontWeight: "700", marginLeft: 10 },
-  tabs: { flexDirection: "row", marginHorizontal: 16, marginBottom: 12, borderRadius: 10, borderWidth: 1, overflow: "hidden" },
-  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 10, paddingHorizontal: 6, gap: 4 },
-  tabText: { fontSize: 12, fontWeight: "600", textAlign: "center" },
+  titleRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, marginBottom: 10 },
+  title: { fontSize: 20, fontWeight: "700", marginLeft: 8 },
+  tabs: { flexDirection: "row", marginHorizontal: 16, marginBottom: 12, borderRadius: 12, borderWidth: 1, overflow: "hidden" },
+  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, paddingHorizontal: 4, gap: 5 },
+  tabText: { fontSize: 13, fontWeight: "700", textAlign: "center", flexShrink: 1 },
   card: { marginHorizontal: 16, marginBottom: 12, borderRadius: 12, borderWidth: 1, padding: 14 },
   cardLabel: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
   hdrRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

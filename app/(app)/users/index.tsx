@@ -3,6 +3,7 @@ import { useUsersManagement } from "@/src/hooks/useUsersManagement";
 import { supabase } from "@/src/lib/supabase/client";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { useAuth } from "@/src/providers/AuthProvider";
+import { useCompany } from "@/src/providers/CompanyProvider";
 import { openLink } from "@/src/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -35,6 +36,7 @@ export default function UsersScreen() {
   const [activeTab, setActiveTab] = useState<"users" | "subcontractors">("users");
 
   const perms = usePermissions();
+  const { defaultPassword } = useCompany();
   const isAdmin = perms.isAdmin;
   const isManagement = perms.isManagement;
   const canViewUsers = perms.canViewUsers;
@@ -83,7 +85,7 @@ export default function UsersScreen() {
     showImport, setShowImport, importLoading, importPreview, setImportPreview, importFileName, setImportFileName,
     pickFileWeb, pickFileNative, importUsers,
     sendInviteLink, deleteUser,
-  } = useUsersManagement(profile, t, fetchUsers);
+  } = useUsersManagement(profile, t, fetchUsers, defaultPassword);
 
   const getRoleColor = (role: string) => {
     const colors: Record<string, string> = {

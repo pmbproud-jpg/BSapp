@@ -31,10 +31,20 @@ export default function SettingsScreen() {
   const { profile, signOut } = useAuth();
   const perms = usePermissions();
   const { colors, themeMode, setThemeMode, isDark } = useTheme();
-  const { companyName, logoUrl, updateCompany } = useCompany();
+  const { companyName, logoUrl, defaultPassword, updateCompany, updateDefaultPassword } = useCompany();
   const [editCompanyName, setEditCompanyName] = useState(companyName);
   const [editLogoUrl, setEditLogoUrl] = useState(logoUrl || "");
   const [companySaving, setCompanySaving] = useState(false);
+  const [editDefaultPassword, setEditDefaultPassword] = useState(defaultPassword || "");
+  const [defaultPwSaving, setDefaultPwSaving] = useState(false);
+  const [showDefaultPw, setShowDefaultPw] = useState(false);
+  // Password change (for all users)
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwChangeSaving, setPwChangeSaving] = useState(false);
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [saving, setSaving] = useState(false);
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
@@ -68,11 +78,12 @@ export default function SettingsScreen() {
 
   const currentLanguage = i18n.language;
 
-  // Sync company name/logo when provider data changes
+  // Sync company name/logo/password when provider data changes
   useEffect(() => {
     setEditCompanyName(companyName);
     setEditLogoUrl(logoUrl || "");
-  }, [companyName, logoUrl]);
+    setEditDefaultPassword(defaultPassword || "");
+  }, [companyName, logoUrl, defaultPassword]);
 
   const saveCompanySettings = async () => {
     if (!editCompanyName.trim()) {
@@ -90,6 +101,63 @@ export default function SettingsScreen() {
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     } finally {
       setCompanySaving(false);
+    }
+  };
+
+  const saveDefaultPassword = async () => {
+    if (editDefaultPassword.length < 6) {
+      const msg = t("settings.default_pw_too_short", "Hasło musi mieć min. 6 znaków");
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+      return;
+    }
+    setDefaultPwSaving(true);
+    try {
+      await updateDefaultPassword(editDefaultPassword);
+      const msg = t("settings.default_pw_saved", "Domyślne hasło zapisane");
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
+    } catch {
+      const msg = t("settings.default_pw_error", "Błąd zapisu hasła");
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+    } finally {
+      setDefaultPwSaving(false);
+    }
+  };
+
+  const changePassword = async () => {
+    if (newPassword.length < 8) {
+      const msg = t("settings.pw_too_short", "Nowe hasło musi mieć min. 8 znaków");
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      const msg = t("settings.pw_mismatch", "Hasła nie są takie same");
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+      return;
+    }
+    setPwChangeSaving(true);
+    try {
+      // Verify current password by re-signing in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: profile?.email || "",
+        password: currentPassword,
+      });
+      if (signInError) {
+        const msg = t("settings.pw_current_wrong", "Aktualne hasło jest nieprawidłowe");
+        Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+        return;
+      }
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      const msg = t("settings.pw_changed", "Hasło zostało zmienione");
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
+    } catch (e: any) {
+      const msg = e?.message || t("settings.pw_change_error", "Błąd zmiany hasła");
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+    } finally {
+      setPwChangeSaving(false);
     }
   };
 
@@ -356,9 +424,122 @@ export default function SettingsScreen() {
                 {companySaving ? t("common.loading") : t("common.save")}
               </Text>
             </TouchableOpacity>
+
+            {/* Default password for new users */}
+            <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <Ionicons name="key-outline" size={16} color={colors.primary} />
+                <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 0 }]}>
+                  {t("settings.default_password", "Domyślne hasło dla nowych użytkowników")}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 8 }}>
+                {t("settings.default_pw_hint", "To hasło zostanie ustawione przy tworzeniu nowych kont. Użytkownicy mogą je zmienić po zalogowaniu.")}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flex: 1, position: "relative" }}>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text, paddingRight: 44 }]}
+                    value={editDefaultPassword}
+                    onChangeText={setEditDefaultPassword}
+                    placeholder={t("settings.default_pw_placeholder", "Min. 6 znaków...")}
+                    placeholderTextColor={colors.textMuted}
+                    secureTextEntry={!showDefaultPw}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowDefaultPw(!showDefaultPw)}
+                    style={{ position: "absolute", right: 10, top: 0, bottom: 0, justifyContent: "center" }}
+                  >
+                    <Ionicons name={showDefaultPw ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={[styles.saveButton, { flex: 0, paddingHorizontal: 16 }, defaultPwSaving && styles.saveButtonDisabled]}
+                  onPress={saveDefaultPassword}
+                  disabled={defaultPwSaving}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {defaultPwSaving ? "..." : t("common.save")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       )}
+
+      {/* Change Password - for all users */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+          {t("settings.change_password", "Zmiana hasła")}
+        </Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t("settings.current_password", "Aktualne hasło")}
+            </Text>
+            <View style={{ position: "relative" }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text, paddingRight: 44 }]}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry={!showCurrentPw}
+                placeholder="••••••••"
+                placeholderTextColor={colors.textMuted}
+              />
+              <TouchableOpacity
+                onPress={() => setShowCurrentPw(!showCurrentPw)}
+                style={{ position: "absolute", right: 10, top: 0, bottom: 0, justifyContent: "center" }}
+              >
+                <Ionicons name={showCurrentPw ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t("settings.new_password", "Nowe hasło")}
+            </Text>
+            <View style={{ position: "relative" }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text, paddingRight: 44 }]}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry={!showNewPw}
+                placeholder={t("settings.new_pw_placeholder", "Min. 8 znaków")}
+                placeholderTextColor={colors.textMuted}
+              />
+              <TouchableOpacity
+                onPress={() => setShowNewPw(!showNewPw)}
+                style={{ position: "absolute", right: 10, top: 0, bottom: 0, justifyContent: "center" }}
+              >
+                <Ionicons name={showNewPw ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t("settings.confirm_password", "Potwierdź hasło")}
+            </Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showNewPw}
+              placeholder="••••••••"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+          <TouchableOpacity
+            style={[styles.saveButton, pwChangeSaving && styles.saveButtonDisabled]}
+            onPress={changePassword}
+            disabled={pwChangeSaving}
+          >
+            <Text style={styles.saveButtonText}>
+              {pwChangeSaving ? t("common.loading") : t("settings.change_password", "Zmiana hasła")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("settings.profile")}</Text>
