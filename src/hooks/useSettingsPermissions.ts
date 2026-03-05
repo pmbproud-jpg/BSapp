@@ -35,6 +35,7 @@ export function useSettingsPermissions(t: any) {
     { value: "logistics", label: t("common.roles.logistics"), icon: "cube" as const, color: "#f97316" },
     { value: "purchasing", label: t("common.roles.purchasing"), icon: "cart" as const, color: "#ec4899" },
     { value: "warehouse_manager", label: t("common.roles.warehouse_manager"), icon: "file-tray-stacked" as const, color: "#7c3aed" },
+    { value: "subcontractor", label: t("common.roles.subcontractor"), icon: "people" as const, color: "#a855f7" },
   ];
 
   const permissionGroups = [

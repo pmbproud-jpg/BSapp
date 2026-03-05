@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, Alert, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useLocalSearchParams } from "expo-router";
@@ -35,7 +35,7 @@ export default function LoginScreen() {
 
   const [, force] = useState(0);
 
-  const resetDisabled = useMemo(() => resetLoading, [resetLoading]);
+  const resetDisabled = resetLoading;
   const current = (i18n.language as SupportedLanguage) || "de";
 
   async function pickLang(lang: SupportedLanguage) {

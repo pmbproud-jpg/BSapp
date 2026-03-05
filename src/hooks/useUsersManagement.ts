@@ -170,7 +170,7 @@ export function useUsersManagement(
 
   const sendInviteLink = async (userEmail: string, userName: string) => {
     try {
-      const redirectUrl = "https://bsapp-management.netlify.app/reset-password";
+      const redirectUrl = `${process.env.EXPO_PUBLIC_APP_URL || "https://bsapp-management.netlify.app"}/reset-password`;
 
       const { data, error } = await supabaseAdmin.auth.admin.generateLink({
         type: "recovery",

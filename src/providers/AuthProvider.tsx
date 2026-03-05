@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+﻿import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { Alert, Platform } from "react-native";
 import { supabase } from "../lib/supabase/client";
@@ -33,12 +33,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
+    let initialFetchDone = false;
+
     // Get current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
+        initialFetchDone = true;
         fetchProfile(session.user.id);
       } else {
         setLoading(false);
@@ -51,6 +55,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
+        // Skip if initial fetch already handles this user
+        if (initialFetchDone && fetchingRef.current) return;
         fetchProfile(session.user.id);
       } else {
         setProfile(null);
@@ -62,6 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const fetchProfile = async (userId: string) => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -94,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
+      fetchingRef.current = false;
       setLoading(false);
     }
   };

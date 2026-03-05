@@ -98,7 +98,7 @@ export default function SettingsScreen() {
       if (Platform.OS !== "web") {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== "granted") {
-          Alert.alert(t("common.error"), "Permission required");
+          Alert.alert(t("common.error"), t("settings.permission_required"));
           return;
         }
       }
@@ -108,17 +108,25 @@ export default function SettingsScreen() {
         // Upload to Supabase storage
         const fileName = `company_logo_${Date.now()}.jpg`;
         const filePath = `company/${fileName}`;
+        let uploadError: any;
         if (Platform.OS === "web") {
           const response = await fetch(asset.uri);
           const blob = await response.blob();
-          await supabase.storage.from("attachments").upload(filePath, blob, { contentType: "image/jpeg", upsert: true });
+          const { error } = await supabase.storage.from("attachments").upload(filePath, blob, { contentType: "image/jpeg", upsert: true });
+          uploadError = error;
         } else {
           const FileSystem = require("expo-file-system/legacy");
           const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: "base64" });
           const binaryStr = global.atob ? global.atob(base64) : base64;
           const bytes = new Uint8Array(binaryStr.length);
           for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-          await supabase.storage.from("attachments").upload(filePath, bytes.buffer, { contentType: "image/jpeg", upsert: true });
+          const { error } = await supabase.storage.from("attachments").upload(filePath, bytes.buffer, { contentType: "image/jpeg", upsert: true });
+          uploadError = error;
+        }
+        if (uploadError) {
+          console.error("Error uploading logo:", uploadError.message);
+          Platform.OS === "web" ? window.alert(t("common.error")) : Alert.alert(t("common.error"), uploadError.message);
+          return;
         }
         const { data: urlData, error: urlError } = await supabase.storage.from("attachments").createSignedUrl(filePath, 60 * 60 * 24 * 365 * 10);
         if (urlError || !urlData?.signedUrl) {

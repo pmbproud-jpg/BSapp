@@ -107,7 +107,8 @@ export default function MagazynScreen() {
 
   const loadProjects = async () => {
     try {
-      const { data } = await supabaseAdmin.from("projects").select("id, name, project_number, location").order("name");
+      const { data, error } = await supabaseAdmin.from("projects").select("id, name, project_number, location").order("name");
+      if (error) throw error;
       setAllProjects(data || []);
     } catch (e) { console.error("Error loading projects:", e); }
   };

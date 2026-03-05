@@ -35,7 +35,6 @@ export default function ImportProjectsScreen() {
 
   const pickFile = async () => {
     try {
-      console.log("[IMPORT] pickFile called, Platform:", Platform.OS);
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -45,11 +44,9 @@ export default function ImportProjectsScreen() {
         copyToCacheDirectory: true,
       });
 
-      console.log("[IMPORT] DocumentPicker result:", JSON.stringify(result).substring(0, 200));
       if (result.canceled) return;
 
       setFileName(result.assets[0].name);
-      console.log("[IMPORT] File selected:", result.assets[0].name, "URI:", result.assets[0].uri.substring(0, 100));
       await parseExcel(result.assets[0].uri);
     } catch (error) {
       console.error("[IMPORT] Error picking file:", error);
@@ -64,11 +61,9 @@ export default function ImportProjectsScreen() {
   const parseExcel = async (uri: string) => {
     setLoading(true);
     try {
-      console.log("[IMPORT] parseExcel called, Platform:", Platform.OS);
       if (Platform.OS === "web") {
         const response = await fetch(uri);
         const blob = await response.blob();
-        console.log("[IMPORT] Blob size:", blob.size);
         const reader = new FileReader();
 
         reader.onerror = (err) => {
@@ -79,10 +74,8 @@ export default function ImportProjectsScreen() {
 
         reader.onload = (e) => {
           try {
-            console.log("[IMPORT] FileReader onload fired");
             const data = new Uint8Array(e.target?.result as ArrayBuffer);
             const workbook = XLSX.read(data, { type: "array" });
-            console.log("[IMPORT] Workbook sheets:", workbook.SheetNames);
             processWorkbook(workbook);
           } catch (err) {
             console.error("[IMPORT] Error in onload:", err);
@@ -117,8 +110,6 @@ export default function ImportProjectsScreen() {
 
     // Pobierz dane jako tablice (bez nagłówków) - każdy wiersz to array wartości
     const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-    console.log("[IMPORT] Total raw rows:", rawRows.length);
-
     if (rawRows.length === 0) {
       if (Platform.OS === "web") {
         window.alert(t("projects.import.no_valid_data"));
@@ -133,9 +124,6 @@ export default function ImportProjectsScreen() {
     const firstRow = rawRows[0];
     const hasHeader = firstRow && typeof firstRow[0] === "string" && isNaN(Number(firstRow[0]));
     const dataRows = hasHeader ? rawRows.slice(1) : rawRows;
-
-    console.log("[IMPORT] Has header:", hasHeader, "Data rows:", dataRows.length);
-    if (firstRow) console.log("[IMPORT] First row:", JSON.stringify(firstRow));
 
     // Helper: parse Excel date (can be serial number, date string, or garbage like "0")
     const parseDate = (val: any): string | undefined => {
@@ -187,8 +175,6 @@ export default function ImportProjectsScreen() {
 
     // Wymagaj tylko żeby wiersz miał nr projektu LUB nazwę
     const validProjects = projects.filter((p) => p.project_number || p.name);
-    console.log("[IMPORT] Valid projects:", validProjects.length);
-
     // Jeśli brak nr projektu, generuj automatycznie
     validProjects.forEach((p, i) => {
       if (!p.project_number) p.project_number = `IMP-${String(i + 1).padStart(3, "0")}`;

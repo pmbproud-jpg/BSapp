@@ -9,6 +9,7 @@ type Lang = "de" | "pl" | "en";
 
 const UI = {
   de: {
+    loginLabel: "Anmeldung",
     title: "Passwort erstellen",
     info: "Erstellen Sie Ihr Passwort, um sich einzuloggen.",
     loading: "Link wird geprüft…",
@@ -24,6 +25,7 @@ const UI = {
     ready: "Bitte geben Sie Ihr neues Passwort ein.",
   },
   pl: {
+    loginLabel: "Login",
     title: "Utwórz hasło",
     info: "Utwórz swoje hasło, aby się zalogować.",
     loading: "Sprawdzam link…",
@@ -39,6 +41,7 @@ const UI = {
     ready: "Wpisz swoje nowe hasło.",
   },
   en: {
+    loginLabel: "Login",
     title: "Create password",
     info: "Create your password to log in.",
     loading: "Checking link…",
@@ -115,7 +118,7 @@ export default function ResetPasswordScreen() {
 
     // 2. Fallback: if detectSessionInUrl already consumed the token before our listener
     //    registered, wait then check. Also handles manual token parsing for native.
-    setTimeout(async () => {
+    const fallbackTimer = setTimeout(async () => {
       if (ready) return;
 
       // On web, try to manually parse tokens from URL and set session
@@ -184,6 +187,7 @@ export default function ResetPasswordScreen() {
     }
 
     return () => {
+      clearTimeout(fallbackTimer);
       subscriptionRef.current?.unsubscribe();
       try { linkSub?.remove?.(); } catch {}
     };
@@ -273,7 +277,7 @@ export default function ResetPasswordScreen() {
         <View style={{ gap: 10 }}>
           {userEmail ? (
             <View style={{ padding: 14, backgroundColor: "#f8fafc", borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0" }}>
-              <Text style={{ color: "#64748b", fontSize: 13, textAlign: "center" }}>Login</Text>
+              <Text style={{ color: "#64748b", fontSize: 13, textAlign: "center" }}>{t.loginLabel}</Text>
               <Text style={{ color: "#1e293b", fontSize: 16, fontWeight: "700", textAlign: "center", marginTop: 2 }}>{userEmail}</Text>
             </View>
           ) : null}

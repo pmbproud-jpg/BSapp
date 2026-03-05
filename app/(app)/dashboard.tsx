@@ -8,7 +8,6 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
-    Dimensions,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -17,78 +16,6 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
-
-const screenWidth = Dimensions.get("window").width;
-
-// Simple Bar Chart Component
-const BarChart = ({ data, labels, colors, height = 200 }: {
-  data: number[];
-  labels: string[];
-  colors: string[];
-  height?: number;
-}) => {
-  const maxValue = Math.max(...data, 1);
-  const barWidth = (screenWidth - 80) / data.length - 12;
-
-  return (
-    <View style={[styles.chartContainer, { height }]}>
-      <View style={styles.barsContainer}>
-        {data.map((value, index) => {
-          const barHeight = Math.max((value / maxValue) * (height - 50), 4);
-          return (
-            <View key={index} style={styles.barWrapper}>
-              <Text style={styles.barValue}>{value}</Text>
-              <View
-                style={[
-                  styles.bar,
-                  {
-                    height: barHeight,
-                    width: barWidth,
-                    backgroundColor: colors[index] || "#2563eb",
-                  },
-                ]}
-              />
-              <Text style={styles.barLabel} numberOfLines={2}>
-                {labels[index]}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
-};
-
-// Donut Chart Component (web-safe, no transform)
-const DonutChart = ({ data, colors, size = 140 }: {
-  data: { value: number; label: string }[];
-  colors: string[];
-  size?: number;
-}) => {
-  const total = data.reduce((sum, item) => sum + item.value, 0);
-
-  return (
-    <View style={styles.donutWrapper}>
-      <View style={[styles.donutContainer, { width: size, height: size }]}>
-        <View style={[styles.emptyDonut, { width: size, height: size, borderRadius: size / 2 }]} />
-        <View style={[styles.donutCenter, { width: size * 0.6, height: size * 0.6, borderRadius: size * 0.3 }]}>
-          <Text style={styles.donutTotal}>{total}</Text>
-          <Text style={styles.donutTotalLabel}>Total</Text>
-        </View>
-      </View>
-      <View style={styles.legendContainer}>
-        {data.map((item, index) => (
-          <View key={index} style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: colors[index] }]} />
-            <Text style={styles.legendText}>
-              {item.label}: {item.value} ({total > 0 ? Math.round((item.value / total) * 100) : 0}%)
-            </Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-};
 
 // Progress Ring Component (web-safe, no transform)
 const ProgressRing = ({ progress, size = 100, color = "#10b981", label }: {
@@ -486,93 +413,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  chartContainer: {
-    width: "100%",
-    justifyContent: "flex-end",
-  },
-  barsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "flex-end",
-    height: "100%",
-    paddingBottom: 30,
-  },
-  barWrapper: {
-    alignItems: "center",
-    flex: 1,
-  },
-  bar: {
-    borderRadius: 6,
-    minHeight: 4,
-  },
-  barValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1e293b",
-    marginBottom: 4,
-  },
-  barLabel: {
-    fontSize: 10,
-    color: "#64748b",
-    textAlign: "center",
-    marginTop: 8,
-    paddingHorizontal: 2,
-  },
-  donutWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingVertical: 8,
-  },
-  donutContainer: {
-    position: "relative",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  donutBackground: {
-    backgroundColor: "#e2e8f0",
-    position: "absolute",
-  },
-  donutSegment: {
-    position: "absolute",
-  },
-  donutCenter: {
-    backgroundColor: "#ffffff",
-    position: "absolute",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  donutTotal: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1e293b",
-  },
-  donutTotalLabel: {
-    fontSize: 10,
-    color: "#64748b",
-  },
-  emptyDonut: {
-    backgroundColor: "#e2e8f0",
-  },
-  legendContainer: {
-    flex: 1,
-    paddingLeft: 20,
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  legendColor: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  legendText: {
-    fontSize: 12,
-    color: "#64748b",
-  },
   completionCard: {
     backgroundColor: "#ffffff",
     borderRadius: 12,
@@ -591,12 +431,6 @@ const styles = StyleSheet.create({
   },
   ringBackground: {
     position: "absolute",
-  },
-  ringProgressOuter: {
-    position: "absolute",
-  },
-  ringProgressInner: {
-    borderTopColor: "transparent",
   },
   progressTextContainer: {
     position: "absolute",
@@ -625,39 +459,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#64748b",
   },
-  activityCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    overflow: "hidden",
-  },
-  activityItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  activityItemLast: {
-    borderBottomWidth: 0,
-  },
-  activityIcon: {
-    marginRight: 12,
-  },
-  activityContent: {
-    flex: 1,
-  },
-  activityTitle: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1e293b",
-    marginBottom: 2,
-  },
-  activityStatus: {
-    fontSize: 12,
-    color: "#64748b",
-  },
   actionsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -680,45 +481,6 @@ const styles = StyleSheet.create({
     color: "#1e293b",
     textAlign: "center",
     marginTop: 8,
-  },
-  taskSummaryCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-  },
-  taskSummaryItem: {
-    alignItems: "center",
-    flex: 1,
-  },
-  taskSummaryDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginBottom: 8,
-  },
-  taskSummaryInfo: {
-    alignItems: "center",
-  },
-  taskSummaryNumber: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#1e293b",
-  },
-  taskSummaryLabel: {
-    fontSize: 11,
-    color: "#64748b",
-    textAlign: "center",
-    marginTop: 4,
-  },
-  taskSummaryDivider: {
-    width: 1,
-    height: 50,
-    backgroundColor: "#e2e8f0",
   },
   planButton: {
     marginHorizontal: 0,

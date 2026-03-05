@@ -19,7 +19,6 @@
  */
 
 import { supabase } from "./client";
-import { Platform } from "react-native";
 
 const PROXY_URL = "/.netlify/functions/supabase-admin";
 

@@ -11,11 +11,10 @@ function sanitize(str) {
 
 exports.handler = async (event) => {
   const origin = event.headers?.origin || event.headers?.Origin || "";
-  const allowedOrigin = origin === ALLOWED_ORIGIN ? ALLOWED_ORIGIN : ALLOWED_ORIGIN;
 
   const headers = {
-    "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Origin": origin === ALLOWED_ORIGIN ? ALLOWED_ORIGIN : "",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
 
@@ -25,6 +24,11 @@ exports.handler = async (event) => {
 
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
+  }
+
+  // Verify origin
+  if (origin !== ALLOWED_ORIGIN) {
+    return { statusCode: 403, headers, body: JSON.stringify({ error: "Forbidden origin" }) };
   }
 
   const GMAIL_USER = process.env.GMAIL_USER || "";

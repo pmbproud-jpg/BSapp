@@ -44,11 +44,12 @@ export function useProjectData(projectId: string | undefined, profileId: string 
   const [newFolderName, setNewFolderName] = useState("");
 
   const fetchProjectDetails = async () => {
+    if (!projectId) return;
     try {
       const { data, error } = await supabase
         .from("projects")
         .select("*")
-        .eq("id", projectId!)
+        .eq("id", projectId)
         .single();
 
       if (error) throw error;

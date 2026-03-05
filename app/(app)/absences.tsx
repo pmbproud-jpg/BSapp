@@ -82,13 +82,14 @@ export default function AbsencesScreen() {
 
   const approveAbsence = async (absId: string) => {
     try {
-      await supabaseAdmin.from("user_absences")
+      const { error } = await supabaseAdmin.from("user_absences")
         .update({
           status: "approved",
           approved_by: profile?.id || null,
           approved_at: new Date().toISOString(),
         })
         .eq("id", absId);
+      if (error) throw new Error(error.message);
       fetchAbsences();
       const msg = t("users.abs_approved") || "Genehmigt";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
@@ -101,13 +102,14 @@ export default function AbsencesScreen() {
 
   const rejectAbsence = async (absId: string) => {
     try {
-      await supabaseAdmin.from("user_absences")
+      const { error } = await supabaseAdmin.from("user_absences")
         .update({
           status: "rejected",
           approved_by: profile?.id || null,
           approved_at: new Date().toISOString(),
         })
         .eq("id", absId);
+      if (error) throw new Error(error.message);
       fetchAbsences();
       const msg = t("users.abs_rejected") || "Abgelehnt";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);

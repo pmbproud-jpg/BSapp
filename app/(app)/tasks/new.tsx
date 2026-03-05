@@ -292,7 +292,6 @@ export default function NewTaskScreen() {
   };
 
   const handleSubmit = async () => {
-    console.log("[TASK] handleSubmit called, title:", formData.title, "project_id:", project_id);
     if (!formData.title.trim()) {
       Alert.alert(t("common.error"), t("tasks.title_required"));
       return;
@@ -319,7 +318,6 @@ export default function NewTaskScreen() {
     }
 
     try {
-      console.log("[TASK] Inserting task:", JSON.stringify(taskData, null, 2));
 
       let { data, error } = await (supabaseAdmin
         .from("tasks") as any)
