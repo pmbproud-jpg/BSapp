@@ -295,18 +295,24 @@ class QueryBuilder {
         params.data = this._data;
         if (this._onConflict) params.onConflict = this._onConflict;
         if (this._selectAfter) params.select = this._selectAfter;
+        if (this._selectAfter && this._single) params.single = true;
+        if (this._selectAfter && this._maybeSingle) params.maybeSingle = true;
         break;
 
       case "upsert":
         params.data = this._data;
         if (this._onConflict) params.onConflict = this._onConflict;
         if (this._selectAfter) params.select = this._selectAfter;
+        if (this._selectAfter && this._single) params.single = true;
+        if (this._selectAfter && this._maybeSingle) params.maybeSingle = true;
         break;
 
       case "update":
         params.data = this._data;
         params.filters = this._filters;
         if (this._selectAfter) params.select = this._selectAfter;
+        if (this._selectAfter && this._single) params.single = true;
+        if (this._selectAfter && this._maybeSingle) params.maybeSingle = true;
         break;
 
       case "delete":

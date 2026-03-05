@@ -120,26 +120,32 @@ async function handleDb(adminClient, body) {
       break;
     }
     case "insert": {
-      const { data, onConflict, select: sel } = params || {};
+      const { data, onConflict, select: sel, single, maybeSingle } = params || {};
       if (onConflict) {
         query = query.upsert(data, { onConflict });
       } else {
         query = query.insert(data);
       }
       if (sel) query = query.select(sel);
+      if (single) query = query.single();
+      else if (maybeSingle) query = query.maybeSingle();
       break;
     }
     case "upsert": {
-      const { data, onConflict, select: sel } = params || {};
+      const { data, onConflict, select: sel, single, maybeSingle } = params || {};
       query = query.upsert(data, onConflict ? { onConflict } : undefined);
       if (sel) query = query.select(sel);
+      if (single) query = query.single();
+      else if (maybeSingle) query = query.maybeSingle();
       break;
     }
     case "update": {
-      const { data, filters = [], select: sel } = params || {};
+      const { data, filters = [], select: sel, single, maybeSingle } = params || {};
       query = query.update(data);
       query = applyFilters(query, filters);
       if (sel) query = query.select(sel);
+      if (single) query = query.single();
+      else if (maybeSingle) query = query.maybeSingle();
       break;
     }
     case "delete": {
