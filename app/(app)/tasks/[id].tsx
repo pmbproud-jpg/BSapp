@@ -244,21 +244,80 @@ export default function TaskDetailsScreen() {
     }
   };
 
-  const fetchLinkedPin = async (taskId: string) => {
+  const fetchLinkedPin = async (taskId: string, taskTitle?: string, taskDescription?: string, projectId?: string) => {
     try {
+      // 1. Try by task_id (new pins)
       const { data: pin } = await supabaseAdmin.from("plan_pins")
         .select("*")
         .eq("task_id", taskId)
         .maybeSingle();
+
       if (pin) {
         setLinkedPin(pin);
-        // Fetch linked plan separately (adminApi doesn't support joins)
         if (pin.plan_id) {
           const { data: plan } = await supabaseAdmin.from("project_plans")
             .select("id, name, project_id")
             .eq("id", pin.plan_id)
             .single();
           if (plan) setLinkedPlan(plan);
+        }
+        return;
+      }
+
+      // 2. Fallback: match by title for old pins without task_id
+      if (taskTitle) {
+        const pinTitle = taskTitle.replace(/^📌\s*/, "");
+        const { data: pins } = await supabaseAdmin.from("plan_pins")
+          .select("*")
+          .eq("title", pinTitle);
+        const matchedPin = (pins && pins.length > 0) ? pins[0] : null;
+        if (matchedPin) {
+          setLinkedPin(matchedPin);
+          // Link the pin to this task for future lookups
+          await supabaseAdmin.from("plan_pins")
+            .update({ task_id: taskId })
+            .eq("id", matchedPin.id);
+          if (matchedPin.plan_id) {
+            const { data: plan } = await supabaseAdmin.from("project_plans")
+              .select("id, name, project_id")
+              .eq("id", matchedPin.plan_id)
+              .single();
+            if (plan) setLinkedPlan(plan);
+          }
+          return;
+        }
+      }
+
+      // 3. Fallback: extract plan name from description "[Plan: XYZ]"
+      if (taskDescription && projectId) {
+        const planMatch = taskDescription.match(/^\[Plan:\s*(.+?)\]/);
+        if (planMatch) {
+          const planName = planMatch[1];
+          const { data: plan } = await supabaseAdmin.from("project_plans")
+            .select("id, name, project_id")
+            .eq("name", planName)
+            .eq("project_id", projectId)
+            .maybeSingle();
+          if (plan) {
+            setLinkedPlan(plan);
+            // Try to find the pin on this plan by title
+            const pinTitle = (taskTitle || "").replace(/^📌\s*/, "");
+            if (pinTitle) {
+              const { data: pins2 } = await supabaseAdmin.from("plan_pins")
+                .select("*")
+                .eq("plan_id", plan.id)
+                .eq("title", pinTitle);
+              if (pins2 && pins2.length > 0) {
+                setLinkedPin(pins2[0]);
+                await supabaseAdmin.from("plan_pins")
+                  .update({ task_id: taskId })
+                  .eq("id", pins2[0].id);
+              } else {
+                // No pin found but we have the plan — show plan link
+                setLinkedPin({ id: "virtual", plan_id: plan.id });
+              }
+            }
+          }
         }
       }
     } catch (e) {
@@ -309,7 +368,7 @@ export default function TaskDetailsScreen() {
       }
       // Fetch linked pin if task is from a plan pin
       if (id && (data as any)?.title?.startsWith("📌")) {
-        fetchLinkedPin(id);
+        fetchLinkedPin(id, (data as any)?.title, (data as any)?.description, (data as any)?.project_id);
       }
     } catch (error) {
       console.error("Error fetching task:", error);
