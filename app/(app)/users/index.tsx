@@ -25,7 +25,7 @@ import {
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 export default function UsersScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { profile } = useAuth();
   const [users, setUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -256,7 +256,8 @@ export default function UsersScreen() {
         }
         return sortAsc ? cmp : -cmp;
       });
-  }, [users, searchQuery, sortBy, sortAsc, t]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, searchQuery, sortBy, sortAsc, i18n.language]);
 
   const isExpired = (expiresAt: string | null) => {
     if (!expiresAt) return false;
