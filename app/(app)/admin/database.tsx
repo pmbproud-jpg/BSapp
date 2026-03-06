@@ -38,6 +38,18 @@ interface TableMeta {
 }
 
 const TABLE_META: Record<string, TableMeta> = {
+  companies: {
+    label: "Firmy",
+    icon: "business",
+    color: "#10b981",
+    columns: [
+      { key: "id", label: "ID", type: "uuid", readonly: true },
+      { key: "name", label: "Nazwa", type: "text" },
+      { key: "logo_url", label: "Logo URL", type: "text" },
+      { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
+      { key: "updated_at", label: "Zaktualizowano", type: "datetime", readonly: true },
+    ],
+  },
   profiles: {
     label: "Użytkownicy",
     icon: "people",
@@ -48,11 +60,15 @@ const TABLE_META: Record<string, TableMeta> = {
       { key: "full_name", label: "Imię i nazwisko", type: "text" },
       { key: "role", label: "Rola", type: "enum", enumValues: ["admin", "management", "project_manager", "bauleiter", "worker", "subcontractor", "office_worker", "logistics", "purchasing", "warehouse_manager"] },
       { key: "phone", label: "Telefon", type: "text" },
-      { key: "position", label: "Stanowisko", type: "text" },
-      { key: "gps_enabled", label: "GPS", type: "boolean" },
-      { key: "two_fa_enabled", label: "2FA", type: "boolean" },
+      { key: "language", label: "Język", type: "enum", enumValues: ["de", "pl", "en"] },
+      { key: "avatar_url", label: "Avatar URL", type: "text", hidden: true },
+      { key: "hide_phone", label: "Ukryj telefon", type: "boolean" },
+      { key: "hide_email", label: "Ukryj email", type: "boolean" },
+      { key: "access_expires_at", label: "Wygaśnięcie dostępu", type: "datetime" },
       { key: "custom_permissions", label: "Uprawnienia", type: "json", hidden: true },
+      { key: "company_id", label: "Firma", type: "uuid", readonly: true },
       { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
+      { key: "updated_at", label: "Zaktualizowano", type: "datetime", readonly: true },
     ],
   },
   projects: {
@@ -68,9 +84,12 @@ const TABLE_META: Record<string, TableMeta> = {
       { key: "start_date", label: "Start", type: "date" },
       { key: "end_date", label: "Koniec", type: "date" },
       { key: "location", label: "Lokalizacja", type: "text" },
+      { key: "project_manager_id", label: "Kierownik projektu", type: "uuid" },
+      { key: "bauleiter_id", label: "Bauleiter", type: "uuid" },
       { key: "created_by", label: "Twórca", type: "uuid", readonly: true },
       { key: "company_id", label: "Firma", type: "uuid", readonly: true },
       { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
+      { key: "updated_at", label: "Zaktualizowano", type: "datetime", readonly: true },
     ],
   },
   tasks: {
@@ -79,14 +98,24 @@ const TABLE_META: Record<string, TableMeta> = {
     color: "#f59e0b",
     columns: [
       { key: "id", label: "ID", type: "uuid", readonly: true },
+      { key: "project_id", label: "Projekt", type: "uuid" },
       { key: "title", label: "Tytuł", type: "text" },
       { key: "description", label: "Opis", type: "text" },
       { key: "status", label: "Status", type: "enum", enumValues: ["todo", "in_progress", "completed", "blocked"] },
       { key: "priority", label: "Priorytet", type: "enum", enumValues: ["low", "medium", "high", "urgent"] },
-      { key: "project_id", label: "Projekt", type: "uuid" },
       { key: "due_date", label: "Termin", type: "date" },
+      { key: "completed_at", label: "Ukończono", type: "datetime" },
+      { key: "assigned_to", label: "Przypisano do", type: "uuid" },
+      { key: "assigned_by", label: "Przypisał", type: "uuid" },
+      { key: "assigned_at", label: "Data przypisania", type: "datetime" },
+      { key: "edited_by", label: "Edytował", type: "uuid" },
+      { key: "edited_at", label: "Data edycji", type: "datetime" },
+      { key: "notes_de", label: "Notatki DE", type: "text", hidden: true },
+      { key: "notes_pl", label: "Notatki PL", type: "text", hidden: true },
+      { key: "notes_en", label: "Notatki EN", type: "text", hidden: true },
       { key: "created_by", label: "Twórca", type: "uuid", readonly: true },
       { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
+      { key: "updated_at", label: "Zaktualizowano", type: "datetime", readonly: true },
     ],
   },
   project_members: {
@@ -98,6 +127,19 @@ const TABLE_META: Record<string, TableMeta> = {
       { key: "project_id", label: "Projekt", type: "uuid" },
       { key: "user_id", label: "Użytkownik", type: "uuid" },
       { key: "role", label: "Rola", type: "text" },
+      { key: "joined_at", label: "Dołączył", type: "datetime", readonly: true },
+    ],
+  },
+  task_comments: {
+    label: "Komentarze zadań",
+    icon: "chatbubble",
+    color: "#14b8a6",
+    columns: [
+      { key: "id", label: "ID", type: "uuid", readonly: true },
+      { key: "task_id", label: "Zadanie", type: "uuid" },
+      { key: "user_id", label: "Użytkownik", type: "uuid" },
+      { key: "comment", label: "Komentarz", type: "text" },
+      { key: "language", label: "Język", type: "enum", enumValues: ["de", "pl", "en"] },
       { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
     ],
   },
@@ -141,6 +183,21 @@ const TABLE_META: Record<string, TableMeta> = {
       { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
     ],
   },
+  automation_rules: {
+    label: "Reguły automatyzacji",
+    icon: "flash",
+    color: "#eab308",
+    columns: [
+      { key: "id", label: "ID", type: "uuid", readonly: true },
+      { key: "name", label: "Nazwa", type: "text" },
+      { key: "trigger_type", label: "Wyzwalacz", type: "text" },
+      { key: "action_type", label: "Akcja", type: "text" },
+      { key: "config", label: "Konfiguracja", type: "json" },
+      { key: "enabled", label: "Włączona", type: "boolean" },
+      { key: "created_by", label: "Twórca", type: "uuid", readonly: true },
+      { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
+    ],
+  },
   vehicles: {
     label: "Pojazdy",
     icon: "car",
@@ -148,10 +205,10 @@ const TABLE_META: Record<string, TableMeta> = {
     columns: [
       { key: "id", label: "ID", type: "uuid", readonly: true },
       { key: "name", label: "Nazwa", type: "text" },
-      { key: "plate_number", label: "Nr rejestracyjny", type: "text" },
-      { key: "type", label: "Typ", type: "text" },
-      { key: "status", label: "Status", type: "text" },
-      { key: "company_id", label: "Firma", type: "uuid", readonly: true },
+      { key: "license_plate", label: "Nr rejestracyjny", type: "text" },
+      { key: "seats", label: "Miejsca", type: "number" },
+      { key: "active", label: "Aktywny", type: "boolean" },
+      { key: "created_by", label: "Twórca", type: "uuid", readonly: true },
       { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
     ],
   },
@@ -161,11 +218,13 @@ const TABLE_META: Record<string, TableMeta> = {
     color: "#0891b2",
     columns: [
       { key: "id", label: "ID", type: "uuid", readonly: true },
-      { key: "user_id", label: "Użytkownik", type: "uuid" },
-      { key: "project_id", label: "Projekt", type: "uuid" },
+      { key: "request_id", label: "Wniosek", type: "uuid" },
+      { key: "worker_id", label: "Pracownik", type: "uuid" },
       { key: "vehicle_id", label: "Pojazd", type: "uuid" },
       { key: "day_of_week", label: "Dzień", type: "number" },
-      { key: "week_start", label: "Tydzień", type: "date" },
+      { key: "departure_time", label: "Odjazd", type: "text" },
+      { key: "start_time", label: "Start", type: "text" },
+      { key: "end_time", label: "Koniec", type: "text" },
       { key: "assigned_by", label: "Przypisał", type: "uuid", readonly: true },
       { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
     ],
@@ -177,11 +236,12 @@ const TABLE_META: Record<string, TableMeta> = {
     columns: [
       { key: "id", label: "ID", type: "uuid", readonly: true },
       { key: "project_id", label: "Projekt", type: "uuid" },
-      { key: "day_of_week", label: "Dzień", type: "number" },
       { key: "week_start", label: "Tydzień", type: "date" },
-      { key: "status", label: "Status", type: "text" },
       { key: "requested_by", label: "Wnioskujący", type: "uuid", readonly: true },
+      { key: "status", label: "Status", type: "text" },
+      { key: "notes", label: "Notatki", type: "text" },
       { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
+      { key: "updated_at", label: "Zaktualizowano", type: "datetime", readonly: true },
     ],
   },
   plan_request_workers: {
@@ -191,7 +251,7 @@ const TABLE_META: Record<string, TableMeta> = {
     columns: [
       { key: "id", label: "ID", type: "uuid", readonly: true },
       { key: "request_id", label: "Wniosek", type: "uuid" },
-      { key: "user_id", label: "Użytkownik", type: "uuid" },
+      { key: "worker_id", label: "Pracownik", type: "uuid" },
     ],
   },
   user_absences: {
@@ -234,6 +294,7 @@ const TABLE_META: Record<string, TableMeta> = {
       { key: "body", label: "Treść", type: "text" },
       { key: "type", label: "Typ", type: "text" },
       { key: "read", label: "Przeczytane", type: "boolean" },
+      { key: "data", label: "Dane", type: "json", hidden: true },
       { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
     ],
   },
@@ -271,10 +332,19 @@ const TABLE_META: Record<string, TableMeta> = {
     color: "#f97316",
     columns: [
       { key: "id", label: "ID", type: "uuid", readonly: true },
-      { key: "name", label: "Nazwa", type: "text" },
-      { key: "unit", label: "Jednostka", type: "text" },
-      { key: "price_per_unit", label: "Cena/jednostka", type: "number" },
-      { key: "company_id", label: "Firma", type: "uuid", readonly: true },
+      { key: "pozycja", label: "Pozycja", type: "text" },
+      { key: "art_nr", label: "Nr artykułu", type: "text" },
+      { key: "nazwa", label: "Nazwa", type: "text" },
+      { key: "ilosc", label: "Ilość", type: "number" },
+      { key: "dlugosc", label: "Długość", type: "text" },
+      { key: "szerokosc", label: "Szerokość", type: "text" },
+      { key: "wysokosc", label: "Wysokość", type: "text" },
+      { key: "waga", label: "Waga", type: "text" },
+      { key: "zamawiajacy", label: "Zamawiający", type: "text" },
+      { key: "data_zamowienia", label: "Data zamówienia", type: "date" },
+      { key: "data_dostawy", label: "Data dostawy", type: "date" },
+      { key: "min_stan", label: "Min. stan", type: "number" },
+      { key: "created_by", label: "Twórca", type: "uuid", readonly: true },
       { key: "created_at", label: "Utworzono", type: "datetime", readonly: true },
     ],
   },
@@ -597,7 +667,8 @@ export default function AdminDatabaseScreen() {
               onPress={() => {
                 setSelectedTable(table);
                 setSearch("");
-                setSortColumn("created_at");
+                const hasCreatedAt = tm.columns.some(c => c.key === "created_at");
+                setSortColumn(hasCreatedAt ? "created_at" : "id");
                 setSortAsc(false);
                 setShowTablePicker(false);
               }}
@@ -890,7 +961,8 @@ export default function AdminDatabaseScreen() {
                 onPress={() => {
                   setSelectedTable(table);
                   setSearch("");
-                  setSortColumn("created_at");
+                  const hasCreatedAt = tm.columns.some(c => c.key === "created_at");
+                  setSortColumn(hasCreatedAt ? "created_at" : "id");
                   setSortAsc(false);
                   setShowTablePicker(false);
                 }}

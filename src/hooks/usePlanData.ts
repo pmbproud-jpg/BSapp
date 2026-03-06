@@ -126,11 +126,12 @@ export function usePlanData(
     const vMap = new Map((freshVehicles || []).map((v: any) => [v.id, v]));
     setAssignments((asgn || []).map((a: any) => {
       const req = reqs.find((r: any) => r.id === a.request_id);
-      const vIds: string[] = Array.isArray(a.vehicle_ids) && a.vehicle_ids.length > 0
-        ? a.vehicle_ids
-        : a.vehicle_id ? [a.vehicle_id] : [];
-      const resolvedVehicles = vIds.map((vid: string) => vMap.get(vid)).filter(Boolean);
-      return { ...a, project: req?.project, worker: pMap.get(a.worker_id) || null, vehicle: resolvedVehicles[0] || null, vehicles: resolvedVehicles };
+      // Single vehicle per worker — take first from vehicle_ids or fallback to vehicle_id
+      const firstVid = (Array.isArray(a.vehicle_ids) && a.vehicle_ids.length > 0)
+        ? a.vehicle_ids[0]
+        : a.vehicle_id || null;
+      const resolvedVehicle = firstVid ? vMap.get(firstVid) || null : null;
+      return { ...a, project: req?.project, worker: pMap.get(a.worker_id) || null, vehicle: resolvedVehicle, vehicles: resolvedVehicle ? [resolvedVehicle] : [] };
     }));
   };
 
@@ -165,7 +166,11 @@ export function usePlanData(
 
   const dayCount = (dow: number) => assignments.filter((a) => a.day_of_week === dow).length;
   const dayAsgn = (dow: number) => assignments.filter((a) => a.day_of_week === dow);
-  const vUsage = (vid: string, dow: number) => assignments.filter((a) => a.vehicle_id === vid && a.day_of_week === dow).length;
+  const vUsage = (vid: string, dow: number) => assignments.filter((a) => {
+    if (a.day_of_week !== dow) return false;
+    if (Array.isArray(a.vehicle_ids) && a.vehicle_ids.length > 0) return a.vehicle_ids.includes(vid);
+    return a.vehicle_id === vid;
+  }).length;
 
   const getWorkersForProject = (projectId: string | null): any[] => {
     if (!projectId) return [];
@@ -248,10 +253,11 @@ export function usePlanData(
   const openEditAssign = (a: any) => {
     setEditingAssign(a);
     setAssignProject(a.project?.id || null);
-    const vIdsArr: string[] = Array.isArray(a.vehicle_ids) && a.vehicle_ids.length > 0
-      ? a.vehicle_ids
-      : a.vehicle_id ? [a.vehicle_id] : [];
-    setAssignVehicles(new Set(vIdsArr));
+    // Load only the first vehicle (single vehicle per worker)
+    const firstVid = (Array.isArray(a.vehicle_ids) && a.vehicle_ids.length > 0)
+      ? a.vehicle_ids[0]
+      : a.vehicle_id || null;
+    setAssignVehicles(firstVid ? new Set([firstVid]) : new Set());
     setAssignDeparture(a.departure_time?.slice(0, 5) || "06:00");
     setAssignStartTime(a.start_time?.slice(0, 5) || "06:00");
     setAssignEndTime(a.end_time?.slice(0, 5) || "16:00");

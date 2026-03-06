@@ -26,12 +26,13 @@ const ALLOWED_ORIGIN = "https://bsapp-management.netlify.app";
 
 // Tables that are allowed to be accessed via this proxy
 const ALLOWED_TABLES = new Set([
-  "profiles", "projects", "project_members", "tasks", "task_assignees",
-  "task_attachments", "project_attachments",
-  "vehicles", "plan_assignments", "plan_requests", "plan_request_workers",
-  "user_absences", "user_locations", "notifications", "company_settings",
-  "warehouse_items", "warehouse_materials", "project_material_orders",
-  "project_tool_orders", "attachment_folders", "project_plans", "plan_pins",
+  "companies", "profiles", "projects", "project_members", "tasks",
+  "task_comments", "task_assignees", "task_attachments", "project_attachments",
+  "automation_rules", "vehicles", "plan_assignments", "plan_requests",
+  "plan_request_workers", "user_absences", "user_locations", "notifications",
+  "company_settings", "warehouse_items", "warehouse_materials",
+  "project_material_orders", "project_tool_orders", "attachment_folders",
+  "project_plans", "plan_pins",
 ]);
 
 // DB actions that are allowed
@@ -51,7 +52,7 @@ const ALLOWED_STORAGE_ACTIONS = new Set([
 
 // Auth admin actions that are allowed
 const ALLOWED_AUTH_ACTIONS = new Set([
-  "createUser", "deleteUser", "generateLink",
+  "createUser", "deleteUser", "generateLink", "updateUser",
 ]);
 
 function getHeaders(origin) {
@@ -261,6 +262,17 @@ async function handleAuth(adminClient, body) {
         return { statusCode: 400, body: { error: "Missing userId" } };
       }
       const { data, error } = await adminClient.auth.admin.deleteUser(userId);
+      if (error) {
+        return { statusCode: 400, body: { error: error.message, details: error } };
+      }
+      return { statusCode: 200, body: { data } };
+    }
+    case "updateUser": {
+      const { userId, password } = params || {};
+      if (!userId || !password) {
+        return { statusCode: 400, body: { error: "Missing userId or password" } };
+      }
+      const { data, error } = await adminClient.auth.admin.updateUserById(userId, { password });
       if (error) {
         return { statusCode: 400, body: { error: error.message, details: error } };
       }

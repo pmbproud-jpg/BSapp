@@ -331,7 +331,10 @@ export default function PlanScreen() {
       return (a.full_name || "").localeCompare(b.full_name || "");
     });
     const toggleAV = (id: string) => {
-      setAssignVehicles((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+      setAssignVehicles((p) => {
+        if (p.has(id)) return new Set(); // deselect → no vehicle
+        return new Set([id]); // select → replace with single vehicle
+      });
     };
 
     return (

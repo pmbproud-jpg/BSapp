@@ -470,6 +470,89 @@ export function useUsersManagement(
     }
   };
 
+  const resetUserPassword = async (userId: string) => {
+    if (!defaultPassword) {
+      const msg = t("settings.no_default_pw", "Najpierw ustaw domyślne hasło w Admin → Hasła");
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+      return;
+    }
+
+    const doReset = async () => {
+      try {
+        const { error } = await supabaseAdmin.auth.admin.updateUser(userId, { password: defaultPassword });
+        if (error) throw error;
+        const msg = t("settings.reset_pw_success", "Hasło zostało zresetowane do domyślnego");
+        Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
+      } catch (error: any) {
+        console.error("Error resetting password:", error);
+        const msg = error?.message || t("common.error");
+        Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(t("settings.reset_pw_confirm", "Czy na pewno chcesz zresetować hasło tego użytkownika do domyślnego?"))) doReset();
+    } else {
+      Alert.alert(
+        t("settings.reset_password", "Reset hasła"),
+        t("settings.reset_pw_confirm", "Czy na pewno chcesz zresetować hasło tego użytkownika do domyślnego?"),
+        [
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("settings.reset_password", "Reset"), style: "destructive", onPress: doReset },
+        ],
+      );
+    }
+  };
+
+  const resetAllUsersPasswords = async (users: { id: string; role: string }[]) => {
+    if (!defaultPassword) {
+      const msg = t("settings.no_default_pw", "Najpierw ustaw domyślne hasło w Admin → Hasła");
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
+      return;
+    }
+
+    const nonAdmins = users.filter(u => u.role !== "admin");
+    if (nonAdmins.length === 0) {
+      const msg = t("settings.no_users_to_reset", "Brak użytkowników do zresetowania");
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.info", "Info"), msg);
+      return;
+    }
+
+    const doResetAll = async () => {
+      let success = 0;
+      let errors = 0;
+      for (const user of nonAdmins) {
+        try {
+          const { error } = await supabaseAdmin.auth.admin.updateUser(user.id, { password: defaultPassword });
+          if (error) throw error;
+          success++;
+        } catch {
+          errors++;
+        }
+      }
+      const msg = t("settings.reset_all_result", "Zresetowano: {{success}}, błędy: {{errors}}")
+        .replace("{{success}}", String(success))
+        .replace("{{errors}}", String(errors));
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
+    };
+
+    const confirmMsg = t("settings.reset_all_confirm", "Czy na pewno chcesz zresetować hasła {{count}} użytkowników? Administratorzy zostaną pominięci.")
+      .replace("{{count}}", String(nonAdmins.length));
+
+    if (Platform.OS === "web") {
+      if (window.confirm(confirmMsg)) doResetAll();
+    } else {
+      Alert.alert(
+        t("settings.reset_all_passwords", "Reset wszystkich haseł"),
+        confirmMsg,
+        [
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("settings.reset_password", "Reset"), style: "destructive", onPress: doResetAll },
+        ],
+      );
+    }
+  };
+
   return {
     // Add user
     showAddUser, setShowAddUser, addUserLoading, newUser, setNewUser, createUser,
@@ -480,6 +563,6 @@ export function useUsersManagement(
     showImport, setShowImport, importLoading, importPreview, setImportPreview, importFileName, setImportFileName,
     pickFileWeb, pickFileNative, importUsers,
     // Actions
-    sendInviteLink, deleteUser,
+    sendInviteLink, deleteUser, resetUserPassword, resetAllUsersPasswords,
   };
 }

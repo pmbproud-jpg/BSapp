@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BSapp - Installation / Instalacja / Installation</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #f0f2f5;
+    color: #333;
+  }
+  .card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 32px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+  }
+  .logo-header {
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .logo-header h1 {
+    font-size: 32px;
+    color: #1a1a1a;
+    letter-spacing: -0.5px;
+  }
+  .logo-header p {
+    color: #888;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  /* Language tabs */
+  .lang-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 20px 0 4px;
+  }
+  .lang-tab {
+    padding: 8px 20px;
+    border-radius: 10px;
+    border: 2px solid #e2e8f0;
+    background: #f8fafc;
+    font-weight: 700;
+    font-size: 14px;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .lang-tab:hover { border-color: #94a3b8; }
+  .lang-tab.active {
+    background: #2563eb;
+    color: #fff;
+    border-color: #2563eb;
+  }
+
+  /* Language sections */
+  .lang-section { display: none; }
+  .lang-section.active { display: block; }
+
+  .divider {
+    border: none;
+    border-top: 1px solid #e5e5e5;
+    margin: 24px 0;
+  }
+  h2 {
+    font-size: 18px;
+    color: #1a1a1a;
+    margin: 0 0 16px;
+  }
+
+  /* QR Section */
+  .qr-section {
+    text-align: center;
+    margin: 20px 0;
+  }
+  .qr-section img {
+    width: 220px;
+    height: 220px;
+    border: 3px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 8px;
+    background: #fff;
+  }
+  .qr-label {
+    font-size: 13px;
+    color: #888;
+    margin-top: 8px;
+  }
+
+  /* Steps */
+  .step {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 18px;
+    align-items: flex-start;
+  }
+  .step-number {
+    background: #2563eb;
+    color: #fff;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .step-content { flex: 1; padding-top: 3px; }
+  .step-content strong { display: block; margin-bottom: 3px; font-size: 15px; }
+  .step-content p { color: #555; font-size: 13px; line-height: 1.5; }
+
+  .download-btn {
+    display: block;
+    background: #2563eb;
+    color: #fff !important;
+    text-align: center;
+    padding: 14px 24px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 16px;
+    margin: 16px 0;
+    transition: background 0.2s;
+  }
+  .download-btn:hover { background: #1d4ed8; }
+
+  .credentials-box {
+    background: #f0f7ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 12px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .credentials-box h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    color: #1e40af;
+  }
+  .cred-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid #dbeafe;
+  }
+  .cred-row:last-child { border-bottom: none; }
+  .cred-label { font-size: 13px; color: #666; }
+  .cred-value {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-weight: 700;
+    font-size: 14px;
+    color: #1a1a1a;
+    background: #fff;
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1px solid #e5e5e5;
+  }
+
+  .warning-box {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 12px;
+    padding: 14px;
+    margin: 16px 0;
+    font-size: 13px;
+    color: #92400e;
+    line-height: 1.5;
+  }
+  .warning-box strong { color: #78350f; }
+
+  .web-link {
+    display: block;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    text-align: center;
+    padding: 12px;
+    border-radius: 12px;
+    text-decoration: none;
+    color: #2563eb;
+    font-weight: 700;
+    font-size: 15px;
+    margin: 10px 0;
+  }
+
+  .info-box {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    padding: 14px;
+    margin: 16px 0;
+    font-size: 13px;
+    color: #166534;
+    line-height: 1.5;
+  }
+
+  .footer {
+    text-align: center;
+    color: #aaa;
+    font-size: 11px;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo-header">
+    <h1>BSapp</h1>
+    <p>Building Solutions GmbH</p>
+  </div>
+
+  <!-- Language switcher -->
+  <div class="lang-tabs">
+    <div class="lang-tab active" onclick="switchLang('de')">DE</div>
+    <div class="lang-tab" onclick="switchLang('pl')">PL</div>
+    <div class="lang-tab" onclick="switchLang('en')">EN</div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================================ -->
+  <!-- QR Code — shared across all languages -->
+  <!-- ============================================================ -->
+  <div class="qr-section">
+    <img id="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=https://expo.dev/accounts/pmb.proud/projects/BSapp/builds/a475dd8a-d8e8-48c6-bd42-2e4983521600" alt="QR Code">
+    <div class="qr-label lang-section active" data-lang="de">QR-Code scannen oder Button klicken</div>
+    <div class="qr-label lang-section" data-lang="pl">Zeskanuj kod QR lub kliknij przycisk</div>
+    <div class="qr-label lang-section" data-lang="en">Scan QR code or click the button</div>
+  </div>
+
+  <a id="download-link" href="https://expo.dev/accounts/pmb.proud/projects/BSapp/builds/a475dd8a-d8e8-48c6-bd42-2e4983521600" class="download-btn">
+    <span style="font-size:20px; vertical-align:middle; margin-right:6px;">&#11015;</span>
+    <span class="lang-section active" data-lang="de" style="display:inline">BSapp herunterladen (Android)</span>
+    <span class="lang-section" data-lang="pl">Pobierz BSapp (Android)</span>
+    <span class="lang-section" data-lang="en">Download BSapp (Android)</span>
+  </a>
+
+  <hr class="divider">
+
+  <!-- ============================================================ -->
+  <!-- GERMAN -->
+  <!-- ============================================================ -->
+  <div class="lang-section active" data-lang="de">
+
+    <div class="credentials-box">
+      <h3>Ihre Anmeldedaten</h3>
+      <div class="cred-row">
+        <span class="cred-label">E-Mail:</span>
+        <span class="cred-value">[E-MAIL]</span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Passwort:</span>
+        <span class="cred-value">[PASSWORT]</span>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <strong>Wichtig:</strong> Bitte &auml;ndern Sie Ihr Passwort nach der ersten Anmeldung:
+      Einstellungen &rarr; Passwort &auml;ndern
+    </div>
+
+    <hr class="divider">
+    <h2>Installation auf Android</h2>
+
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <strong>App herunterladen</strong>
+        <p>Scannen Sie den QR-Code oben mit Ihrem Android-Handy oder klicken Sie auf den Button.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <strong>Installation erlauben</strong>
+        <p>Falls &bdquo;Unbekannte Quelle&ldquo; erscheint: <b>Einstellungen &rarr; Von dieser Quelle erlauben</b>.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <strong>Installieren &amp; &ouml;ffnen</strong>
+        <p>Tippen Sie auf die heruntergeladene Datei <b>BSapp.apk</b> und w&auml;hlen Sie &bdquo;Installieren&ldquo;.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">4</div>
+      <div class="step-content">
+        <strong>Anmelden</strong>
+        <p>Geben Sie Ihre E-Mail und das oben angegebene Passwort ein.</p>
+      </div>
+    </div>
+
+    <hr class="divider">
+    <h2>Web-Version</h2>
+    <p style="font-size:13px; color:#555; margin-bottom:10px;">Sie k&ouml;nnen die App auch im Browser nutzen:</p>
+    <a href="https://bsapp-management.netlify.app" class="web-link">bsapp-management.netlify.app</a>
+
+    <div class="info-box">
+      <strong>Probleme?</strong><br>
+      Kontaktieren Sie den Administrator oder antworten Sie auf diese E-Mail.
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- POLISH -->
+  <!-- ============================================================ -->
+  <div class="lang-section" data-lang="pl">
+
+    <div class="credentials-box">
+      <h3>Twoje dane logowania</h3>
+      <div class="cred-row">
+        <span class="cred-label">E-mail:</span>
+        <span class="cred-value">[E-MAIL]</span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Has&#322;o:</span>
+        <span class="cred-value">[HASLO]</span>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <strong>Wa&#380;ne:</strong> Po pierwszym zalogowaniu zmie&#324; has&#322;o:
+      Ustawienia &rarr; Zmiana has&#322;a
+    </div>
+
+    <hr class="divider">
+    <h2>Instalacja na Android</h2>
+
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <strong>Pobierz aplikacj&#281;</strong>
+        <p>Zeskanuj kod QR powy&#380;ej telefonem z Androidem lub kliknij przycisk.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <strong>Zezw&oacute;l na instalacj&#281;</strong>
+        <p>Je&#347;li pojawi si&#281; komunikat &bdquo;Nieznane &#378;r&oacute;d&#322;o&rdquo;: <b>Ustawienia &rarr; Zezwalaj z tego &#378;r&oacute;d&#322;a</b>.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <strong>Zainstaluj i otw&oacute;rz</strong>
+        <p>Kliknij pobrany plik <b>BSapp.apk</b> i wybierz &bdquo;Zainstaluj&rdquo;.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">4</div>
+      <div class="step-content">
+        <strong>Zaloguj si&#281;</strong>
+        <p>Wpisz sw&oacute;j e-mail i has&#322;o podane powy&#380;ej.</p>
+      </div>
+    </div>
+
+    <hr class="divider">
+    <h2>Wersja przegl&#261;darkowa</h2>
+    <p style="font-size:13px; color:#555; margin-bottom:10px;">Mo&#380;esz te&#380; korzysta&#263; z aplikacji w przegl&#261;darce:</p>
+    <a href="https://bsapp-management.netlify.app" class="web-link">bsapp-management.netlify.app</a>
+
+    <div class="info-box">
+      <strong>Problemy?</strong><br>
+      Skontaktuj si&#281; z administratorem lub odpowiedz na tego maila.
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- ENGLISH -->
+  <!-- ============================================================ -->
+  <div class="lang-section" data-lang="en">
+
+    <div class="credentials-box">
+      <h3>Your login credentials</h3>
+      <div class="cred-row">
+        <span class="cred-label">Email:</span>
+        <span class="cred-value">[EMAIL]</span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Password:</span>
+        <span class="cred-value">[PASSWORD]</span>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <strong>Important:</strong> Please change your password after first login:
+      Settings &rarr; Change password
+    </div>
+
+    <hr class="divider">
+    <h2>Android Installation</h2>
+
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <strong>Download the app</strong>
+        <p>Scan the QR code above with your Android phone or tap the button.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <strong>Allow installation</strong>
+        <p>If &ldquo;Unknown source&rdquo; appears: <b>Settings &rarr; Allow from this source</b>.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <strong>Install &amp; open</strong>
+        <p>Tap the downloaded <b>BSapp.apk</b> file and choose &ldquo;Install&rdquo;.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">4</div>
+      <div class="step-content">
+        <strong>Log in</strong>
+        <p>Enter your email and the password shown above.</p>
+      </div>
+    </div>
+
+    <hr class="divider">
+    <h2>Web Version</h2>
+    <p style="font-size:13px; color:#555; margin-bottom:10px;">You can also use the app in your browser:</p>
+    <a href="https://bsapp-management.netlify.app" class="web-link">bsapp-management.netlify.app</a>
+
+    <div class="info-box">
+      <strong>Need help?</strong><br>
+      Contact your administrator or reply to this email.
+    </div>
+  </div>
+
+  <div class="footer">
+    &copy; 2026 Building Solutions GmbH
+  </div>
+</div>
+
+<script>
+function switchLang(lang) {
+  // Update tabs
+  document.querySelectorAll('.lang-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.textContent.trim().toLowerCase() === lang);
+  });
+  // Update all lang sections
+  document.querySelectorAll('.lang-section').forEach(el => {
+    const elLang = el.getAttribute('data-lang');
+    if (el.tagName === 'SPAN') {
+      el.style.display = (elLang === lang) ? 'inline' : 'none';
+    } else {
+      el.classList.toggle('active', elLang === lang);
+    }
+  });
+}
+</script>
+</body>
+</html>

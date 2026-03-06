@@ -439,6 +439,14 @@ class AuthAdminApi {
     });
   }
 
+  async updateUser(userId: string, opts: { password: string }): Promise<{ data: any; error: any }> {
+    return callProxy({
+      type: "auth",
+      action: "updateUser",
+      params: { userId, password: opts.password },
+    });
+  }
+
   async generateLink(opts: {
     type: string;
     email: string;

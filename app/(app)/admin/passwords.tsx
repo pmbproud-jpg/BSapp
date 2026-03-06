@@ -1,5 +1,7 @@
 import { useCompany } from "@/src/providers/CompanyProvider";
+import { useAuth } from "@/src/providers/AuthProvider";
 import { useTheme } from "@/src/providers/ThemeProvider";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -13,12 +15,68 @@ function showMsg(title: string, msg: string) {
 export default function AdminPasswords() {
   const { t } = useTranslation();
   const { colors: tc } = useTheme();
+  const { profile } = useAuth();
   const { defaultPassword, updateDefaultPassword } = useCompany();
   const [editPw, setEditPw] = useState(defaultPassword || "");
   const [saving, setSaving] = useState(false);
   const [showPw, setShowPw] = useState(false);
+  const [resettingAll, setResettingAll] = useState(false);
 
   useEffect(() => { setEditPw(defaultPassword || ""); }, [defaultPassword]);
+
+  const resetAllPasswords = async () => {
+    if (!defaultPassword) return;
+
+    const doReset = async () => {
+      setResettingAll(true);
+      try {
+        // Fetch all non-admin users
+        const { data: users, error: fetchError } = await supabaseAdmin.from("profiles").select("id,role,full_name");
+        if (fetchError) throw fetchError;
+
+        const nonAdmins = (users || []).filter((u: any) => u.role !== "admin");
+        if (nonAdmins.length === 0) {
+          showMsg(t("common.info", "Info"), t("settings.no_users_to_reset", "Brak użytkowników do zresetowania"));
+          return;
+        }
+
+        let success = 0;
+        let errors = 0;
+        for (const user of nonAdmins) {
+          try {
+            const { error } = await supabaseAdmin.auth.admin.updateUser(user.id, { password: defaultPassword });
+            if (error) throw error;
+            success++;
+          } catch {
+            errors++;
+          }
+        }
+
+        const msg = `${t("settings.reset_all_result", "Zresetowano: {{success}}, błędy: {{errors}}")
+          .replace("{{success}}", String(success))
+          .replace("{{errors}}", String(errors))}`;
+        showMsg(t("common.success"), msg);
+      } catch (error: any) {
+        showMsg(t("common.error"), error?.message || t("common.error"));
+      } finally {
+        setResettingAll(false);
+      }
+    };
+
+    const confirmMsg = t("settings.reset_all_confirm", "Czy na pewno chcesz zresetować hasła wszystkich użytkowników? Administratorzy zostaną pominięci.");
+    if (Platform.OS === "web") {
+      if (window.confirm(confirmMsg)) doReset();
+    } else {
+      Alert.alert(
+        t("settings.reset_all_passwords", "Reset haseł"),
+        confirmMsg,
+        [
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("settings.reset_password", "Reset"), style: "destructive", onPress: doReset },
+        ],
+      );
+    }
+  };
 
   const save = async () => {
     if (editPw.length < 6) {
@@ -86,6 +144,50 @@ export default function AdminPasswords() {
             </View>
           )}
         </TouchableOpacity>
+
+        {/* Divider */}
+        <View style={{ height: 1, backgroundColor: tc.border, marginVertical: 28 }} />
+
+        {/* Reset all passwords section */}
+        <Text style={{ fontSize: 18, fontWeight: "700", color: tc.text, marginBottom: 12 }}>
+          {t("settings.reset_all_passwords", "Reset haseł wszystkich użytkowników")}
+        </Text>
+
+        <View style={{ backgroundColor: "#fef3c7", borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: "#fde68a" }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+            <Ionicons name="warning" size={18} color="#92400e" style={{ marginTop: 2 }} />
+            <Text style={{ fontSize: 13, color: "#92400e", lineHeight: 20, flex: 1 }}>
+              {t("settings.reset_all_info", "Ta operacja zresetuje hasła WSZYSTKICH użytkowników (oprócz Administratorów) do hasła domyślnego. Administratorzy zachowają swoje obecne hasła.")}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          onPress={resetAllPasswords}
+          disabled={resettingAll || !defaultPassword}
+          style={{
+            backgroundColor: defaultPassword ? "#dc2626" : "#9ca3af",
+            paddingVertical: 14,
+            borderRadius: 12,
+            alignItems: "center",
+            opacity: resettingAll ? 0.6 : 1,
+          }}
+        >
+          {resettingAll ? <ActivityIndicator color="#fff" /> : (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Ionicons name="refresh" size={18} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
+                {t("settings.reset_all_passwords", "Reset haseł wszystkich użytkowników")}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {!defaultPassword && (
+          <Text style={{ fontSize: 12, color: "#ef4444", marginTop: 8, textAlign: "center" }}>
+            {t("settings.no_default_pw", "Najpierw ustaw domyślne hasło powyżej")}
+          </Text>
+        )}
       </View>
     </ScrollView>
   );

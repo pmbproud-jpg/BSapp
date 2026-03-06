@@ -84,7 +84,7 @@ export default function UsersScreen() {
     createSubcontractor, renewAccess,
     showImport, setShowImport, importLoading, importPreview, setImportPreview, importFileName, setImportFileName,
     pickFileWeb, pickFileNative, importUsers,
-    sendInviteLink, deleteUser,
+    sendInviteLink, deleteUser, resetUserPassword,
   } = useUsersManagement(profile, t, fetchUsers, defaultPassword);
 
   const getRoleColor = (role: string) => {
@@ -196,6 +196,17 @@ export default function UsersScreen() {
               {t("users.send_invite") || "Link senden"}
             </Text>
           </TouchableOpacity>
+          {defaultPassword && item.role !== "admin" && (
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: "#fef3c7", borderColor: "#fde68a" }]}
+              onPress={(e) => { e.stopPropagation(); resetUserPassword(item.id); }}
+            >
+              <Ionicons name="refresh-outline" size={18} color="#92400e" />
+              <Text style={[styles.actionButtonText, { color: "#92400e" }]}>
+                {t("settings.reset_password", "Reset hasła")}
+              </Text>
+            </TouchableOpacity>
+          )}
           {canDeleteUser && (
             <TouchableOpacity
               style={[styles.actionButton, styles.deleteButton]}
