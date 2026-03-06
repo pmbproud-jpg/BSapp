@@ -1,5 +1,4 @@
-import { getRoleDefaults, RoleName, usePermissions } from "@/src/hooks/usePermissions";
-import { useSettingsPermissions } from "@/src/hooks/useSettingsPermissions";
+import { usePermissions } from "@/src/hooks/usePermissions";
 import { setLanguage, SupportedLanguage } from "@/src/i18n";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
@@ -8,15 +7,12 @@ import { useCompany } from "@/src/providers/CompanyProvider";
 import { ThemeMode, useTheme } from "@/src/providers/ThemeProvider";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
     Alert,
-    Image,
-    Modal,
     Platform,
     ScrollView,
     StyleSheet,
@@ -31,13 +27,7 @@ export default function SettingsScreen() {
   const { profile, signOut } = useAuth();
   const perms = usePermissions();
   const { colors, themeMode, setThemeMode, isDark } = useTheme();
-  const { companyName, logoUrl, defaultPassword, updateCompany, updateDefaultPassword } = useCompany();
-  const [editCompanyName, setEditCompanyName] = useState(companyName);
-  const [editLogoUrl, setEditLogoUrl] = useState(logoUrl || "");
-  const [companySaving, setCompanySaving] = useState(false);
-  const [editDefaultPassword, setEditDefaultPassword] = useState(defaultPassword || "");
-  const [defaultPwSaving, setDefaultPwSaving] = useState(false);
-  const [showDefaultPw, setShowDefaultPw] = useState(false);
+  const { companyName } = useCompany();
   // Password change (for all users)
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -49,79 +39,13 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
   const [twoFALoading, setTwoFALoading] = useState(false);
-  const [autoAssign, setAutoAssign] = useState(false);
-  const [autoReminders, setAutoReminders] = useState(false);
-  const [autoStatus, setAutoStatus] = useState(false);
 
   // GPS
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number; timestamp: string } | null>(null);
   const [gpsEnabled, setGpsEnabled] = useState(false);
 
-  // ─── Permissions hook ───
-  const {
-    allUsers, usersLoading, selectedUser, setSelectedUser,
-    fetchAllUsers,
-    showRoleModal, setShowRoleModal,
-    roleOptions, changeUserRole, getRoleColor,
-    showPermModal, setShowPermModal,
-    userPerms, setUserPerms, userRoleDefaults, setUserRoleDefaults,
-    userOverrides, setUserOverrides,
-    permSaving, permSearch, setPermSearch,
-    collapsedGroups, showRolePickerInPerm, setShowRolePickerInPerm,
-    permSortBy, setPermSortBy, permSortAsc, setPermSortAsc,
-    permissionGroups, permissionKeys,
-    loadUserPerms, saveUserPerms,
-    resetUserPermsToDefaults, isPermOverridden,
-    toggleGroupCollapse, overrideCount,
-  } = useSettingsPermissions(t);
-
   const currentLanguage = i18n.language;
-
-  // Sync company name/logo/password when provider data changes
-  useEffect(() => {
-    setEditCompanyName(companyName);
-    setEditLogoUrl(logoUrl || "");
-    setEditDefaultPassword(defaultPassword || "");
-  }, [companyName, logoUrl, defaultPassword]);
-
-  const saveCompanySettings = async () => {
-    if (!editCompanyName.trim()) {
-      const msg = t("settings.company_name_required", "Nazwa firmy jest wymagana");
-      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
-      return;
-    }
-    setCompanySaving(true);
-    try {
-      await updateCompany(editCompanyName.trim(), editLogoUrl.trim() || null);
-      const msg = t("settings.company_saved", "Dane firmy zapisane");
-      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-    } catch (e) {
-      const msg = t("settings.company_save_error", "Błąd zapisu danych firmy");
-      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
-    } finally {
-      setCompanySaving(false);
-    }
-  };
-
-  const saveDefaultPassword = async () => {
-    if (editDefaultPassword.length < 6) {
-      const msg = t("settings.default_pw_too_short", "Hasło musi mieć min. 6 znaków");
-      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
-      return;
-    }
-    setDefaultPwSaving(true);
-    try {
-      await updateDefaultPassword(editDefaultPassword);
-      const msg = t("settings.default_pw_saved", "Domyślne hasło zapisane");
-      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-    } catch {
-      const msg = t("settings.default_pw_error", "Błąd zapisu hasła");
-      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
-    } finally {
-      setDefaultPwSaving(false);
-    }
-  };
 
   const changePassword = async () => {
     if (newPassword.length < 8) {
@@ -161,61 +85,18 @@ export default function SettingsScreen() {
     }
   };
 
-  const pickCompanyLogo = async () => {
-    try {
-      if (Platform.OS !== "web") {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== "granted") {
-          Alert.alert(t("common.error"), t("settings.permission_required"));
-          return;
-        }
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, quality: 0.8, aspect: [1, 1] });
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        // Upload to Supabase storage
-        const fileName = `company_logo_${Date.now()}.jpg`;
-        const filePath = `company/${fileName}`;
-        let uploadError: any;
-        if (Platform.OS === "web") {
-          const response = await fetch(asset.uri);
-          const blob = await response.blob();
-          const { error } = await supabase.storage.from("attachments").upload(filePath, blob, { contentType: "image/jpeg", upsert: true });
-          uploadError = error;
-        } else {
-          const FileSystem = require("expo-file-system/legacy");
-          const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: "base64" });
-          const binaryStr = global.atob ? global.atob(base64) : base64;
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-          const { error } = await supabase.storage.from("attachments").upload(filePath, bytes.buffer, { contentType: "image/jpeg", upsert: true });
-          uploadError = error;
-        }
-        if (uploadError) {
-          console.error("Error uploading logo:", uploadError.message);
-          Platform.OS === "web" ? window.alert(t("common.error")) : Alert.alert(t("common.error"), uploadError.message);
-          return;
-        }
-        const { data: urlData, error: urlError } = await supabase.storage.from("attachments").createSignedUrl(filePath, 60 * 60 * 24 * 365 * 10);
-        if (urlError || !urlData?.signedUrl) {
-          console.error("Error creating signed URL:", urlError);
-          return;
-        }
-        setEditLogoUrl(urlData.signedUrl);
-      }
-    } catch (e) {
-      console.error("Error picking logo:", e);
-    }
-  };
-
   useEffect(() => {
-    loadAutomationSettings();
     loadGpsSettings();
   }, []);
 
-  useEffect(() => {
-    if (perms.canManagePermissions) fetchAllUsers();
-  }, [perms.canManagePermissions]);
+  const getRoleColor = (role: string) => {
+    const map: Record<string, string> = {
+      admin: "#ef4444", management: "#f59e0b", project_manager: "#3b82f6",
+      bauleiter: "#10b981", worker: "#64748b", office_worker: "#06b6d4",
+      logistics: "#f97316", purchasing: "#ec4899", warehouse_manager: "#7c3aed",
+    };
+    return map[role] || "#94a3b8";
+  };
 
   const loadGpsSettings = async () => {
     try {
@@ -296,35 +177,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const loadAutomationSettings = async () => {
-    try {
-      const stored = Platform.OS === "web"
-        ? window.localStorage.getItem("bsapp_automation")
-        : await AsyncStorage.getItem("bsapp_automation");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setAutoAssign(!!parsed.autoAssign);
-        setAutoReminders(!!parsed.autoReminders);
-        setAutoStatus(!!parsed.autoStatus);
-      }
-    } catch (e) { /* ignore */ }
-  };
-
-  const saveAutomationSetting = async (key: string, value: boolean) => {
-    const newState = { autoAssign, autoReminders, autoStatus, [key]: value };
-    if (key === "autoAssign") setAutoAssign(value);
-    if (key === "autoReminders") setAutoReminders(value);
-    if (key === "autoStatus") setAutoStatus(value);
-    try {
-      const json = JSON.stringify(newState);
-      if (Platform.OS === "web") {
-        window.localStorage.setItem("bsapp_automation", json);
-      } else {
-        await AsyncStorage.setItem("bsapp_automation", json);
-      }
-    } catch (e) { /* ignore */ }
-  };
-
   const languages = [
     { code: "de", name: "Deutsch", flag: "🇩🇪" },
     { code: "pl", name: "Polski", flag: "🇵🇱" },
@@ -378,96 +230,6 @@ export default function SettingsScreen() {
   return (
     <>
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Company Settings - admin/management only */}
-      {(profile?.role === "admin" || profile?.role === "management") && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("settings.company_section", "Firma")}</Text>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
-              <TouchableOpacity onPress={pickCompanyLogo} style={{ marginRight: 16 }}>
-                {editLogoUrl ? (
-                  <Image source={{ uri: editLogoUrl }} style={{ width: 64, height: 64, borderRadius: 12, borderWidth: 1, borderColor: colors.border }} resizeMode="contain" />
-                ) : (
-                  <View style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: colors.primaryLight, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: colors.border }}>
-                    <Ionicons name="camera" size={24} color={colors.primary} />
-                  </View>
-                )}
-              </TouchableOpacity>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 4 }}>{t("settings.company_logo", "Logo firmy")}</Text>
-                <TouchableOpacity onPress={pickCompanyLogo}>
-                  <Text style={{ fontSize: 13, color: colors.primary, fontWeight: "600" }}>{t("settings.change_logo", "Zmień logo")}</Text>
-                </TouchableOpacity>
-                {editLogoUrl ? (
-                  <TouchableOpacity onPress={() => setEditLogoUrl("")} style={{ marginTop: 4 }}>
-                    <Text style={{ fontSize: 12, color: "#ef4444" }}>{t("settings.remove_logo", "Usuń logo")}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            </View>
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>{t("settings.company_name", "Nazwa firmy")}</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={editCompanyName}
-                onChangeText={setEditCompanyName}
-                placeholder={t("settings.company_name_placeholder", "Wpisz nazwę firmy...")}
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <TouchableOpacity
-              style={[styles.saveButton, companySaving && styles.saveButtonDisabled]}
-              onPress={saveCompanySettings}
-              disabled={companySaving}
-            >
-              <Text style={styles.saveButtonText}>
-                {companySaving ? t("common.loading") : t("common.save")}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Default password for new users */}
-            <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                <Ionicons name="key-outline" size={16} color={colors.primary} />
-                <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 0 }]}>
-                  {t("settings.default_password", "Domyślne hasło dla nowych użytkowników")}
-                </Text>
-              </View>
-              <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 8 }}>
-                {t("settings.default_pw_hint", "To hasło zostanie ustawione przy tworzeniu nowych kont. Użytkownicy mogą je zmienić po zalogowaniu.")}
-              </Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <View style={{ flex: 1, position: "relative" }}>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text, paddingRight: 44 }]}
-                    value={editDefaultPassword}
-                    onChangeText={setEditDefaultPassword}
-                    placeholder={t("settings.default_pw_placeholder", "Min. 6 znaków...")}
-                    placeholderTextColor={colors.textMuted}
-                    secureTextEntry={!showDefaultPw}
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowDefaultPw(!showDefaultPw)}
-                    style={{ position: "absolute", right: 10, top: 0, bottom: 0, justifyContent: "center" }}
-                  >
-                    <Ionicons name={showDefaultPw ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textMuted} />
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity
-                  style={[styles.saveButton, { flex: 0, paddingHorizontal: 16 }, defaultPwSaving && styles.saveButtonDisabled]}
-                  onPress={saveDefaultPassword}
-                  disabled={defaultPwSaving}
-                >
-                  <Text style={styles.saveButtonText}>
-                    {defaultPwSaving ? "..." : t("common.save")}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </View>
-      )}
-
       {/* Change Password - for all users */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
@@ -735,165 +497,6 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* Automation - Admin only */}
-      {perms.canManagePermissions && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("settings.automation")}</Text>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.autoItem}>
-              <Ionicons name="flash" size={20} color="#f59e0b" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.autoTitle, { color: colors.text }]}>{t("settings.auto_assign")}</Text>
-                <Text style={[styles.autoDesc, { color: colors.textMuted }]}>{t("settings.auto_assign_desc")}</Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.twoFAToggle, autoAssign && styles.twoFAToggleActive]}
-                onPress={() => saveAutomationSetting("autoAssign", !autoAssign)}
-              >
-                <View style={[styles.twoFAToggleKnob, autoAssign && styles.twoFAToggleKnobActive]} />
-              </TouchableOpacity>
-            </View>
-            <View style={[styles.autoDivider, { backgroundColor: colors.borderLight }]} />
-            <View style={styles.autoItem}>
-              <Ionicons name="notifications" size={20} color="#3b82f6" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.autoTitle, { color: colors.text }]}>{t("settings.auto_reminders")}</Text>
-                <Text style={[styles.autoDesc, { color: colors.textMuted }]}>{t("settings.auto_reminders_desc")}</Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.twoFAToggle, autoReminders && styles.twoFAToggleActive]}
-                onPress={() => saveAutomationSetting("autoReminders", !autoReminders)}
-              >
-                <View style={[styles.twoFAToggleKnob, autoReminders && styles.twoFAToggleKnobActive]} />
-              </TouchableOpacity>
-            </View>
-            <View style={[styles.autoDivider, { backgroundColor: colors.borderLight }]} />
-            <View style={styles.autoItem}>
-              <Ionicons name="sync" size={20} color="#10b981" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.autoTitle, { color: colors.text }]}>{t("settings.auto_status")}</Text>
-                <Text style={[styles.autoDesc, { color: colors.textMuted }]}>{t("settings.auto_status_desc")}</Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.twoFAToggle, autoStatus && styles.twoFAToggleActive]}
-                onPress={() => saveAutomationSetting("autoStatus", !autoStatus)}
-              >
-                <View style={[styles.twoFAToggleKnob, autoStatus && styles.twoFAToggleKnobActive]} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Admin: Permission Matrix */}
-      {perms.canManagePermissions && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("permissions.permissions_matrix")}</Text>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.permMatrix}>
-              {roleOptions.map((role) => (
-                <View key={role.value} style={styles.permMatrixRow}>
-                  <View style={styles.permMatrixRole}>
-                    <Ionicons name={role.icon as any} size={16} color={role.color} />
-                    <Text style={[styles.permMatrixRoleName, { color: role.color }]}>{role.label}</Text>
-                  </View>
-                  <View style={styles.permMatrixPerms}>
-                    {role.value === "admin" && <Text style={styles.permTag}>ALL</Text>}
-                    {role.value === "management" && <Text style={styles.permTag}>R/W/D*</Text>}
-                    {(role.value === "project_manager" || role.value === "bauleiter") && <Text style={styles.permTag}>R/W</Text>}
-                    {role.value === "worker" && <Text style={styles.permTag}>R</Text>}
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Admin: Indywidualne uprawnienia — z wyszukiwaniem i sortowaniem */}
-      {perms.canManagePermissions && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-            {t("settings.individual_permissions") || "Individuelle Berechtigungen"}
-          </Text>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {/* Search */}
-            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.inputBg || "#f1f5f9", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
-              <Ionicons name="search" size={16} color={colors.textMuted} />
-              <TextInput
-                style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colors.text }}
-                value={permSearch}
-                onChangeText={setPermSearch}
-                placeholder={t("users.search_placeholder") || "Nach Name suchen..."}
-                placeholderTextColor={colors.textMuted}
-              />
-              {permSearch.length > 0 && (
-                <TouchableOpacity onPress={() => setPermSearch("")}>
-                  <Ionicons name="close-circle" size={16} color={colors.textMuted} />
-                </TouchableOpacity>
-              )}
-            </View>
-            {/* Sort */}
-            <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
-              <TouchableOpacity
-                style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: permSortBy === "name" ? `${colors.primary}15` : "transparent", borderWidth: 1, borderColor: permSortBy === "name" ? colors.primary : (colors.border || "#e2e8f0") }}
-                onPress={() => { if (permSortBy === "name") setPermSortAsc(!permSortAsc); else { setPermSortBy("name"); setPermSortAsc(true); } }}
-              >
-                <Ionicons name="text" size={12} color={permSortBy === "name" ? colors.primary : colors.textMuted} />
-                <Text style={{ fontSize: 11, fontWeight: "600", color: permSortBy === "name" ? colors.primary : colors.textMuted }}>{t("users.full_name") || "Name"}</Text>
-                {permSortBy === "name" && <Ionicons name={permSortAsc ? "arrow-up" : "arrow-down"} size={10} color={colors.primary} />}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: permSortBy === "role" ? `${colors.primary}15` : "transparent", borderWidth: 1, borderColor: permSortBy === "role" ? colors.primary : (colors.border || "#e2e8f0") }}
-                onPress={() => { if (permSortBy === "role") setPermSortAsc(!permSortAsc); else { setPermSortBy("role"); setPermSortAsc(true); } }}
-              >
-                <Ionicons name="shield" size={12} color={permSortBy === "role" ? colors.primary : colors.textMuted} />
-                <Text style={{ fontSize: 11, fontWeight: "600", color: permSortBy === "role" ? colors.primary : colors.textMuted }}>{t("users.role") || "Funktion"}</Text>
-                {permSortBy === "role" && <Ionicons name={permSortAsc ? "arrow-up" : "arrow-down"} size={10} color={colors.primary} />}
-              </TouchableOpacity>
-            </View>
-            {usersLoading ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <View>
-                {allUsers
-                  .filter((u) => u.id !== profile?.id)
-                  .filter((u) => {
-                    if (!permSearch.trim()) return true;
-                    const q = permSearch.toLowerCase();
-                    return (u.full_name || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q) || t(`common.roles.${u.role}`).toLowerCase().includes(q);
-                  })
-                  .sort((a, b) => {
-                    let cmp = 0;
-                    if (permSortBy === "name") cmp = (a.full_name || "").localeCompare(b.full_name || "");
-                    else cmp = (a.role || "").localeCompare(b.role || "");
-                    return permSortAsc ? cmp : -cmp;
-                  })
-                  .map((user) => (
-                  <TouchableOpacity
-                    key={user.id}
-                    style={[styles.permUserRow, { borderBottomColor: colors.borderLight }]}
-                    onPress={() => {
-                      setSelectedUser(user);
-                      loadUserPerms(user.id);
-                      setShowPermModal(true);
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.permUserName, { color: colors.text }]}>{user.full_name || user.email}</Text>
-                      <Text style={[styles.permUserEmail, { color: colors.textMuted }]}>
-                        {t(`common.roles.${user.role}`)}
-                      </Text>
-                    </View>
-                    <Ionicons name="settings-outline" size={20} color={colors.textMuted} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-        </View>
-      )}
-
       {/* GPS Location — only Admin/Zarząd */}
       {perms.canManageGPS && (
       <View style={styles.section}>
@@ -985,248 +588,6 @@ export default function SettingsScreen() {
         <Text style={[styles.footerText, { color: colors.textMuted }]}>{companyName}</Text>
       </View>
     </ScrollView>
-
-    {/* Modal: Zmiana funkcji */}
-    {Platform.OS === "web" ? (
-      showRoleModal && (
-        <View style={[styles.modalOverlay, { position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }]}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {t("settings.change_role_for") || "Zmień funkcję dla"}: {selectedUser?.full_name}
-              </Text>
-              <TouchableOpacity onPress={() => setShowRoleModal(false)}>
-                <Ionicons name="close" size={24} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-            {roleOptions.map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[
-                  styles.roleOption,
-                  selectedUser?.role === opt.value && styles.roleOptionActive,
-                ]}
-                onPress={() => selectedUser && changeUserRole(selectedUser.id, opt.value)}
-              >
-                <Ionicons name={opt.icon as any} size={22} color={opt.color} />
-                <Text style={[styles.roleOptionLabel, { color: colors.text }]}>{opt.label}</Text>
-                {selectedUser?.role === opt.value && (
-                  <Ionicons name="checkmark-circle" size={22} color={opt.color} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )
-    ) : (
-      <Modal visible={showRoleModal} transparent animationType="fade" onRequestClose={() => setShowRoleModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {t("settings.change_role_for") || "Zmień funkcję dla"}: {selectedUser?.full_name}
-              </Text>
-              <TouchableOpacity onPress={() => setShowRoleModal(false)}>
-                <Ionicons name="close" size={24} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-            {roleOptions.map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[
-                  styles.roleOption,
-                  selectedUser?.role === opt.value && styles.roleOptionActive,
-                ]}
-                onPress={() => selectedUser && changeUserRole(selectedUser.id, opt.value)}
-              >
-                <Ionicons name={opt.icon as any} size={22} color={opt.color} />
-                <Text style={[styles.roleOptionLabel, { color: colors.text }]}>{opt.label}</Text>
-                {selectedUser?.role === opt.value && (
-                  <Ionicons name="checkmark-circle" size={22} color={opt.color} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </Modal>
-    )}
-
-    {/* Modal: Indywidualne uprawnienia — zgrupowane */}
-    {(() => {
-      const permModalContent = (
-        <View style={[styles.modalContent, { backgroundColor: colors.card, maxHeight: "90%", maxWidth: 520, width: "100%" }]}>
-          {/* Header */}
-          <View style={styles.modalHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {selectedUser?.full_name}
-              </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
-                <TouchableOpacity
-                  onPress={() => setShowRolePickerInPerm(!showRolePickerInPerm)}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: `${getRoleColor(selectedUser?.role || "worker")}15`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}
-                >
-                  <Ionicons name={roleOptions.find(r => r.value === selectedUser?.role)?.icon as any || "person"} size={14} color={getRoleColor(selectedUser?.role || "worker")} />
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: getRoleColor(selectedUser?.role || "worker") }}>
-                    {t(`common.roles.${selectedUser?.role || "worker"}`)}
-                  </Text>
-                  <Ionicons name={showRolePickerInPerm ? "chevron-up" : "chevron-down"} size={12} color={getRoleColor(selectedUser?.role || "worker")} />
-                </TouchableOpacity>
-                {overrideCount > 0 && (
-                  <View style={{ backgroundColor: "#f59e0b", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#fff" }}>
-                      {overrideCount} {t("settings.overrides", "zmian")}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-            <TouchableOpacity onPress={() => { setShowPermModal(false); setShowRolePickerInPerm(false); }}>
-              <Ionicons name="close" size={24} color={colors.textMuted} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Role picker inline */}
-          {showRolePickerInPerm && (
-            <View style={{ marginBottom: 12, padding: 8, backgroundColor: colors.surfaceVariant, borderRadius: 10 }}>
-              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted, marginBottom: 6, textTransform: "uppercase" }}>
-                {t("settings.change_role", "Zmie\u0144 funkcj\u0119")}
-              </Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {roleOptions.map((opt) => (
-                  <TouchableOpacity
-                    key={opt.value}
-                    onPress={async () => {
-                      if (selectedUser && opt.value !== selectedUser.role) {
-                        await changeUserRole(selectedUser.id, opt.value);
-                        setSelectedUser({ ...selectedUser, role: opt.value });
-                        const newDefaults = getRoleDefaults(opt.value as RoleName);
-                        setUserRoleDefaults(newDefaults);
-                        setUserPerms({ ...newDefaults });
-                        setUserOverrides(null);
-                      }
-                      setShowRolePickerInPerm(false);
-                    }}
-                    style={{
-                      flexDirection: "row", alignItems: "center", gap: 4,
-                      paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
-                      backgroundColor: selectedUser?.role === opt.value ? `${opt.color}20` : colors.card,
-                      borderWidth: 1, borderColor: selectedUser?.role === opt.value ? opt.color : colors.border,
-                    }}
-                  >
-                    <Ionicons name={opt.icon as any} size={14} color={opt.color} />
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: selectedUser?.role === opt.value ? opt.color : colors.text }}>{opt.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Action buttons: Reset */}
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
-            <TouchableOpacity
-              onPress={resetUserPermsToDefaults}
-              style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: overrideCount > 0 ? "#fef3c720" : "transparent", borderWidth: 1, borderColor: overrideCount > 0 ? "#f59e0b" : colors.border }}
-            >
-              <Ionicons name="refresh" size={14} color={overrideCount > 0 ? "#f59e0b" : colors.textMuted} />
-              <Text style={{ fontSize: 12, fontWeight: "600", color: overrideCount > 0 ? "#f59e0b" : colors.textMuted }}>
-                {t("settings.reset_to_defaults", "Reset do domy\u015blnych")}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Grouped permissions */}
-          <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator>
-            {permissionGroups.map((group) => {
-              const isCollapsed = collapsedGroups.has(group.title);
-              const groupOverrides = group.perms.filter(p => userPerms[p.key] !== userRoleDefaults[p.key]).length;
-              const groupEnabled = group.perms.filter(p => userPerms[p.key]).length;
-
-              return (
-                <View key={group.title} style={{ marginBottom: 4 }}>
-                  {/* Group header */}
-                  <TouchableOpacity
-                    onPress={() => toggleGroupCollapse(group.title)}
-                    style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 8, backgroundColor: `${group.color}08`, borderRadius: 8, marginBottom: isCollapsed ? 0 : 2 }}
-                  >
-                    <Ionicons name={group.icon as any} size={16} color={group.color} />
-                    <Text style={{ flex: 1, fontSize: 13, fontWeight: "700", color: group.color, marginLeft: 8 }}>
-                      {group.title}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: colors.textMuted, marginRight: 6 }}>
-                      {groupEnabled}/{group.perms.length}
-                    </Text>
-                    {groupOverrides > 0 && (
-                      <View style={{ backgroundColor: "#f59e0b", width: 6, height: 6, borderRadius: 3, marginRight: 6 }} />
-                    )}
-                    <Ionicons name={isCollapsed ? "chevron-down" : "chevron-up"} size={16} color={colors.textMuted} />
-                  </TouchableOpacity>
-
-                  {/* Group permissions */}
-                  {!isCollapsed && group.perms.map((perm) => {
-                    const isOn = !!userPerms[perm.key];
-                    const isDefault = userRoleDefaults[perm.key];
-                    const isChanged = isOn !== isDefault;
-
-                    return (
-                      <View key={perm.key} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight }}>
-                        <View style={{ flex: 1, marginRight: 12 }}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <Text style={{ fontSize: 13, fontWeight: "500", color: colors.text }}>{perm.label}</Text>
-                            {isChanged && (
-                              <View style={{ backgroundColor: "#f59e0b", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
-                                <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff" }}>
-                                  {t("settings.custom", "ZMIENIONE")}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                          <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>
-                            {t("settings.default_for_role", "Domy\u015blnie")}: {isDefault ? t("common.yes", "Tak") : t("common.no", "Nie")}
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          style={[styles.twoFAToggle, isOn && styles.twoFAToggleActive, isChanged && { borderWidth: 2, borderColor: "#f59e0b" }]}
-                          onPress={() => setUserPerms((prev) => ({ ...prev, [perm.key]: !prev[perm.key] }))}
-                        >
-                          <View style={[styles.twoFAToggleKnob, isOn && styles.twoFAToggleKnobActive]} />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-                </View>
-              );
-            })}
-          </ScrollView>
-
-          {/* Save button */}
-          <TouchableOpacity
-            style={[styles.saveButton, permSaving && styles.saveButtonDisabled, { marginTop: 16 }]}
-            onPress={saveUserPerms}
-            disabled={permSaving}
-          >
-            <Text style={styles.saveButtonText}>
-              {permSaving ? t("common.loading", "Wird geladen...") : t("common.save", "Speichern")}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      );
-
-      return Platform.OS === "web" ? (
-        showPermModal && (
-          <View style={[styles.modalOverlay, { position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }]}>
-            {permModalContent}
-          </View>
-        )
-      ) : (
-        <Modal visible={showPermModal} transparent animationType="fade" onRequestClose={() => { setShowPermModal(false); setShowRolePickerInPerm(false); }}>
-          <View style={styles.modalOverlay}>
-            {permModalContent}
-          </View>
-        </Modal>
-      );
-    })()}
-
     </>
   );
 }

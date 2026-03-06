@@ -202,6 +202,16 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
+        name="admin"
+        options={{
+          title: "Admin",
+          href: (perms.isAdmin || perms.isManagement) ? ("/(app)/admin" as any) : null,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="shield-checkmark" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: t("navigation.settings"),
