@@ -7,7 +7,7 @@ import { useCompany } from "@/src/providers/CompanyProvider";
 import { openLink } from "@/src/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
@@ -226,6 +226,26 @@ export default function UsersScreen() {
 
   const subcontractors = users.filter((u) => u.role === "subcontractor");
   const regularUsers = users.filter((u) => u.role !== "subcontractor");
+
+  const filteredUsers = useMemo(() => {
+    return regularUsers
+      .filter((u) => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (u.full_name || "").toLowerCase().includes(q) ||
+          (u.email || "").toLowerCase().includes(q) ||
+          t(`common.roles.${u.role}`).toLowerCase().includes(q);
+      })
+      .sort((a, b) => {
+        let cmp = 0;
+        if (sortBy === "name") {
+          cmp = (a.full_name || "").localeCompare(b.full_name || "");
+        } else {
+          cmp = (a.role || "").localeCompare(b.role || "");
+        }
+        return sortAsc ? cmp : -cmp;
+      });
+  }, [regularUsers, searchQuery, sortBy, sortAsc, t]);
 
   const isExpired = (expiresAt: string | null) => {
     if (!expiresAt) return false;
@@ -602,26 +622,12 @@ export default function UsersScreen() {
               </View>
             </View>
             <FlatList
-              data={regularUsers
-                .filter((u) => {
-                  if (!searchQuery.trim()) return true;
-                  const q = searchQuery.toLowerCase();
-                  return (u.full_name || "").toLowerCase().includes(q) ||
-                    (u.email || "").toLowerCase().includes(q) ||
-                    t(`common.roles.${u.role}`).toLowerCase().includes(q);
-                })
-                .sort((a, b) => {
-                  let cmp = 0;
-                  if (sortBy === "name") {
-                    cmp = (a.full_name || "").localeCompare(b.full_name || "");
-                  } else {
-                    cmp = (a.role || "").localeCompare(b.role || "");
-                  }
-                  return sortAsc ? cmp : -cmp;
-                })}
+              data={filteredUsers}
               renderItem={renderUser}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContainer}
+              keyboardShouldPersistTaps="handled"
+              removeClippedSubviews={false}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
@@ -974,6 +980,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#1e293b",
     paddingVertical: 0,
+    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
   },
   sortRow: {
     flexDirection: "row",

@@ -13,6 +13,11 @@
   # NIE dodawać go tutaj — byłby wbudowany w bundle frontendowy!
 
 [[redirects]]
+  from = "/docs/*"
+  to = "/docs/:splat"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
