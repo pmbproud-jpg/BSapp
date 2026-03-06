@@ -235,11 +235,11 @@ export default function UsersScreen() {
     );
   }
 
-  const subcontractors = users.filter((u) => u.role === "subcontractor");
-  const regularUsers = users.filter((u) => u.role !== "subcontractor");
+  const subcontractors = useMemo(() => users.filter((u) => u.role === "subcontractor"), [users]);
 
   const filteredUsers = useMemo(() => {
-    return regularUsers
+    return users
+      .filter((u) => u.role !== "subcontractor")
       .filter((u) => {
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase();
@@ -256,7 +256,7 @@ export default function UsersScreen() {
         }
         return sortAsc ? cmp : -cmp;
       });
-  }, [regularUsers, searchQuery, sortBy, sortAsc, t]);
+  }, [users, searchQuery, sortBy, sortAsc, t]);
 
   const isExpired = (expiresAt: string | null) => {
     if (!expiresAt) return false;
@@ -325,7 +325,7 @@ export default function UsersScreen() {
             >
               <Ionicons name="people" size={18} color={activeTab === "users" ? "#2563eb" : "#64748b"} />
               <Text style={[styles.tabBtnText, activeTab === "users" && styles.tabBtnTextActive]}>
-                {t("users.title") || "Benutzer"} ({regularUsers.length})
+                {t("users.title") || "Benutzer"} ({filteredUsers.length})
               </Text>
             </TouchableOpacity>
           )}
@@ -590,7 +590,7 @@ export default function UsersScreen() {
         </ScrollView>
       ) : (
         <>
-          {regularUsers.length === 0 ? (
+          {filteredUsers.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="people-outline" size={64} color="#cbd5e1" />
               <Text style={styles.emptyText}>{t("users.empty")}</Text>
