@@ -18,11 +18,11 @@ const SUPABASE_URL = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABAS
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 // Service Role Key MUSI być ustawiony w Netlify env variables (bez prefiksu EXPO_PUBLIC_)
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
 if (!SUPABASE_SERVICE_ROLE_KEY) {
   console.error("FATAL: SUPABASE_SERVICE_ROLE_KEY is not set in environment variables");
 }
-const ALLOWED_ORIGIN = "https://bsapp-management.netlify.app";
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://bsapp-management.netlify.app";
 
 // Tables that are allowed to be accessed via this proxy
 const ALLOWED_TABLES = new Set([
@@ -33,6 +33,7 @@ const ALLOWED_TABLES = new Set([
   "company_settings", "warehouse_items", "warehouse_materials",
   "project_material_orders", "project_tool_orders", "attachment_folders",
   "project_plans", "plan_pins",
+  "daily_reports", "project_checklists", "project_obstructions", "project_deadlines",
 ]);
 
 // DB actions that are allowed
@@ -54,6 +55,72 @@ const ALLOWED_STORAGE_ACTIONS = new Set([
 const ALLOWED_AUTH_ACTIONS = new Set([
   "createUser", "deleteUser", "generateLink", "updateUser",
 ]);
+
+// ─── Role-based permission rules (server-side enforcement) ───
+// Maps sensitive operations to required roles.
+// Operations not listed here are allowed for all authenticated users.
+const ADMIN_ONLY_ROLES = new Set(["admin"]);
+const ADMIN_MGMT_ROLES = new Set(["admin", "management"]);
+const WRITE_ROLES = new Set(["admin", "management", "project_manager", "bauleiter", "logistics", "purchasing", "warehouse_manager"]);
+
+function checkPermission(userRole, opType, body) {
+  // Auth operations: admin/management only
+  if (opType === "auth") {
+    if (!ADMIN_MGMT_ROLES.has(userRole)) {
+      return { allowed: false, error: "Insufficient permissions for auth operations" };
+    }
+    // deleteUser: admin only
+    if (body.action === "deleteUser" && !ADMIN_ONLY_ROLES.has(userRole)) {
+      return { allowed: false, error: "Only admin can delete users" };
+    }
+    return { allowed: true };
+  }
+
+  // DB operations
+  if (opType === "db") {
+    const { table, action } = body;
+
+    // DELETE on any table: admin/management only (except plan_* tables for logistics)
+    if (action === "delete") {
+      const planTables = new Set(["plan_assignments", "plan_request_workers", "plan_requests"]);
+      if (planTables.has(table) && new Set([...ADMIN_MGMT_ROLES, "logistics"]).has(userRole)) {
+        return { allowed: true };
+      }
+      if (!ADMIN_MGMT_ROLES.has(userRole) && userRole !== "project_manager") {
+        return { allowed: false, error: `Role '${userRole}' cannot delete from '${table}'` };
+      }
+    }
+
+    // Profiles table: update restricted to admin/management
+    if (table === "profiles" && (action === "update" || action === "upsert")) {
+      if (!ADMIN_MGMT_ROLES.has(userRole)) {
+        return { allowed: false, error: "Only admin/management can modify profiles" };
+      }
+    }
+
+    // Company settings: admin/management only
+    if (table === "company_settings" && action !== "select") {
+      if (!ADMIN_MGMT_ROLES.has(userRole)) {
+        return { allowed: false, error: "Only admin/management can modify company settings" };
+      }
+    }
+
+    // Write operations need at least a write role
+    if ((action === "insert" || action === "update" || action === "upsert") && !WRITE_ROLES.has(userRole)) {
+      // Workers can insert task_comments, task_attachments, project_attachments, notifications
+      const workerWriteTables = new Set(["task_comments", "task_attachments", "project_attachments", "notifications"]);
+      if (userRole === "worker" && workerWriteTables.has(table)) {
+        return { allowed: true };
+      }
+      // Office workers: read only
+      if (userRole === "office_worker" || userRole === "subcontractor") {
+        return { allowed: false, error: `Role '${userRole}' has read-only access` };
+      }
+    }
+  }
+
+  return { allowed: true };
+}
 
 function getHeaders(origin) {
   return {
@@ -272,8 +339,10 @@ async function handleAuth(adminClient, body) {
       if (!userId || !password) {
         return { statusCode: 400, body: { error: "Missing userId or password" } };
       }
-      const { data, error } = await adminClient.auth.admin.updateUserById(userId, { password });
+      const trimmedPassword = String(password).trim();
+      const { data, error } = await adminClient.auth.admin.updateUserById(userId, { password: trimmedPassword });
       if (error) {
+        console.error(`[updateUser] ERROR:`, error.message);
         return { statusCode: 400, body: { error: error.message, details: error } };
       }
       return { statusCode: 200, body: { data } };
@@ -340,6 +409,20 @@ exports.handler = async (event) => {
     // Parse request
     const body = JSON.parse(event.body || "{}");
     const opType = body.type || "db"; // default to "db" for backward compat
+
+    // Fetch user role for permission checks
+    const { data: profileData } = await adminClient
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const userRole = profileData?.role || "worker";
+
+    // Server-side permission check
+    const permCheck = checkPermission(userRole, opType, body);
+    if (!permCheck.allowed) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: permCheck.error }) };
+    }
 
     let result;
     switch (opType) {

@@ -30,6 +30,10 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import ProjectChecklist from "@/components/ProjectChecklist";
+import ProjectDailyReports from "@/components/ProjectDailyReports";
+import ProjectDeadlines from "@/components/ProjectDeadlines";
+import ProjectObstructions from "@/components/ProjectObstructions";
 import ProjectPlans from "../components/ProjectPlans";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
@@ -112,7 +116,7 @@ export default function ProjectDetailsScreen() {
   } = planWorkersHook;
 
   // ─── Local UI state ───
-  const [activeTab, setActiveTab] = useState<"tasks" | "members" | "history" | "orders" | "plans">(
+  const [activeTab, setActiveTab] = useState<"tasks" | "members" | "history" | "orders" | "plans" | "diary" | "checklist" | "obstructions" | "deadlines">(
     tab === "plans" ? "plans" : "tasks"
   );
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
@@ -333,14 +337,14 @@ export default function ProjectDetailsScreen() {
               {pmName ? (
                 <View style={styles.pmBlItem}>
                   <Ionicons name="person" size={16} color="#3b82f6" />
-                  <Text style={styles.pmBlLabel}>PM:</Text>
+                  <Text style={styles.pmBlLabel}>{t("projects.pm_label")}:</Text>
                   <Text style={styles.pmBlValue}>{pmName}</Text>
                 </View>
               ) : null}
               {blName ? (
                 <View style={styles.pmBlItem}>
                   <Ionicons name="person" size={16} color="#10b981" />
-                  <Text style={styles.pmBlLabel}>BL:</Text>
+                  <Text style={styles.pmBlLabel}>{t("projects.bl_label")}:</Text>
                   <Text style={styles.pmBlValue}>{blName}</Text>
                 </View>
               ) : null}
@@ -388,23 +392,41 @@ export default function ProjectDetailsScreen() {
 
         {/* Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBarScroll} contentContainerStyle={styles.tabBarContent}>
-          {(["tasks", "members", "orders", "plans", "history"] as const).map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, activeTab === tab && styles.tabActive]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Ionicons
-                name={tab === "tasks" ? "clipboard-outline" : tab === "members" ? "people-outline" : tab === "orders" ? "cart-outline" : tab === "plans" ? "map-outline" : "time-outline"}
-                size={18}
-                color={activeTab === tab ? "#2563eb" : "#64748b"}
-              />
-              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]} numberOfLines={1}>
-                {tab === "tasks" ? t("tasks.title") : tab === "members" ? t("team.title") : tab === "orders" ? (t("projects.orders_tab") || "Zamówienia") : tab === "plans" ? (t("plans.title") || "Plany") : t("projects.history.title")}
-                {tab === "tasks" ? ` (${tasks.length})` : tab === "members" ? ` (${members.length})` : tab === "orders" ? ` (${projectOrders.length})` : tab === "plans" ? "" : ""}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {(["tasks", "members", "orders", "plans", "diary", "checklist", "obstructions", "deadlines", "history"] as const).map((tab) => {
+            const tabIcons: Record<string, string> = {
+              tasks: "clipboard-outline", members: "people-outline", orders: "cart-outline",
+              plans: "map-outline", diary: "book-outline", checklist: "checkbox-outline",
+              obstructions: "warning-outline", deadlines: "hourglass-outline", history: "time-outline",
+            };
+            const tabLabels: Record<string, string> = {
+              tasks: t("tasks.title"), members: t("team.title"),
+              orders: t("projects.orders_tab") || "Zamówienia", plans: t("plans.title") || "Plany",
+              diary: t("dailyReport.title") || "Bautagebuch",
+              checklist: t("checklist.title") || "Checkliste",
+              obstructions: t("obstructions.tabTitle") || "Meldungen",
+              deadlines: t("deadlines.tabTitle") || "Fristen",
+              history: t("projects.history.title"),
+            };
+            const tabCounts: Record<string, string> = {
+              tasks: ` (${tasks.length})`, members: ` (${members.length})`, orders: ` (${projectOrders.length})`,
+            };
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.tab, activeTab === tab && styles.tabActive]}
+                onPress={() => setActiveTab(tab)}
+              >
+                <Ionicons
+                  name={tabIcons[tab] as any}
+                  size={18}
+                  color={activeTab === tab ? "#2563eb" : "#64748b"}
+                />
+                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]} numberOfLines={1}>
+                  {tabLabels[tab]}{tabCounts[tab] || ""}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         {/* Tab: Zadania */}
@@ -564,7 +586,7 @@ export default function ProjectDetailsScreen() {
                   {new Date(teamDate).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })}
                 </Text>
                 {teamDate === new Date().toISOString().split("T")[0] && (
-                  <Text style={{ fontSize: 10, color: "#2563eb", fontWeight: "600" }}>Heute</Text>
+                  <Text style={{ fontSize: 10, color: "#2563eb", fontWeight: "600" }}>{t("common.today")}</Text>
                 )}
               </TouchableOpacity>
               <TouchableOpacity
@@ -583,7 +605,7 @@ export default function ProjectDetailsScreen() {
               {planWorkers.length === 0 ? (
                 <View style={{ alignItems: "center", paddingVertical: 16 }}>
                   <Ionicons name="people-outline" size={32} color="#cbd5e1" />
-                  <Text style={{ color: "#94a3b8", marginTop: 6, fontSize: 13 }}>Keine Mitarbeiter für diesen Tag</Text>
+                  <Text style={{ color: "#94a3b8", marginTop: 6, fontSize: 13 }}>{t("projects.no_workers_for_day")}</Text>
                 </View>
               ) : (
                 planWorkers.map((pw: any) => (
@@ -621,7 +643,7 @@ export default function ProjectDetailsScreen() {
                   onPress={openAddPlanWorkerModal}
                 >
                   <Ionicons name="person-add-outline" size={16} color="#2563eb" />
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: "#2563eb" }}>Mitarbeiter hinzufügen</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: "#2563eb" }}>{t("projects.add_worker")}</Text>
                 </TouchableOpacity>
               )}
               <View style={{ height: 1, backgroundColor: "#e2e8f0", marginVertical: 12 }} />
@@ -660,6 +682,34 @@ export default function ProjectDetailsScreen() {
         )}
 
 
+        {/* Tab: Bautagebuch */}
+        {activeTab === "diary" && (
+          <View style={[styles.card, { minHeight: 200 }]}>
+            <ProjectDailyReports projectId={id!} />
+          </View>
+        )}
+
+        {/* Tab: Behinderungen & Bedenken */}
+        {activeTab === "obstructions" && (
+          <View style={[styles.card, { minHeight: 200 }]}>
+            <ProjectObstructions projectId={id!} />
+          </View>
+        )}
+
+        {/* Tab: Checkliste */}
+        {activeTab === "checklist" && (
+          <View style={[styles.card, { minHeight: 200 }]}>
+            <ProjectChecklist projectId={id!} />
+          </View>
+        )}
+
+        {/* Tab: Fristen */}
+        {activeTab === "deadlines" && (
+          <View style={[styles.card, { minHeight: 200 }]}>
+            <ProjectDeadlines projectId={id!} />
+          </View>
+        )}
+
         {/* Tab: Historia */}
         {activeTab === "history" && (
           <View style={styles.card}>
@@ -696,14 +746,14 @@ export default function ProjectDetailsScreen() {
                 onPress={() => setOrderSubTab("materials")}
               >
                 <Ionicons name="cube-outline" size={16} color={orderSubTab === "materials" ? "#fff" : tc.textSecondary} />
-                <Text style={{ fontSize: 13, fontWeight: "600", color: orderSubTab === "materials" ? "#fff" : tc.textSecondary }}>Material ({projectOrders.length})</Text>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: orderSubTab === "materials" ? "#fff" : tc.textSecondary }}>{t("projects.material")} ({projectOrders.length})</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 10, gap: 6, backgroundColor: orderSubTab === "tools" ? "#2563eb" : "transparent" }}
                 onPress={() => setOrderSubTab("tools")}
               >
                 <Ionicons name="construct-outline" size={16} color={orderSubTab === "tools" ? "#fff" : tc.textSecondary} />
-                <Text style={{ fontSize: 13, fontWeight: "600", color: orderSubTab === "tools" ? "#fff" : tc.textSecondary }}>Werkzeuge ({projectToolOrders.length})</Text>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: orderSubTab === "tools" ? "#fff" : tc.textSecondary }}>{t("projects.tools")} ({projectToolOrders.length})</Text>
               </TouchableOpacity>
             </View>
 
@@ -715,7 +765,7 @@ export default function ProjectDetailsScreen() {
                   onPress={() => { setOrderMatSearch(""); setShowOrderModal(true); }}
                 >
                   <Ionicons name="add" size={18} color="#fff" />
-                  <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>Neue Materialbestellung</Text>
+                  <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{t("projects.new_material_order")}</Text>
                 </TouchableOpacity>
               )}
 
@@ -723,7 +773,7 @@ export default function ProjectDetailsScreen() {
                 <View style={[styles.card, { backgroundColor: tc.card, borderColor: tc.border, marginHorizontal: 0 }]}>
                   <View style={{ alignItems: "center", paddingVertical: 24 }}>
                     <Ionicons name="cube-outline" size={40} color="#cbd5e1" />
-                    <Text style={{ color: tc.textMuted, marginTop: 8, fontSize: 14 }}>Keine Materialbestellungen</Text>
+                    <Text style={{ color: tc.textMuted, marginTop: 8, fontSize: 14 }}>{t("projects.no_material_orders")}</Text>
                   </View>
                 </View>
               ) : (
@@ -776,7 +826,7 @@ export default function ProjectDetailsScreen() {
                   onPress={() => { setToolOrderSearch(""); setShowToolOrderModal(true); }}
                 >
                   <Ionicons name="add" size={18} color="#fff" />
-                  <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>Neue Werkzeugbestellung</Text>
+                  <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{t("projects.new_tool_order")}</Text>
                 </TouchableOpacity>
               )}
 
@@ -784,7 +834,7 @@ export default function ProjectDetailsScreen() {
                 <View style={[styles.card, { backgroundColor: tc.card, borderColor: tc.border, marginHorizontal: 0 }]}>
                   <View style={{ alignItems: "center", paddingVertical: 24 }}>
                     <Ionicons name="construct-outline" size={40} color="#cbd5e1" />
-                    <Text style={{ color: tc.textMuted, marginTop: 8, fontSize: 14 }}>Keine Werkzeugbestellungen</Text>
+                    <Text style={{ color: tc.textMuted, marginTop: 8, fontSize: 14 }}>{t("projects.no_tool_orders")}</Text>
                   </View>
                 </View>
               ) : (
@@ -948,7 +998,7 @@ export default function ProjectDetailsScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>Mitarbeiter zum Tagesplan hinzufügen</Text>
+                <Text style={styles.modalTitle}>{t("projects.add_worker_to_plan")}</Text>
                 <Text style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
                   {new Date(teamDate).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}
                 </Text>
@@ -983,7 +1033,7 @@ export default function ProjectDetailsScreen() {
                 })}
                 keyExtractor={(item) => item.id}
                 style={{ maxHeight: 400 }}
-                ListEmptyComponent={<Text style={styles.emptyText}>Keine verfügbaren Mitarbeiter</Text>}
+                ListEmptyComponent={<Text style={styles.emptyText}>{t("projects.no_available_workers")}</Text>}
                 renderItem={({ item }) => (
                   <TouchableOpacity style={styles.userPickerItem} onPress={() => addPlanWorkerManually(item.id, teamDate)}>
                     <Ionicons name="person-circle-outline" size={28} color="#f59e0b" />
