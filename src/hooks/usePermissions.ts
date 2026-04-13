@@ -79,6 +79,9 @@ export function getRoleDefaults(role: RoleName): Record<string, boolean> {
     canViewPlan: isAdminOrManagement || isPM || isBL || isWorker || isLogistics || isOfficeWorker || isPurchasing || isWarehouseManager,
     canEditPlan: isAdminOrManagement || isLogistics,
     canDelete: isAdminOrManagement,
+    canUseAIChat: isAdminOrManagement || isPM || isBL,
+    canGenerateReports: isAdminOrManagement || isPM || isBL,
+    canUseVoiceReport: isAdminOrManagement || isPM || isBL || isWorker,
   };
 }
 
@@ -194,5 +197,10 @@ export function usePermissions() {
 
     // ===== OGÓLNE =====
     canDelete: perm("canDelete", roleDefaults.canDelete),
+
+    // ===== AI =====
+    canUseAIChat: perm("canUseAIChat", roleDefaults.canUseAIChat),
+    canGenerateReports: perm("canGenerateReports", roleDefaults.canGenerateReports),
+    canUseVoiceReport: perm("canUseVoiceReport", roleDefaults.canUseVoiceReport),
   };
 }

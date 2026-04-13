@@ -229,6 +229,60 @@ export default function DashboardScreen() {
               </Text>
             </TouchableOpacity>
           )}
+
+          {perms.canUseAIChat && (
+            <TouchableOpacity style={[styles.actionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]} onPress={() => router.push("/(app)/ai-chat" as any)}>
+              <Ionicons name="sparkles" size={48} color="#f59e0b" />
+              <Text style={[styles.actionText, { color: themeColors.text }]}>
+                {t("navigation.ai_chat")}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {perms.canUseVoiceReport && (
+            <TouchableOpacity style={[styles.actionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]} onPress={() => router.push("/(app)/voice-report" as any)}>
+              <Ionicons name="mic" size={48} color="#ef4444" />
+              <Text style={[styles.actionText, { color: themeColors.text }]}>
+                {t("voice_report.title")}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {perms.canGenerateReports && (
+            <TouchableOpacity style={[styles.actionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]} onPress={() => router.push("/(app)/reports" as any)}>
+              <Ionicons name="document-text" size={48} color="#8b5cf6" />
+              <Text style={[styles.actionText, { color: themeColors.text }]}>
+                {t("reports.title")}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {perms.canGenerateReports && (
+            <TouchableOpacity style={[styles.actionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]} onPress={() => router.push("/(app)/predictions" as any)}>
+              <Ionicons name="trending-up" size={48} color="#f97316" />
+              <Text style={[styles.actionText, { color: themeColors.text }]}>
+                {t("predictions.title")}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {perms.canEditPlan && (
+            <TouchableOpacity style={[styles.actionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]} onPress={() => router.push("/(app)/smart-plan" as any)}>
+              <Ionicons name="calendar" size={48} color="#22c55e" />
+              <Text style={[styles.actionText, { color: themeColors.text }]}>
+                {t("smart_plan.title")}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {perms.canViewGPS && (
+            <TouchableOpacity style={[styles.actionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]} onPress={() => router.push("/(app)/gps-analytics" as any)}>
+              <Ionicons name="analytics" size={48} color="#06b6d4" />
+              <Text style={[styles.actionText, { color: themeColors.text }]}>
+                {t("gps_analytics.title")}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -275,7 +329,7 @@ export default function DashboardScreen() {
                 onPress={() => setTbpSort("number")}
               >
                 <Ionicons name="list" size={14} color={tbpSort === "number" ? "#fff" : themeColors.textSecondary} />
-                <Text style={{ fontSize: 11, fontWeight: "600", color: tbpSort === "number" ? "#fff" : themeColors.textSecondary }}>Nr. Budowy</Text>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: tbpSort === "number" ? "#fff" : themeColors.textSecondary }}>{t("dashboard.project_number")}</Text>
               </TouchableOpacity>
             </View>
             {/* Legend */}

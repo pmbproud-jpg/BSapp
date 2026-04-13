@@ -10,6 +10,7 @@ const TILES = [
   { key: "passwords", icon: "key-outline", color: "#ea580c", bg: "#fff7ed" },
   { key: "permissions", icon: "shield-outline", color: "#7c3aed", bg: "#f5f3ff" },
   { key: "company", icon: "business-outline", color: "#059669", bg: "#ecfdf5" },
+  { key: "ai-settings", icon: "sparkles-outline", color: "#8b5cf6", bg: "#faf5ff" },
   { key: "updates", icon: "cloud-download-outline", color: "#dc2626", bg: "#fef2f2" },
 ] as const;
 
@@ -28,10 +29,10 @@ export default function AdminDashboard() {
           </View>
           <View>
             <Text style={{ fontSize: 22, fontWeight: "800", color: tc.text }}>
-              {t("admin.title", "Panel administracyjny")}
+              {t("admin.panel")}
             </Text>
             <Text style={{ fontSize: 13, color: tc.textMuted, marginTop: 2 }}>
-              {t("admin.subtitle", "Zarządzaj aplikacją i bazą danych")}
+              {t("admin.panel_desc", "Zarządzaj aplikacją i bazą danych")}
             </Text>
           </View>
         </View>
@@ -63,10 +64,10 @@ export default function AdminDashboard() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 16, fontWeight: "700", color: tile.color }}>
-                    {t(`admin.tiles.${tile.key}`, tile.key)}
+                    {t(`admin.${tile.key}`)}
                   </Text>
                   <Text style={{ fontSize: 12, color: tile.color + "99", marginTop: 2 }}>
-                    {t(`admin.tiles.${tile.key}_desc`, "")}
+                    {t(`admin.${tile.key}_desc`, "")}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={tile.color + "66"} />

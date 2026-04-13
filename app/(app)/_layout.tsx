@@ -150,6 +150,46 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
+        name="ai-chat"
+        options={{
+          title: t("navigation.ai_chat"),
+          href: perms.canUseAIChat ? "/(app)/ai-chat" : null,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="sparkles" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="gps-analytics"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="reports"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="voice-report"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="predictions"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="smart-plan"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="plan"
         options={{
           href: null,
