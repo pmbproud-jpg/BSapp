@@ -73,7 +73,7 @@ export default function NewTaskScreen() {
 
   useEffect(() => {
     if (!project_id) {
-      Alert.alert(t("common.error"), "Project ID is required");
+      Alert.alert(t("common.error"), t("tasks.project_id_required"));
       router.back();
       return;
     }
@@ -209,7 +209,7 @@ export default function NewTaskScreen() {
     setShowFilePicker(false);
     if (Platform.OS !== "web") {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") { Alert.alert(t("common.error"), "Permission required"); return; }
+      if (status !== "granted") { Alert.alert(t("common.error"), t("tasks.permission_required")); return; }
     }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, quality: 0.8 });
@@ -224,7 +224,7 @@ export default function NewTaskScreen() {
     setShowFilePicker(false);
     if (Platform.OS !== "web") {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== "granted") { Alert.alert(t("common.error"), "Camera permission required"); return; }
+      if (status !== "granted") { Alert.alert(t("common.error"), t("tasks.camera_permission_required")); return; }
     }
     try {
       const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
@@ -433,20 +433,20 @@ export default function NewTaskScreen() {
           <View style={{ marginBottom: 16 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Ionicons name="language" size={18} color="#64748b" />
-              <Text style={{ fontSize: 13, fontWeight: "600", color: "#64748b" }}>Übersetzen</Text>
+              <Text style={{ fontSize: 13, fontWeight: "600", color: "#64748b" }}>{t("tasks.translate")}</Text>
             </View>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
               <TouchableOpacity
                 style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: translateDir === "pl|de" ? "#2563eb" : "#f1f5f9", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 }}
                 onPress={() => { setTranslateDir("pl|de"); setTranslatedTitle(""); setTranslatedDesc(""); }}
               >
-                <Text style={{ fontSize: 12, fontWeight: "600", color: translateDir === "pl|de" ? "#fff" : "#64748b" }}>PL → DE</Text>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: translateDir === "pl|de" ? "#fff" : "#64748b" }}>{t("tasks.pl_to_de")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: translateDir === "de|pl" ? "#2563eb" : "#f1f5f9", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 }}
                 onPress={() => { setTranslateDir("de|pl"); setTranslatedTitle(""); setTranslatedDesc(""); }}
               >
-                <Text style={{ fontSize: 12, fontWeight: "600", color: translateDir === "de|pl" ? "#fff" : "#64748b" }}>DE → PL</Text>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: translateDir === "de|pl" ? "#fff" : "#64748b" }}>{t("tasks.de_to_pl")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#eff6ff", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 }}
@@ -458,7 +458,7 @@ export default function NewTaskScreen() {
                 ) : (
                   <Ionicons name="swap-horizontal" size={16} color="#2563eb" />
                 )}
-                <Text style={{ fontSize: 12, fontWeight: "600", color: "#2563eb" }}>Übersetzen</Text>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#2563eb" }}>{t("tasks.translate")}</Text>
               </TouchableOpacity>
             </View>
 
@@ -485,7 +485,7 @@ export default function NewTaskScreen() {
                   onPress={applyTranslation}
                 >
                   <Ionicons name="checkmark" size={16} color="#fff" />
-                  <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>Übersetzung einfügen</Text>
+                  <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>{t("tasks.insert_translation")}</Text>
                 </TouchableOpacity>
               </View>
             ) : null}

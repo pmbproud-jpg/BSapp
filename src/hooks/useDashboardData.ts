@@ -151,33 +151,35 @@ export function useDashboardData(
         return;
       }
 
-      const result = await Promise.all(
-        projects.map(async (proj: any) => {
-          const { count: pending } = await supabase
-            .from("tasks")
-            .select("*", { count: "exact", head: true })
-            .eq("project_id", proj.id)
-            .eq("status", "todo");
-          const { count: inProgress } = await supabase
-            .from("tasks")
-            .select("*", { count: "exact", head: true })
-            .eq("project_id", proj.id)
-            .eq("status", "in_progress");
-          const { count: completed } = await supabase
-            .from("tasks")
-            .select("*", { count: "exact", head: true })
-            .eq("project_id", proj.id)
-            .eq("status", "completed");
-          return {
-            project_number: proj.project_number || proj.name || "?",
-            project_name: proj.name || "?",
-            project_id: proj.id,
-            pending: (pending || 0),
-            in_progress: inProgress || 0,
-            completed: completed || 0,
-          };
-        })
-      );
+      // Jedno zapytanie zamiast 3*N (N+1 fix)
+      const projectIds = projects.map((p: any) => p.id);
+      const { data: allTasks } = await supabase
+        .from("tasks")
+        .select("project_id, status")
+        .in("project_id", projectIds) as { data: { project_id: string; status: string }[] | null };
+
+      const countsMap = new Map<string, { pending: number; in_progress: number; completed: number }>();
+      for (const task of allTasks || []) {
+        if (!countsMap.has(task.project_id)) {
+          countsMap.set(task.project_id, { pending: 0, in_progress: 0, completed: 0 });
+        }
+        const c = countsMap.get(task.project_id)!;
+        if (task.status === "todo") c.pending++;
+        else if (task.status === "in_progress") c.in_progress++;
+        else if (task.status === "completed") c.completed++;
+      }
+
+      const result = projects.map((proj: any) => {
+        const c = countsMap.get(proj.id) || { pending: 0, in_progress: 0, completed: 0 };
+        return {
+          project_number: proj.project_number || proj.name || "?",
+          project_name: proj.name || "?",
+          project_id: proj.id,
+          pending: c.pending,
+          in_progress: c.in_progress,
+          completed: c.completed,
+        };
+      });
       setTasksByProject(result);
     } catch (error) {
       console.error("Error fetching tasks by project:", error);
@@ -197,18 +199,19 @@ export function useDashboardData(
 
   const fetchAllData = async () => {
     if (!refreshing) setLoading(true);
-    try {
-      await Promise.allSettled([
-        fetchStats(),
-        fetchTasksByProject(),
-        fetchPendingAbsences(),
-      ]);
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    const results = await Promise.allSettled([
+      fetchStats(),
+      fetchTasksByProject(),
+      fetchPendingAbsences(),
+    ]);
+    results.forEach((r, i) => {
+      if (r.status === "rejected") {
+        const names = ["fetchStats", "fetchTasksByProject", "fetchPendingAbsences"];
+        console.error(`Dashboard ${names[i]} failed:`, r.reason);
+      }
+    });
+    setLoading(false);
+    setRefreshing(false);
   };
 
   const onRefresh = () => {

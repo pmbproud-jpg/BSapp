@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BSapp - E-Mail an Bauleiter</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #f0f2f5;
+    color: #333;
+  }
+  .email-container {
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+
+  /* Header */
+  .email-header {
+    background: linear-gradient(135deg, #1e3a5f, #2563eb);
+    color: #fff;
+    padding: 40px 32px 32px;
+    text-align: center;
+  }
+  .email-header h1 {
+    font-size: 28px;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+  .email-header .subtitle {
+    font-size: 14px;
+    color: rgba(255,255,255,0.8);
+  }
+  .email-header .badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 16px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* Body */
+  .email-body { padding: 32px; }
+  .greeting {
+    font-size: 16px;
+    color: #1e293b;
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+  .intro {
+    font-size: 14px;
+    color: #475569;
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+
+  /* Features */
+  .features-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+
+  .feature {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 20px;
+    align-items: flex-start;
+  }
+  .feature-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .feature-content { flex: 1; }
+  .feature-content h3 {
+    font-size: 15px;
+    color: #1e293b;
+    margin-bottom: 4px;
+  }
+  .feature-content p {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.5;
+  }
+
+  /* Highlight box */
+  .highlight-box {
+    background: #f0f7ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 24px 0;
+  }
+  .highlight-box h3 {
+    font-size: 14px;
+    color: #1e40af;
+    margin-bottom: 10px;
+  }
+  .highlight-box ul {
+    list-style: none;
+    padding: 0;
+  }
+  .highlight-box li {
+    font-size: 13px;
+    color: #334155;
+    padding: 4px 0;
+    line-height: 1.5;
+  }
+  .highlight-box li::before {
+    content: "✓ ";
+    color: #2563eb;
+    font-weight: 700;
+  }
+
+  /* CTA */
+  .cta-section {
+    text-align: center;
+    margin: 28px 0 8px;
+  }
+  .cta-btn {
+    display: inline-block;
+    background: #2563eb;
+    color: #fff !important;
+    text-decoration: none;
+    padding: 14px 32px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 16px;
+    transition: background 0.2s;
+  }
+  .cta-btn:hover { background: #1d4ed8; }
+  .cta-sub {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 10px;
+  }
+
+  /* Footer */
+  .email-footer {
+    background: #f8fafc;
+    padding: 24px 32px;
+    border-top: 1px solid #e2e8f0;
+    text-align: center;
+  }
+  .email-footer .sign {
+    font-size: 14px;
+    color: #475569;
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .email-footer .company {
+    font-size: 12px;
+    color: #94a3b8;
+  }
+
+  /* Language tabs */
+  .lang-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    padding: 16px 32px 0;
+    background: #fff;
+  }
+  .lang-tab {
+    padding: 6px 16px;
+    border-radius: 8px;
+    border: 2px solid #e2e8f0;
+    background: #f8fafc;
+    font-weight: 700;
+    font-size: 13px;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .lang-tab:hover { border-color: #94a3b8; }
+  .lang-tab.active {
+    background: #2563eb;
+    color: #fff;
+    border-color: #2563eb;
+  }
+  .lang-section { display: none; }
+  .lang-section.active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="email-container">
+
+  <!-- Language switcher -->
+  <div class="lang-tabs">
+    <div class="lang-tab active" onclick="switchLang('de')">DE</div>
+    <div class="lang-tab" onclick="switchLang('pl')">PL</div>
+  </div>
+
+  <!-- Header -->
+  <div class="email-header">
+    <h1>BSapp</h1>
+    <div class="subtitle">Building Solutions GmbH</div>
+    <div class="badge">Neue Firmen-App</div>
+  </div>
+
+  <!-- ==================== GERMAN ==================== -->
+  <div class="lang-section active" data-lang="de">
+    <div class="email-body">
+      <div class="greeting">
+        Liebe Kolleginnen und Kollegen,
+      </div>
+      <div class="intro">
+        wir freuen uns, Ihnen unsere neue Firmen-App <strong>BSapp</strong> vorzustellen. Die App wurde speziell f&uuml;r unsere Anforderungen auf der Baustelle entwickelt und soll die <strong>Kommunikation</strong>, <strong>Planung</strong> und <strong>Organisation</strong> im Arbeitsalltag deutlich verbessern.
+      </div>
+
+      <div class="features-title">Was kann die App?</div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #eff6ff;">&#128197;</div>
+        <div class="feature-content">
+          <h3>Wochenplan &amp; Fahrzeugzuteilung</h3>
+          <p>Sehen Sie jeden Tag Ihre Baustelle, Ihr Fahrzeug und die Abfahrtszeit &mdash; alles auf einen Blick. &Auml;nderungen durch die Logistik werden sofort sichtbar.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #fef3c7;">&#128221;</div>
+        <div class="feature-content">
+          <h3>Aufgaben mit &Uuml;bersetzung</h3>
+          <p>Aufgaben erstellen, zuweisen und kommentieren &mdash; mit automatischer &Uuml;bersetzung Deutsch &harr; Polnisch. Keine Missverst&auml;ndnisse mehr.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #f0fdf4;">&#128466;</div>
+        <div class="feature-content">
+          <h3>Baupl&auml;ne mit Pin-System</h3>
+          <p>Laden Sie Baupl&auml;ne hoch und markieren Sie Probleme oder Aufgaben direkt auf dem Plan. Jeder Pin hat Status, Priorit&auml;t und Fotos.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #fef2f2;">&#128198;</div>
+        <div class="feature-content">
+          <h3>Urlaub &amp; Abwesenheiten</h3>
+          <p>Urlaubsantr&auml;ge direkt in der App stellen. Krankmeldungen werden automatisch erfasst. Resturlaub immer im Blick.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #f5f3ff;">&#128230;</div>
+        <div class="feature-content">
+          <h3>Material &amp; Werkzeuge</h3>
+          <p>Materialbestellungen pro Baustelle aufgeben, Lagerbestand pr&uuml;fen und Werkzeugausgabe verfolgen &mdash; alles digital.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #ecfdf5;">&#128276;</div>
+        <div class="feature-content">
+          <h3>Benachrichtigungen</h3>
+          <p>Sofortige Benachrichtigung bei neuen Aufgaben, Planzuweisungen oder Projekt&auml;nderungen. Nichts geht mehr verloren.</p>
+        </div>
+      </div>
+
+      <div class="highlight-box">
+        <h3>Verf&uuml;gbar auf allen Ger&auml;ten</h3>
+        <ul>
+          <li><strong>Android-App</strong> &mdash; direkt auf Ihr Handy herunterladen</li>
+          <li><strong>Web-Version</strong> &mdash; im Browser am PC nutzbar</li>
+          <li><strong>3 Sprachen</strong> &mdash; Deutsch, Polnisch, Englisch</li>
+          <li><strong>Echtzeit-Updates</strong> &mdash; &Auml;nderungen sofort f&uuml;r alle sichtbar</li>
+        </ul>
+      </div>
+
+      <div class="cta-section">
+        <a href="https://bsapp-management.netlify.app/docs/instrukcja-instalacji.html" class="cta-btn">
+          &#128241; App herunterladen &amp; loslegen
+        </a>
+        <div class="cta-sub">Installationsanleitung mit QR-Code und Zugangsdaten</div>
+      </div>
+    </div>
+
+    <div class="email-footer">
+      <div class="sign">
+        Mit freundlichen Gr&uuml;&szlig;en<br>
+        <strong>Building Solutions GmbH</strong>
+      </div>
+      <div class="company">
+        Bei Fragen wenden Sie sich bitte an den Administrator.
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== POLISH ==================== -->
+  <div class="lang-section" data-lang="pl">
+    <div class="email-body">
+      <div class="greeting">
+        Szanowni Kierownicy Bud&oacute;w,
+      </div>
+      <div class="intro">
+        z przyjemno&#347;ci&#261; przedstawiamy nasz&#261; now&#261; firmow&#261; aplikacj&#281; <strong>BSapp</strong>. Aplikacja zosta&#322;a stworzona specjalnie z my&#347;l&#261; o naszych potrzebach na budowie i ma na celu znaczne usprawnienie <strong>komunikacji</strong>, <strong>planowania</strong> i <strong>organizacji</strong> codziennej pracy.
+      </div>
+
+      <div class="features-title">Co potrafi aplikacja?</div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #eff6ff;">&#128197;</div>
+        <div class="feature-content">
+          <h3>Plan tygodnia i przydzia&#322; pojazd&oacute;w</h3>
+          <p>Ka&#380;dego dnia widzisz swoj&#261; budow&#281;, pojazd i godzin&#281; odjazdu &mdash; wszystko na jednym ekranie. Zmiany logistyki widoczne natychmiast.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #fef3c7;">&#128221;</div>
+        <div class="feature-content">
+          <h3>Zadania z t&#322;umaczeniem</h3>
+          <p>Tworzenie, przypisywanie i komentowanie zada&#324; &mdash; z automatycznym t&#322;umaczeniem niemiecki &harr; polski. Koniec z nieporozumieniami.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #f0fdf4;">&#128466;</div>
+        <div class="feature-content">
+          <h3>Plany budowy z systemem pin&oacute;w</h3>
+          <p>Wgraj plany budowy i oznaczaj problemy lub zadania bezpo&#347;rednio na planie. Ka&#380;dy pin ma status, priorytet i zdj&#281;cia.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #fef2f2;">&#128198;</div>
+        <div class="feature-content">
+          <h3>Urlopy i nieobecno&#347;ci</h3>
+          <p>Sk&#322;adaj wnioski urlopowe bezpo&#347;rednio w aplikacji. Zwolnienia lekarskie rejestrowane automatycznie. Pozosta&#322;y urlop zawsze widoczny.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #f5f3ff;">&#128230;</div>
+        <div class="feature-content">
+          <h3>Materia&#322;y i narz&#281;dzia</h3>
+          <p>Zam&oacute;wienia materia&#322;&oacute;w na budow&#281;, kontrola stanu magazynu i &#347;ledzenie wydania narz&#281;dzi &mdash; wszystko cyfrowo.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon" style="background: #ecfdf5;">&#128276;</div>
+        <div class="feature-content">
+          <h3>Powiadomienia</h3>
+          <p>Natychmiastowe powiadomienia o nowych zadaniach, przypisaniach do planu i zmianach w projektach. Nic ju&#380; nie umknie.</p>
+        </div>
+      </div>
+
+      <div class="highlight-box">
+        <h3>Dost&#281;pna na wszystkich urz&#261;dzeniach</h3>
+        <ul>
+          <li><strong>Aplikacja Android</strong> &mdash; pobierz bezpo&#347;rednio na telefon</li>
+          <li><strong>Wersja webowa</strong> &mdash; dost&#281;pna w przegl&#261;darce na komputerze</li>
+          <li><strong>3 j&#281;zyki</strong> &mdash; niemiecki, polski, angielski</li>
+          <li><strong>Aktualizacje w czasie rzeczywistym</strong> &mdash; zmiany widoczne natychmiast dla wszystkich</li>
+        </ul>
+      </div>
+
+      <div class="cta-section">
+        <a href="https://bsapp-management.netlify.app/docs/instrukcja-instalacji.html" class="cta-btn">
+          &#128241; Pobierz aplikacj&#281; i zacznij
+        </a>
+        <div class="cta-sub">Instrukcja instalacji z kodem QR i danymi dost&#281;pu</div>
+      </div>
+    </div>
+
+    <div class="email-footer">
+      <div class="sign">
+        Z powa&#380;aniem<br>
+        <strong>Building Solutions GmbH</strong>
+      </div>
+      <div class="company">
+        W razie pyta&#324; prosimy o kontakt z administratorem.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function switchLang(lang) {
+  document.querySelectorAll('.lang-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.textContent.trim().toLowerCase() === lang);
+  });
+  document.querySelectorAll('.lang-section').forEach(el => {
+    el.classList.toggle('active', el.getAttribute('data-lang') === lang);
+  });
+}
+</script>
+</body>
+</html>

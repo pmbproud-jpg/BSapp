@@ -3,10 +3,10 @@ import { setLanguage, SupportedLanguage } from "@/src/i18n";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
 import { useAuth } from "@/src/providers/AuthProvider";
+import { getRoleColor } from "@/src/utils/roleHelpers";
 import { useCompany } from "@/src/providers/CompanyProvider";
 import { ThemeMode, useTheme } from "@/src/providers/ThemeProvider";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,7 +24,7 @@ import {
 
 export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, refreshProfile } = useAuth();
   const perms = usePermissions();
   const { colors, themeMode, setThemeMode, isDark } = useTheme();
   const { companyName } = useCompany();
@@ -89,39 +89,43 @@ export default function SettingsScreen() {
     loadGpsSettings();
   }, []);
 
-  const getRoleColor = (role: string) => {
-    const map: Record<string, string> = {
-      admin: "#ef4444", management: "#f59e0b", project_manager: "#3b82f6",
-      bauleiter: "#10b981", worker: "#64748b", office_worker: "#06b6d4",
-      logistics: "#f97316", purchasing: "#ec4899", warehouse_manager: "#7c3aed",
-    };
-    return map[role] || "#94a3b8";
-  };
+  // getRoleColor — imported from shared utility
 
   const loadGpsSettings = async () => {
     try {
-      const stored = Platform.OS === "web"
-        ? window.localStorage.getItem("bsapp_gps_enabled")
-        : await AsyncStorage.getItem("bsapp_gps_enabled");
-      if (stored === "true") setGpsEnabled(true);
-      // Load last known location
-      const locStr = Platform.OS === "web"
-        ? window.localStorage.getItem("bsapp_gps_last")
-        : await AsyncStorage.getItem("bsapp_gps_last");
-      if (locStr) setGpsLocation(JSON.parse(locStr));
+      // Czytaj stan GPS z profilu w bazie (źródło prawdy)
+      if (profile?.id) {
+        const { data } = await supabaseAdmin.from("profiles")
+          .select("gps_enabled, last_latitude, last_longitude, last_location_at")
+          .eq("id", profile.id)
+          .single();
+        if (data?.gps_enabled) setGpsEnabled(true);
+        if (data?.last_latitude && data?.last_longitude) {
+          setGpsLocation({
+            lat: data.last_latitude,
+            lng: data.last_longitude,
+            timestamp: data.last_location_at || new Date().toISOString(),
+          });
+        }
+      }
     } catch (e) { /* ignore */ }
   };
 
   const toggleGps = async (value: boolean) => {
     setGpsEnabled(value);
     try {
-      if (Platform.OS === "web") {
-        window.localStorage.setItem("bsapp_gps_enabled", value ? "true" : "false");
-      } else {
-        await AsyncStorage.setItem("bsapp_gps_enabled", value ? "true" : "false");
+      // Zapisz do bazy danych (źródło prawdy — admin też tu zapisuje)
+      if (profile?.id) {
+        await supabaseAdmin.from("profiles")
+          .update({ gps_enabled: value })
+          .eq("id", profile.id);
+        // Odśwież profil żeby useGPSTracking odebrał zmianę
+        await refreshProfile();
       }
       if (value) requestGpsLocation();
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.error("Error toggling GPS:", e);
+    }
   };
 
   const requestGpsLocation = async () => {
@@ -143,14 +147,9 @@ export default function SettingsScreen() {
       };
       setGpsLocation(gpsData);
 
-      // Save locally
-      const json = JSON.stringify(gpsData);
-      if (Platform.OS === "web") window.localStorage.setItem("bsapp_gps_last", json);
-      else await AsyncStorage.setItem("bsapp_gps_last", json);
-
       // Save to Supabase profile + user_locations history
       if (profile?.id) {
-        await (supabase.from("profiles") as any)
+        await supabaseAdmin.from("profiles")
           .update({ last_latitude: gpsData.lat, last_longitude: gpsData.lng, last_location_at: gpsData.timestamp })
           .eq("id", profile.id);
 

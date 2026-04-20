@@ -15,6 +15,7 @@ import {
     ActivityIndicator,
     Alert,
     Linking,
+    Modal,
     Platform,
     ScrollView,
     StyleSheet,
@@ -101,8 +102,46 @@ export default function UserProfileScreen() {
   const canManageGPS =
     currentUser?.role === "admin" || currentUser?.role === "management";
 
+  // GPS toggle wymaga hasła administratora
+  const [gpsPasswordModal, setGpsPasswordModal] = useState(false);
+  const [gpsPassword, setGpsPassword] = useState("");
+  const [gpsPasswordError, setGpsPasswordError] = useState("");
+  const [gpsTargetValue, setGpsTargetValue] = useState(false);
+
+  const handleGPSToggle = (value: boolean) => {
+    setGpsTargetValue(value);
+    setGpsPassword("");
+    setGpsPasswordError("");
+    setGpsPasswordModal(true);
+  };
+
+  const confirmGPSToggle = async () => {
+    if (!gpsPassword.trim()) {
+      setGpsPasswordError(t("users.gps_password_required", "Passwort erforderlich"));
+      return;
+    }
+    try {
+      // Weryfikuj hasło admina przez ponowne logowanie
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: currentUser?.email || "",
+        password: gpsPassword,
+      });
+      if (authError) {
+        setGpsPasswordError(t("users.gps_password_wrong", "Falsches Passwort"));
+        return;
+      }
+      setGpsPasswordModal(false);
+      setGpsPassword("");
+      toggleGPS(gpsTargetValue);
+    } catch (e) {
+      setGpsPasswordError(t("common.error"));
+    }
+  };
+
   const canApproveAbsence =
     currentUser?.role === "admin" || currentUser?.role === "management" || currentUser?.role === "logistics";
+
+  const isOwnProfile = id === currentUser?.id;
 
   const fetchUser = useCallback(async () => {
     if (!id) return;
@@ -701,7 +740,7 @@ export default function UserProfileScreen() {
             <Ionicons name="calendar" size={16} color="#ef4444" />{" "}
             {t("users.abs_title") || "Abwesenheiten / Urlaub"}
           </Text>
-          {(canEdit || canApproveAbsence) && !absShowForm && (
+          {(canEdit || canApproveAbsence || isOwnProfile) && !absShowForm && (
             <TouchableOpacity
               onPress={() => setAbsShowForm(true)}
               style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#2563eb", paddingVertical: 12, borderRadius: 12, shadowColor: "#2563eb", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }}
@@ -817,7 +856,9 @@ export default function UserProfileScreen() {
             {/* Type selector */}
             <Text style={{ fontSize: 12, fontWeight: "600", color: "#64748b", marginBottom: 6 }}>{t("users.abs_type") || "Typ"}</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-              {absenceTypes.map((at) => (
+              {absenceTypes
+                .filter((at) => (canEdit || canApproveAbsence) ? true : at.key !== "unexcused")
+                .map((at) => (
                 <TouchableOpacity
                   key={at.key}
                   onPress={() => setAbsType(at.key)}
@@ -984,7 +1025,7 @@ export default function UserProfileScreen() {
                       </TouchableOpacity>
                     </>
                   )}
-                  {(canEdit || canApproveAbsence) && (
+                  {(canEdit || canApproveAbsence || (isOwnProfile && a.status === "pending")) && (
                     <TouchableOpacity
                       onPress={() => deleteAbsence(a.id)}
                       style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 6 }}
@@ -1025,7 +1066,7 @@ export default function UserProfileScreen() {
                 ) : (
                   <Switch
                     value={gpsEnabled}
-                    onValueChange={toggleGPS}
+                    onValueChange={handleGPSToggle}
                     trackColor={{ false: "#e2e8f0", true: "#86efac" }}
                     thumbColor={gpsEnabled ? "#10b981" : "#94a3b8"}
                   />
@@ -1196,6 +1237,51 @@ export default function UserProfileScreen() {
       )}
 
       <View style={{ height: 40 }} />
+
+      {/* GPS Password Modal */}
+      <Modal visible={gpsPasswordModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" }}>
+          <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 24, width: 320, maxWidth: "90%" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
+              <Ionicons name="lock-closed" size={22} color="#2563eb" />
+              <Text style={{ fontSize: 18, fontWeight: "700", color: "#1e293b", marginLeft: 8 }}>
+                {t("users.gps_admin_password", "Administrator-Passwort")}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 14, color: "#64748b", marginBottom: 16 }}>
+              {t("users.gps_password_desc", "Geben Sie Ihr Administrator-Passwort ein, um GPS-Tracking zu ändern.")}
+            </Text>
+            <TextInput
+              style={{
+                borderWidth: 1, borderColor: gpsPasswordError ? "#ef4444" : "#e2e8f0",
+                borderRadius: 10, padding: 12, fontSize: 16, marginBottom: 4,
+              }}
+              placeholder={t("users.gps_password_placeholder", "Passwort")}
+              secureTextEntry
+              value={gpsPassword}
+              onChangeText={(v) => { setGpsPassword(v); setGpsPasswordError(""); }}
+              autoFocus
+            />
+            {!!gpsPasswordError && (
+              <Text style={{ color: "#ef4444", fontSize: 13, marginBottom: 8 }}>{gpsPasswordError}</Text>
+            )}
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 12, marginTop: 16 }}>
+              <TouchableOpacity
+                onPress={() => { setGpsPasswordModal(false); setGpsPassword(""); }}
+                style={{ paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10, backgroundColor: "#f1f5f9" }}
+              >
+                <Text style={{ color: "#64748b", fontWeight: "600" }}>{t("common.cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={confirmGPSToggle}
+                style={{ paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10, backgroundColor: "#2563eb" }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700" }}>{t("common.confirm", "Bestätigen")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

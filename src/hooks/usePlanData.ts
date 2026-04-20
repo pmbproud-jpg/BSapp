@@ -11,11 +11,15 @@ import { Alert, Platform } from "react-native";
 
 export type Vehicle = { id: string; name: string; license_plate: string; seats: number; active: boolean };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TFunc = (...args: any[]) => any;
+type SendNotificationFn = (userId: string, title: string, body: string, type?: string, data?: any) => Promise<void>;
+
 export function usePlanData(
   weekStart: string,
   profileId: string | undefined,
-  sendNotification: any,
-  t: any,
+  sendNotification: SendNotificationFn,
+  t: TFunc,
   i18nLang: string,
   dayFullFn: (day: any, lang: string) => string,
 ) {
@@ -126,9 +130,9 @@ export function usePlanData(
     const vMap = new Map((freshVehicles || []).map((v: any) => [v.id, v]));
     setAssignments((asgn || []).map((a: any) => {
       const req = reqs.find((r: any) => r.id === a.request_id);
-      // Single vehicle per worker — take first from vehicle_ids or fallback to vehicle_id
+      // Single vehicle per worker — take last from vehicle_ids (latest change) or fallback to vehicle_id
       const firstVid = (Array.isArray(a.vehicle_ids) && a.vehicle_ids.length > 0)
-        ? a.vehicle_ids[0]
+        ? a.vehicle_ids[a.vehicle_ids.length - 1]
         : a.vehicle_id || null;
       const resolvedVehicle = firstVid ? vMap.get(firstVid) || null : null;
       return { ...a, project: req?.project, worker: pMap.get(a.worker_id) || null, vehicle: resolvedVehicle, vehicles: resolvedVehicle ? [resolvedVehicle] : [] };
@@ -253,9 +257,9 @@ export function usePlanData(
   const openEditAssign = (a: any) => {
     setEditingAssign(a);
     setAssignProject(a.project?.id || null);
-    // Load only the first vehicle (single vehicle per worker)
+    // Load the latest vehicle (last in array = most recent change)
     const firstVid = (Array.isArray(a.vehicle_ids) && a.vehicle_ids.length > 0)
-      ? a.vehicle_ids[0]
+      ? a.vehicle_ids[a.vehicle_ids.length - 1]
       : a.vehicle_id || null;
     setAssignVehicles(firstVid ? new Set([firstVid]) : new Set());
     setAssignDeparture(a.departure_time?.slice(0, 5) || "06:00");

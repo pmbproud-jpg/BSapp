@@ -34,12 +34,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const fetchingRef = useRef(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     let initialFetchDone = false;
 
     // Get current session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mountedRef.current) return;
       setSession(session);
       if (session?.user) {
         initialFetchDone = true;
@@ -53,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mountedRef.current) return;
       setSession(session);
       if (session?.user) {
         // Skip if initial fetch already handles this user
@@ -64,7 +68,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mountedRef.current = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchProfile = async (userId: string) => {
@@ -78,9 +85,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) throw error;
+      if (!mountedRef.current) return;
 
       // Sprawdź wygaśnięcie dostępu dla podwykonawców
-      const prof: any = data;
+      const prof = data as Profile & { access_expires_at?: string };
       if (prof?.role === "subcontractor" && prof?.access_expires_at) {
         const expiresAt = new Date(prof.access_expires_at);
         if (expiresAt < new Date()) {
@@ -91,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             Alert.alert(i18n.t("auth.access_expired_title", "Dostęp wygasł"), msg);
           }
           await supabase.auth.signOut();
+          if (!mountedRef.current) return;
           setSession(null);
           setProfile(null);
           setLoading(false);
@@ -103,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("Error fetching profile:", error);
     } finally {
       fetchingRef.current = false;
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   };
 

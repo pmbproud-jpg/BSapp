@@ -27,7 +27,10 @@ type HistoryEntry = {
   taskId?: string;
 };
 
-export function useProjectData(projectId: string | undefined, profileId: string | undefined, t: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TFunc = (...args: any[]) => any;
+
+export function useProjectData(projectId: string | undefined, profileId: string | undefined, t: TFunc) {
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -55,21 +58,16 @@ export function useProjectData(projectId: string | undefined, profileId: string 
       if (error) throw error;
       setProject(data);
 
-      // Pobierz nazwy PM i BL
-      const proj: any = data;
-      if (proj.project_manager_id) {
-        const { data: pm } = await supabaseAdmin.from("profiles")
-          .select("full_name, email")
-          .eq("id", proj.project_manager_id)
-          .single();
-        setPmName(pm?.full_name || pm?.email || "");
-      }
-      if (proj.bauleiter_id) {
-        const { data: bl } = await supabaseAdmin.from("profiles")
-          .select("full_name, email")
-          .eq("id", proj.bauleiter_id)
-          .single();
-        setBlName(bl?.full_name || bl?.email || "");
+      // Pobierz nazwy PM i BL jednym batch query
+      const proj = data as Project & { project_manager_id?: string; bauleiter_id?: string };
+      const leaderIds = [proj.project_manager_id, proj.bauleiter_id].filter(Boolean) as string[];
+      if (leaderIds.length > 0) {
+        const { data: leaders } = await supabaseAdmin.from("profiles")
+          .select("id, full_name, email")
+          .in("id", leaderIds);
+        const leaderMap = new Map<string, string>((leaders || []).map((l: any) => [l.id, l.full_name || l.email || ""]));
+        if (proj.project_manager_id) setPmName(leaderMap.get(proj.project_manager_id) || "");
+        if (proj.bauleiter_id) setBlName(leaderMap.get(proj.bauleiter_id) || "");
       }
     } catch (error) {
       console.error("Error fetching project:", error);

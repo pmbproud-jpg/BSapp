@@ -5,7 +5,7 @@ import { useNotifications } from "@/src/providers/NotificationProvider";
 import { useTheme } from "@/src/providers/ThemeProvider";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
@@ -13,6 +13,7 @@ import {
     Modal,
     PanResponder,
     Platform,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
@@ -132,8 +133,21 @@ export default function PlanScreen() {
   } = plan;
 
   const weekDays = getWeekDays(weekStart);
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(useCallback(() => { fetchAll(); }, [weekStart]));
+
+  // Auto-refresh co 30s — pracownicy widzą zmiany logistyki
+  useEffect(() => {
+    const interval = setInterval(() => { fetchAssignments(); }, 30_000);
+    return () => clearInterval(interval);
+  }, [weekStart]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchAll();
+    setRefreshing(false);
+  }, [weekStart]);
 
   // ─── LOADING ───────────────────────────────────────────
   if (loading) return <View style={[s.center, { backgroundColor: tc.background }]}><ActivityIndicator size="large" color={tc.primary} /></View>;
@@ -169,7 +183,7 @@ export default function PlanScreen() {
     const absTypeColors: Record<string, string> = { vacation: "#ef4444", sick_leave: "#f59e0b", special_leave: "#8b5cf6", training: "#3b82f6", unexcused: "#64748b" };
 
     return (
-      <ScrollView style={[s.container, { backgroundColor: tc.background }]}>
+      <ScrollView style={[s.container, { backgroundColor: tc.background }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tc.primary} />}>
         <View style={s.dayHeaderRow}>
           <TouchableOpacity onPress={() => setSelectedDay(null)} style={{ padding: 8 }}>
             <Ionicons name="arrow-back" size={22} color={tc.primary} />
@@ -559,7 +573,7 @@ export default function PlanScreen() {
   // Calendar tab: wrap in ScrollView so the whole screen scrolls on mobile
   if (activeTab === "calendar") {
     return (
-      <ScrollView style={[s.container, { backgroundColor: tc.background }]}>
+      <ScrollView style={[s.container, { backgroundColor: tc.background }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tc.primary} />}>
         {headerContent}
         <ResourceCalendar
           weekDays={weekDays}
@@ -578,7 +592,7 @@ export default function PlanScreen() {
   }
 
   return (
-    <ScrollView style={[s.container, { backgroundColor: tc.background }]}>
+    <ScrollView style={[s.container, { backgroundColor: tc.background }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tc.primary} />}>
       {headerContent}
 
       {/* ─── TAB: PLAN ─── */}

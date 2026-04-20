@@ -28,10 +28,17 @@ export default function UpdateChecker() {
                 text: t("updates.update_now", "Aktualizuj"),
                 onPress: async () => {
                   try {
-                    await Updates.fetchUpdateAsync();
-                    await Updates.reloadAsync();
-                  } catch (e) {
-                    console.error("Error fetching update:", e);
+                    const result = await Updates.fetchUpdateAsync();
+                    if (result.isNew) {
+                      // Update pobrany — przeładuj apkę
+                      await Updates.reloadAsync();
+                    }
+                  } catch (e: any) {
+                    console.error("Error fetching/applying update:", e);
+                    Alert.alert(
+                      "Update Error",
+                      e?.message || "Nie udało się zainstalować aktualizacji. Spróbuj ponownie.",
+                    );
                   }
                 },
               },

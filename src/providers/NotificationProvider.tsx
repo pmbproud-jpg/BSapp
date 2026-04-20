@@ -4,6 +4,10 @@ import { adminApi as supabaseAdmin } from "../lib/supabase/adminApi";
 import { supabase } from "../lib/supabase/client";
 import { useAuth } from "./AuthProvider";
 
+// Tabela "notifications" nie jest w wygenerowanych typach DB — helper unika rozrzuconego "as any"
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const notificationsTable = () => supabase.from("notifications" as any) as any;
+
 export type NotificationRow = {
   id: string;
   user_id: string;
@@ -85,8 +89,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (!profile?.id) return;
     setLoading(true);
     try {
-      const { data, error } = await (supabase
-        .from("notifications") as any)
+      const { data, error } = await notificationsTable()
         .select("*")
         .eq("user_id", profile.id)
         .order("created_at", { ascending: false })
@@ -111,7 +114,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const markAsRead = async (id: string) => {
     try {
-      await (supabase.from("notifications") as any)
+      await notificationsTable()
         .update({ read_at: new Date().toISOString() })
         .eq("id", id);
       setNotifications((prev) =>
@@ -125,7 +128,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const markAllAsRead = async () => {
     if (!profile?.id) return;
     try {
-      await (supabase.from("notifications") as any)
+      await notificationsTable()
         .update({ read_at: new Date().toISOString() })
         .eq("user_id", profile.id)
         .is("read_at", null);
@@ -173,7 +176,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const clearAll = async () => {
     if (!profile?.id) return;
     try {
-      await (supabase.from("notifications") as any)
+      await notificationsTable()
         .delete()
         .eq("user_id", profile.id);
       setNotifications([]);

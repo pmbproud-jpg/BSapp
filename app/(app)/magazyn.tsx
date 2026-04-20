@@ -301,7 +301,7 @@ export default function MagazynScreen() {
               </TouchableOpacity>
               <TouchableOpacity style={[s.actionBtn, { backgroundColor: "#2563eb" }]} onPress={handleToolsExport}>
                 <Ionicons name="download-outline" size={18} color="#fff" />
-                <Text style={s.actionBtnText}>Export</Text>
+                <Text style={s.actionBtnText}>{t("magazyn.export_excel")}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -332,7 +332,7 @@ export default function MagazynScreen() {
                 onPress={() => { setShowSortDropdown(!showSortDropdown); setShowFilterDropdown(false); setShowFilterValueDropdown(false); }}
               >
                 <Ionicons name="swap-vertical" size={14} color="#2563eb" />
-                <Text style={{ fontSize: 12, fontWeight: "600", color: tc.text }}>Sortieren: {toolColumns.find((c) => c.key === toolSortKey)?.label || "—"}</Text>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: tc.text }}>{t("magazyn.sort")}: {toolColumns.find((c) => c.key === toolSortKey)?.label || "—"}</Text>
                 <Ionicons name={toolSortAsc ? "arrow-up" : "arrow-down"} size={12} color="#2563eb" />
               </TouchableOpacity>
               {showSortDropdown && (
@@ -359,7 +359,7 @@ export default function MagazynScreen() {
               >
                 <Ionicons name="funnel" size={14} color={filterColumn ? "#f59e0b" : tc.textSecondary} />
                 <Text style={{ fontSize: 12, fontWeight: "600", color: filterColumn ? "#f59e0b" : tc.text }}>
-                  {filterColumn ? `${toolColumns.find((c) => c.key === filterColumn)?.label}: ${filterValue || "…"}` : "Filtern"}
+                  {filterColumn ? `${toolColumns.find((c) => c.key === filterColumn)?.label}: ${filterValue || "…"}` : t("magazyn.filter")}
                 </Text>
                 {filterColumn ? (
                   <TouchableOpacity onPress={() => { setFilterColumn(""); setFilterValue(""); setShowFilterDropdown(false); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -373,7 +373,7 @@ export default function MagazynScreen() {
                     style={{ paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: tc.border || "#f1f5f9" }}
                     onPress={() => { setFilterColumn(""); setFilterValue(""); setShowFilterDropdown(false); }}
                   >
-                    <Text style={{ fontSize: 13, color: "#ef4444", fontWeight: "600" }}>Filter zurücksetzen</Text>
+                    <Text style={{ fontSize: 13, color: "#ef4444", fontWeight: "600" }}>{t("magazyn.reset_filters")}</Text>
                   </TouchableOpacity>
                   {toolColumns.map((col) => (
                     <TouchableOpacity
@@ -395,7 +395,7 @@ export default function MagazynScreen() {
                   style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: filterValue ? "#10b981" : (tc.border || "#e2e8f0"), backgroundColor: filterValue ? "#10b98110" : tc.card }}
                   onPress={() => { setShowFilterValueDropdown(!showFilterValueDropdown); setShowSortDropdown(false); setShowFilterDropdown(false); }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: filterValue ? "#10b981" : tc.textSecondary }}>{filterValue || "Wert wählen…"}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: filterValue ? "#10b981" : tc.textSecondary }}>{filterValue || t("magazyn.select_value")}</Text>
                   <Ionicons name="chevron-down" size={12} color={filterValue ? "#10b981" : tc.textSecondary} />
                 </TouchableOpacity>
                 {showFilterValueDropdown && (
@@ -410,7 +410,7 @@ export default function MagazynScreen() {
                       </TouchableOpacity>
                     ))}
                     {filterColumnValues.length === 0 && (
-                      <Text style={{ padding: 12, fontSize: 12, color: tc.textMuted }}>Keine Werte</Text>
+                      <Text style={{ padding: 12, fontSize: 12, color: tc.textMuted }}>{t("magazyn.no_values")}</Text>
                     )}
                   </ScrollView>
                 )}
@@ -438,14 +438,14 @@ export default function MagazynScreen() {
                   <View style={{ flexDirection: "row", backgroundColor: "#1e293b", borderTopLeftRadius: 8, borderTopRightRadius: 8, paddingVertical: 8 }}>
                     {[
                       { label: "IV/PDS", w: 80, key: "iv_pds" },
-                      { label: "Beschreibung", w: 180, key: "beschreibung" },
-                      { label: "Hersteller", w: 110, key: "hersteller" },
+                      { label: t("magazyn.col_description"), w: 180, key: "beschreibung" },
+                      { label: t("magazyn.col_manufacturer"), w: 110, key: "hersteller" },
                       { label: "SN", w: 120, key: "serial_nummer" },
-                      { label: "Status", w: 110, key: "status" },
-                      { label: "Baustelle", w: 120, key: "baustelle" },
-                      { label: "Menge", w: 60, key: "menge" },
-                      { label: "Kategorie", w: 100, key: "kategorie" },
-                      { label: t("magazyn.notes_title") || "Anmerkungen", w: 120, key: "notes" },
+                      { label: t("magazyn.status_label"), w: 110, key: "status" },
+                      { label: t("magazyn.col_site"), w: 120, key: "baustelle" },
+                      { label: t("magazyn.col_qty"), w: 60, key: "menge" },
+                      { label: t("magazyn.col_category"), w: 100, key: "kategorie" },
+                      { label: t("magazyn.notes_title"), w: 120, key: "notes" },
                     ].map((col) => (
                       <TouchableOpacity key={col.key} onPress={() => toggleToolSort(col.key)} style={{ width: col.w, flexDirection: "row", alignItems: "center", paddingHorizontal: 6 }}>
                         <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }} numberOfLines={1}>{col.label}</Text>
@@ -510,13 +510,13 @@ export default function MagazynScreen() {
                 {matImportLoading ? <ActivityIndicator size="small" color="#fff" /> : (
                   <>
                     <Ionicons name="cloud-upload-outline" size={18} color="#fff" />
-                    <Text style={s.actionBtnText}>Import</Text>
+                    <Text style={s.actionBtnText}>{t("magazyn.import_excel")}</Text>
                   </>
                 )}
               </TouchableOpacity>
               <TouchableOpacity style={[s.actionBtn, { backgroundColor: "#2563eb" }]} onPress={handleMatExport}>
                 <Ionicons name="download-outline" size={18} color="#fff" />
-                <Text style={s.actionBtnText}>Export</Text>
+                <Text style={s.actionBtnText}>{t("magazyn.export_excel")}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -545,7 +545,7 @@ export default function MagazynScreen() {
                 onPress={() => { setShowMatSortDD(!showMatSortDD); setShowMatFilterDD(false); setShowMatFilterValDD(false); }}
               >
                 <Ionicons name="swap-vertical" size={14} color="#2563eb" />
-                <Text style={{ fontSize: 12, fontWeight: "600", color: tc.text }}>Sortieren: {matColumns.find((c) => c.key === matSortKey)?.label || "—"}</Text>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: tc.text }}>{t("magazyn.sort")}: {matColumns.find((c) => c.key === matSortKey)?.label || "—"}</Text>
                 <Ionicons name={matSortAsc ? "arrow-up" : "arrow-down"} size={12} color="#2563eb" />
               </TouchableOpacity>
               {showMatSortDD && (
@@ -566,14 +566,14 @@ export default function MagazynScreen() {
               >
                 <Ionicons name="funnel" size={14} color={matFilterCol ? "#f59e0b" : tc.textSecondary} />
                 <Text style={{ fontSize: 12, fontWeight: "600", color: matFilterCol ? "#f59e0b" : tc.text }}>
-                  {matFilterCol ? `${matColumns.find((c) => c.key === matFilterCol)?.label}: ${matFilterVal || "…"}` : "Filtern"}
+                  {matFilterCol ? `${matColumns.find((c) => c.key === matFilterCol)?.label}: ${matFilterVal || "…"}` : t("magazyn.filter")}
                 </Text>
                 {matFilterCol ? <TouchableOpacity onPress={() => { setMatFilterCol(""); setMatFilterVal(""); setShowMatFilterDD(false); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="close-circle" size={14} color="#f59e0b" /></TouchableOpacity> : null}
               </TouchableOpacity>
               {showMatFilterDD && (
                 <View style={{ position: "absolute", top: 38, left: 0, minWidth: 180, backgroundColor: tc.card, borderRadius: 10, borderWidth: 1, borderColor: tc.border || "#e2e8f0", boxShadow: "0 4px 8px rgba(0,0,0,0.15)", elevation: 8, zIndex: 100 }}>
                   <TouchableOpacity style={{ paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: tc.border || "#f1f5f9" }} onPress={() => { setMatFilterCol(""); setMatFilterVal(""); setShowMatFilterDD(false); }}>
-                    <Text style={{ fontSize: 13, color: "#ef4444", fontWeight: "600" }}>Filter zurücksetzen</Text>
+                    <Text style={{ fontSize: 13, color: "#ef4444", fontWeight: "600" }}>{t("magazyn.reset_filters")}</Text>
                   </TouchableOpacity>
                   {matColumns.map((col) => (
                     <TouchableOpacity key={col.key} style={{ paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: tc.border || "#f1f5f9" }} onPress={() => { setMatFilterCol(col.key); setMatFilterVal(""); setShowMatFilterDD(false); setShowMatFilterValDD(true); }}>
@@ -589,7 +589,7 @@ export default function MagazynScreen() {
                   style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: matFilterVal ? "#10b981" : (tc.border || "#e2e8f0"), backgroundColor: matFilterVal ? "#10b98110" : tc.card }}
                   onPress={() => { setShowMatFilterValDD(!showMatFilterValDD); setShowMatSortDD(false); setShowMatFilterDD(false); }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: matFilterVal ? "#10b981" : tc.textSecondary }}>{matFilterVal || "Wert wählen…"}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: matFilterVal ? "#10b981" : tc.textSecondary }}>{matFilterVal || t("magazyn.select_value")}</Text>
                   <Ionicons name="chevron-down" size={12} color={matFilterVal ? "#10b981" : tc.textSecondary} />
                 </TouchableOpacity>
                 {showMatFilterValDD && (
@@ -599,7 +599,7 @@ export default function MagazynScreen() {
                         <Text style={{ fontSize: 13, color: matFilterVal === val ? "#10b981" : tc.text, fontWeight: matFilterVal === val ? "700" : "400" }}>{val}</Text>
                       </TouchableOpacity>
                     ))}
-                    {matFilterColValues.length === 0 && <Text style={{ padding: 12, fontSize: 12, color: tc.textMuted }}>Keine Werte</Text>}
+                    {matFilterColValues.length === 0 && <Text style={{ padding: 12, fontSize: 12, color: tc.textMuted }}>{t("magazyn.no_values")}</Text>}
                   </ScrollView>
                 )}
               </View>
@@ -625,16 +625,16 @@ export default function MagazynScreen() {
                   {/* Table header — sortable */}
                   <View style={{ flexDirection: "row", backgroundColor: "#92400e", borderTopLeftRadius: 8, borderTopRightRadius: 8, paddingVertical: 8 }}>
                     {[
-                      { label: "Position", w: 50, key: "pozycja" },
-                      { label: "Art-Nr", w: 80, key: "art_nr" },
-                      { label: "Name", w: 180, key: "nazwa" },
-                      { label: "Menge", w: 60, key: "ilosc" },
-                      { label: "Länge", w: 70, key: "dlugosc" },
-                      { label: "Breite", w: 75, key: "szerokosc" },
-                      { label: "Höhe", w: 70, key: "wysokosc" },
-                      { label: "Gewicht", w: 70, key: "waga" },
-                      { label: "Eingetr.", w: 110, key: "zamawiajacy" },
-                      { label: "Min.", w: 70, key: "min_stan" },
+                      { label: t("magazyn.col_position"), w: 50, key: "pozycja" },
+                      { label: t("magazyn.col_art_nr"), w: 80, key: "art_nr" },
+                      { label: t("magazyn.col_name"), w: 180, key: "nazwa" },
+                      { label: t("magazyn.col_qty"), w: 60, key: "ilosc" },
+                      { label: t("magazyn.col_length"), w: 70, key: "dlugosc" },
+                      { label: t("magazyn.col_width"), w: 75, key: "szerokosc" },
+                      { label: t("magazyn.col_height"), w: 70, key: "wysokosc" },
+                      { label: t("magazyn.col_weight"), w: 70, key: "waga" },
+                      { label: t("magazyn.col_entered_by"), w: 110, key: "zamawiajacy" },
+                      { label: t("magazyn.col_min"), w: 70, key: "min_stan" },
                     ].map((col) => (
                       <TouchableOpacity key={col.key} onPress={() => toggleMatSort(col.key)} style={{ width: col.w, flexDirection: "row", alignItems: "center", paddingHorizontal: 6 }}>
                         <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }} numberOfLines={1}>{col.label}</Text>
@@ -702,7 +702,7 @@ export default function MagazynScreen() {
                 onPress={() => { setShowOrdSortDD(!showOrdSortDD); setShowOrdFilterDD(false); setShowOrdFilterValDD(false); }}
               >
                 <Ionicons name="swap-vertical" size={14} color="#2563eb" />
-                <Text style={{ fontSize: 12, fontWeight: "600", color: tc.text }}>Sortieren: {ordColumns.find((c) => c.key === orderSortKey)?.label || "—"}</Text>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: tc.text }}>{t("magazyn.sort")}: {ordColumns.find((c) => c.key === orderSortKey)?.label || "—"}</Text>
                 <Ionicons name={orderSortAsc ? "arrow-up" : "arrow-down"} size={12} color="#2563eb" />
               </TouchableOpacity>
               {showOrdSortDD && (
@@ -723,14 +723,14 @@ export default function MagazynScreen() {
               >
                 <Ionicons name="funnel" size={14} color={ordFilterCol ? "#f59e0b" : tc.textSecondary} />
                 <Text style={{ fontSize: 12, fontWeight: "600", color: ordFilterCol ? "#f59e0b" : tc.text }}>
-                  {ordFilterCol ? `${ordColumns.find((c) => c.key === ordFilterCol)?.label}: ${ordFilterVal || "…"}` : "Filtern"}
+                  {ordFilterCol ? `${ordColumns.find((c) => c.key === ordFilterCol)?.label}: ${ordFilterVal || "…"}` : t("magazyn.filter")}
                 </Text>
                 {ordFilterCol ? <TouchableOpacity onPress={() => { setOrdFilterCol(""); setOrdFilterVal(""); setShowOrdFilterDD(false); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="close-circle" size={14} color="#f59e0b" /></TouchableOpacity> : null}
               </TouchableOpacity>
               {showOrdFilterDD && (
                 <View style={{ position: "absolute", top: 38, left: 0, minWidth: 180, backgroundColor: tc.card, borderRadius: 10, borderWidth: 1, borderColor: tc.border || "#e2e8f0", boxShadow: "0 4px 8px rgba(0,0,0,0.15)", elevation: 8, zIndex: 100 }}>
                   <TouchableOpacity style={{ paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: tc.border || "#f1f5f9" }} onPress={() => { setOrdFilterCol(""); setOrdFilterVal(""); setShowOrdFilterDD(false); }}>
-                    <Text style={{ fontSize: 13, color: "#ef4444", fontWeight: "600" }}>Filter zurücksetzen</Text>
+                    <Text style={{ fontSize: 13, color: "#ef4444", fontWeight: "600" }}>{t("magazyn.reset_filters")}</Text>
                   </TouchableOpacity>
                   {ordColumns.map((col) => (
                     <TouchableOpacity key={col.key} style={{ paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: tc.border || "#f1f5f9" }} onPress={() => { setOrdFilterCol(col.key); setOrdFilterVal(""); setShowOrdFilterDD(false); setShowOrdFilterValDD(true); }}>
@@ -746,7 +746,7 @@ export default function MagazynScreen() {
                   style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: ordFilterVal ? "#10b981" : (tc.border || "#e2e8f0"), backgroundColor: ordFilterVal ? "#10b98110" : tc.card }}
                   onPress={() => { setShowOrdFilterValDD(!showOrdFilterValDD); setShowOrdSortDD(false); setShowOrdFilterDD(false); }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: ordFilterVal ? "#10b981" : tc.textSecondary }}>{ordFilterVal || "Wert wählen…"}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: ordFilterVal ? "#10b981" : tc.textSecondary }}>{ordFilterVal || t("magazyn.select_value")}</Text>
                   <Ionicons name="chevron-down" size={12} color={ordFilterVal ? "#10b981" : tc.textSecondary} />
                 </TouchableOpacity>
                 {showOrdFilterValDD && (
@@ -756,7 +756,7 @@ export default function MagazynScreen() {
                         <Text style={{ fontSize: 13, color: ordFilterVal === val ? "#10b981" : tc.text, fontWeight: ordFilterVal === val ? "700" : "400" }}>{val}</Text>
                       </TouchableOpacity>
                     ))}
-                    {ordFilterColValues.length === 0 && <Text style={{ padding: 12, fontSize: 12, color: tc.textMuted }}>Keine Werte</Text>}
+                    {ordFilterColValues.length === 0 && <Text style={{ padding: 12, fontSize: 12, color: tc.textMuted }}>{t("magazyn.no_values")}</Text>}
                   </ScrollView>
                 )}
               </View>
@@ -785,19 +785,19 @@ export default function MagazynScreen() {
                   {/* Table header — sortable */}
                   <View style={{ flexDirection: "row", backgroundColor: "#1e40af", borderTopLeftRadius: 8, borderTopRightRadius: 8, paddingVertical: 8 }}>
                     {[
-                      { label: "Typ", w: 70, key: "order_type" },
-                      { label: "Projekt", w: 140, key: "project" },
-                      { label: "Material/Werkzeug", w: 170, key: "material" },
-                      { label: "Art-Nr", w: 80, key: "material" },
-                      { label: "Menge", w: 60, key: "ilosc" },
-                      { label: "Status", w: 90, key: "status" },
-                      { label: "Bestellt von", w: 110, key: "ordered_by" },
-                      { label: "Datum", w: 80, key: "created_at" },
-                      { label: "Uhrzeit", w: 60, key: "created_at" },
-                      { label: "Bestellt am", w: 90, key: "ordered_at" },
-                      { label: "Lieferung", w: 90, key: "data_dostawy" },
-                      { label: "Anmerkung", w: 120, key: "uwagi" },
-                      { label: "Aktion", w: 100, key: "_action" },
+                      { label: t("magazyn.col_type"), w: 70, key: "order_type" },
+                      { label: t("magazyn.col_project"), w: 140, key: "project" },
+                      { label: `${t("magazyn.material")}/${t("magazyn.tool")}`, w: 170, key: "material" },
+                      { label: t("magazyn.col_art_nr"), w: 80, key: "material" },
+                      { label: t("magazyn.col_qty"), w: 60, key: "ilosc" },
+                      { label: t("magazyn.status_label"), w: 90, key: "status" },
+                      { label: t("magazyn.col_ordered_by"), w: 110, key: "ordered_by" },
+                      { label: t("magazyn.col_date"), w: 80, key: "created_at" },
+                      { label: t("magazyn.col_time"), w: 60, key: "created_at" },
+                      { label: t("magazyn.ordered_on"), w: 90, key: "ordered_at" },
+                      { label: t("magazyn.col_delivery"), w: 90, key: "data_dostawy" },
+                      { label: t("magazyn.notes"), w: 120, key: "uwagi" },
+                      { label: t("magazyn.col_action"), w: 100, key: "_action" },
                     ].map((col, i) => (
                       <TouchableOpacity key={`${col.key}_${i}`} onPress={() => col.key !== "_action" && toggleOrderSort(col.key)} style={{ width: col.w, flexDirection: "row", alignItems: "center", paddingHorizontal: 6 }}>
                         <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }} numberOfLines={1}>{col.label}</Text>
@@ -820,7 +820,7 @@ export default function MagazynScreen() {
                         <View style={{ width: 70, paddingHorizontal: 4 }}>
                           <View style={{ backgroundColor: order.order_type === "tool" ? "#f59e0b20" : "#3b82f620", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, alignSelf: "flex-start" }}>
                             <Text style={{ fontSize: 9, fontWeight: "700", color: order.order_type === "tool" ? "#f59e0b" : "#3b82f6" }}>
-                              {order.order_type === "tool" ? "Werkzeug" : "Material"}
+                              {order.order_type === "tool" ? t("magazyn.tool") : t("magazyn.material")}
                             </Text>
                           </View>
                         </View>
@@ -848,7 +848,7 @@ export default function MagazynScreen() {
                               onPress={() => openEditOrder(order)}
                             >
                               <Ionicons name="create-outline" size={12} color="#fff" />
-                              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "600" }}>Bearbeiten</Text>
+                              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "600" }}>{t("common.edit")}</Text>
                             </TouchableOpacity>
                           ) : null}
                         </View>
@@ -888,7 +888,7 @@ export default function MagazynScreen() {
                       >
                         <Ionicons name="person" size={18} color={form.assigned_to ? "#2563eb" : tc.textSecondary} />
                         <Text style={{ flex: 1, fontSize: 14, color: form.assigned_to ? "#2563eb" : tc.textSecondary, fontWeight: form.assigned_to ? "600" : "400" }}>
-                          {form.status || "Benutzer auswählen…"}
+                          {form.status || t("magazyn.select_user")}
                         </Text>
                         {form.assigned_to ? (
                           <TouchableOpacity onPress={() => setForm((prev) => ({ ...prev, assigned_to: "", status: "" }))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -907,7 +907,7 @@ export default function MagazynScreen() {
                       >
                         <Ionicons name="business" size={18} color={form.baustelle ? "#10b981" : tc.textSecondary} />
                         <Text style={{ flex: 1, fontSize: 14, color: form.baustelle ? "#10b981" : tc.textSecondary, fontWeight: form.baustelle ? "600" : "400" }}>
-                          {form.baustelle || "Baustelle auswählen…"}
+                          {form.baustelle || t("magazyn.select_site")}
                         </Text>
                         {form.baustelle ? (
                           <TouchableOpacity onPress={() => setForm((prev) => ({ ...prev, baustelle: "" }))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -988,7 +988,7 @@ export default function MagazynScreen() {
           <View style={[s.modalContent, { backgroundColor: tc.card, maxHeight: "80%" }]}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={[s.modalTitle, { color: tc.text }]}>Status / Zugewiesen an</Text>
+                <Text style={[s.modalTitle, { color: tc.text }]}>{t("magazyn.status_assigned")}</Text>
                 <Text style={{ fontSize: 12, color: tc.textSecondary, marginTop: 2 }} numberOfLines={1}>{statusUserItem?.beschreibung || "—"}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowStatusUserModal(false)}>
@@ -999,7 +999,7 @@ export default function MagazynScreen() {
               <Ionicons name="search" size={16} color={tc.textSecondary} />
               <TextInput
                 style={[s.searchInput, { color: tc.text }]}
-                placeholder="Benutzer suchen..."
+                placeholder={t("magazyn.search_user")}
                 placeholderTextColor={tc.textSecondary}
                 value={statusUserSearch}
                 onChangeText={setStatusUserSearch}
@@ -1011,7 +1011,7 @@ export default function MagazynScreen() {
                 onPress={() => assignStatusToUser(null)}
               >
                 <Ionicons name="close-circle-outline" size={22} color="#ef4444" />
-                <Text style={{ fontSize: 14, color: "#ef4444", fontWeight: "600" }}>Keine Zuweisung (leer)</Text>
+                <Text style={{ fontSize: 14, color: "#ef4444", fontWeight: "600" }}>{t("magazyn.no_assignment")}</Text>
               </TouchableOpacity>
               {allUsers
                 .filter((u) => !statusUserSearch.trim() || u.full_name.toLowerCase().includes(statusUserSearch.toLowerCase()))
@@ -1038,7 +1038,7 @@ export default function MagazynScreen() {
         <View style={[s.modalOverlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
           <View style={[s.modalContent, { backgroundColor: tc.card, maxHeight: "80%" }]}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <Text style={[s.modalTitle, { color: tc.text }]}>Baustelle auswählen</Text>
+              <Text style={[s.modalTitle, { color: tc.text }]}>{t("magazyn.select_site")}</Text>
               <TouchableOpacity onPress={() => setShowBaustellePicker(false)}>
                 <Ionicons name="close" size={24} color={tc.text} />
               </TouchableOpacity>
@@ -1047,7 +1047,7 @@ export default function MagazynScreen() {
               <Ionicons name="search" size={18} color={tc.textSecondary} />
               <TextInput
                 style={[s.searchInput, { color: tc.text }]}
-                placeholder="Baustelle suchen..."
+                placeholder={t("magazyn.search_site")}
                 placeholderTextColor={tc.textMuted}
                 value={baustelleSearch}
                 onChangeText={setBaustelleSearch}
@@ -1079,7 +1079,7 @@ export default function MagazynScreen() {
                   );
                 })}
               {allProjects.length === 0 && (
-                <Text style={{ textAlign: "center", color: tc.textMuted, paddingVertical: 20 }}>Keine Baustellen</Text>
+                <Text style={{ textAlign: "center", color: tc.textMuted, paddingVertical: 20 }}>{t("magazyn.no_sites")}</Text>
               )}
             </ScrollView>
           </View>
@@ -1092,11 +1092,11 @@ export default function MagazynScreen() {
           <View style={[s.modalContent, { backgroundColor: tc.card }]}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <View style={{ flex: 1 }}>
-                <Text style={[s.modalTitle, { color: tc.text }]}>Bestellung bearbeiten</Text>
+                <Text style={[s.modalTitle, { color: tc.text }]}>{t("magazyn.edit_order")}</Text>
                 {editingOrder && (
                   <Text style={{ fontSize: 12, color: tc.textSecondary, marginTop: 2 }} numberOfLines={1}>
                     {editingOrder.order_type === "tool" ? (editingOrder.tool?.beschreibung || "—") : (editingOrder.material?.nazwa || "—")} — {editingOrder.project?.name || "—"}
-                    {editingOrder.order_type === "tool" ? " (Werkzeug)" : " (Material)"}
+                    {editingOrder.order_type === "tool" ? ` (${t("magazyn.tool")})` : ` (${t("magazyn.material")})`}
                   </Text>
                 )}
               </View>
@@ -1111,19 +1111,19 @@ export default function MagazynScreen() {
                 <View style={{ marginBottom: 14, backgroundColor: tc.background || "#f8fafc", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: tc.border || "#e2e8f0" }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
                     <Ionicons name="information-circle-outline" size={16} color={tc.textSecondary} />
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: tc.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 }}>Bestellinfo</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: tc.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 }}>{t("magazyn.order_info")}</Text>
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
                     <Ionicons name="calendar-outline" size={14} color={tc.textSecondary} />
                     <Text style={{ fontSize: 13, color: tc.text }}>
-                      Erstellt: {editingOrder.created_at ? new Date(editingOrder.created_at).toLocaleDateString("de-DE") : "—"}{" "}
-                      {editingOrder.created_at ? new Date(editingOrder.created_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : ""} Uhr
+                      {t("magazyn.created")}: {editingOrder.created_at ? new Date(editingOrder.created_at).toLocaleDateString("de-DE") : "—"}{" "}
+                      {editingOrder.created_at ? new Date(editingOrder.created_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : ""}
                     </Text>
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <Ionicons name="person-outline" size={14} color={tc.textSecondary} />
                     <Text style={{ fontSize: 13, color: tc.text }}>
-                      Erstellt von: {editingOrder.ordered_by_profile?.full_name || "—"}
+                      {t("magazyn.created_by")}: {editingOrder.ordered_by_profile?.full_name || "—"}
                     </Text>
                   </View>
                 </View>
@@ -1131,12 +1131,12 @@ export default function MagazynScreen() {
 
               {/* Status */}
               <View style={{ marginBottom: 14 }}>
-                <Text style={[s.fieldLabel, { color: tc.textSecondary }]}>Status</Text>
+                <Text style={[s.fieldLabel, { color: tc.textSecondary }]}>{t("magazyn.status_label")}</Text>
                 <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
                   {[
-                    { value: "pending", labelDE: "Ausstehend", color: "#f59e0b", icon: "time-outline" as const },
-                    { value: "ordered", labelDE: "Bestellt", color: "#3b82f6", icon: "cart-outline" as const },
-                    { value: "delivered", labelDE: "Geliefert", color: "#10b981", icon: "checkmark-circle-outline" as const },
+                    { value: "pending", color: "#f59e0b", icon: "time-outline" as const },
+                    { value: "ordered", color: "#3b82f6", icon: "cart-outline" as const },
+                    { value: "delivered", color: "#10b981", icon: "checkmark-circle-outline" as const },
                   ].map((st) => {
                     const isActive = orderForm.status === st.value;
                     return (
@@ -1152,7 +1152,7 @@ export default function MagazynScreen() {
                       >
                         <Ionicons name={st.icon} size={18} color={isActive ? st.color : tc.textSecondary} />
                         <Text style={{ fontSize: 13, fontWeight: isActive ? "700" : "500", color: isActive ? st.color : tc.text }}>
-                          {st.labelDE}
+                          {t(`magazyn.order_status.${st.value}`)}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -1162,7 +1162,7 @@ export default function MagazynScreen() {
 
               {/* Bestellt am — date picker */}
               <View style={{ marginBottom: 14 }}>
-                <Text style={[s.fieldLabel, { color: tc.textSecondary }]}>Bestellt am</Text>
+                <Text style={[s.fieldLabel, { color: tc.textSecondary }]}>{t("magazyn.ordered_on")}</Text>
                 {Platform.OS === "web" ? (
                   <View style={{ flexDirection: "row" }}>
                     <input
@@ -1194,13 +1194,13 @@ export default function MagazynScreen() {
                   onPress={() => setOrderForm((prev) => ({ ...prev, ordered_at: new Date().toISOString().slice(0, 10) }))}
                 >
                   <Ionicons name="today-outline" size={14} color="#3b82f6" />
-                  <Text style={{ fontSize: 11, color: "#3b82f6", fontWeight: "600" }}>Heute</Text>
+                  <Text style={{ fontSize: 11, color: "#3b82f6", fontWeight: "600" }}>{t("common.today")}</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Lieferung — date picker */}
               <View style={{ marginBottom: 14 }}>
-                <Text style={[s.fieldLabel, { color: tc.textSecondary }]}>Lieferung (geplant)</Text>
+                <Text style={[s.fieldLabel, { color: tc.textSecondary }]}>{t("magazyn.delivery_planned")}</Text>
                 {Platform.OS === "web" ? (
                   <View style={{ flexDirection: "row" }}>
                     <input
@@ -1232,18 +1232,18 @@ export default function MagazynScreen() {
                   onPress={() => setOrderForm((prev) => ({ ...prev, data_dostawy: new Date().toISOString().slice(0, 10) }))}
                 >
                   <Ionicons name="today-outline" size={14} color="#10b981" />
-                  <Text style={{ fontSize: 11, color: "#10b981", fontWeight: "600" }}>Heute</Text>
+                  <Text style={{ fontSize: 11, color: "#10b981", fontWeight: "600" }}>{t("common.today")}</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Anmerkung */}
               <View style={{ marginBottom: 14 }}>
-                <Text style={[s.fieldLabel, { color: tc.textSecondary }]}>Anmerkung</Text>
+                <Text style={[s.fieldLabel, { color: tc.textSecondary }]}>{t("magazyn.notes")}</Text>
                 <TextInput
                   style={[s.fieldInput, { color: tc.text, borderColor: tc.border, backgroundColor: tc.background, minHeight: 70, textAlignVertical: "top" }]}
                   value={orderForm.uwagi}
                   onChangeText={(v) => setOrderForm((prev) => ({ ...prev, uwagi: v }))}
-                  placeholder="Bemerkungen zur Bestellung..."
+                  placeholder={t("magazyn.order_notes_placeholder")}
                   placeholderTextColor={tc.textMuted || "#999"}
                   multiline
                 />

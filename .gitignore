@@ -32,7 +32,11 @@ yarn-error.*
 
 # local env files
 .env
+.env.*
+!.env.example
 .env*.local
+.env.backup
+.env.old
 
 # typescript
 *.tsbuildinfo
@@ -46,5 +50,12 @@ app-example
 # Netlify
 .netlify/
 
+# IDE
+.idea/
+.vscode/*.log
+
 # archives
 *.zip
+
+# Audit artifacts (mogą zawierać sekrety w plaintext przed redakcją)
+Audyt/*.pdf

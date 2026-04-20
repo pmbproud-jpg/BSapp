@@ -24,6 +24,7 @@ export function useGPSTracking() {
         accuracy: Location.Accuracy.Balanced,
       });
 
+      const recorded_at = new Date(loc.timestamp).toISOString();
       await supabaseAdmin.from("user_locations").insert({
         user_id: userId,
         latitude: loc.coords.latitude,
@@ -32,8 +33,14 @@ export function useGPSTracking() {
         altitude: loc.coords.altitude,
         speed: loc.coords.speed,
         heading: loc.coords.heading,
-        recorded_at: new Date(loc.timestamp).toISOString(),
+        recorded_at,
       });
+      // Aktualizuj last known location w profilu (widoczne w panelu admina)
+      await supabaseAdmin.from("profiles").update({
+        last_latitude: loc.coords.latitude,
+        last_longitude: loc.coords.longitude,
+        last_location_at: recorded_at,
+      }).eq("id", userId);
     } catch (e) {
       // Silently fail — GPS may not be available
       console.warn("GPS tracking error:", e);

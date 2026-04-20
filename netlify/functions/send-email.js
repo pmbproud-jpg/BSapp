@@ -1,6 +1,6 @@
 const nodemailer = require("nodemailer");
 
-const ALLOWED_ORIGIN = "https://bsapp-management.netlify.app";
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://bsapp-management.netlify.app";
 
 function sanitize(str) {
   if (!str) return "";
@@ -56,9 +56,17 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: "Invalid action link" }) };
     }
 
+    // Validate actionLink is a proper URL
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(actionLink);
+    } catch {
+      return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: "Invalid action link URL" }) };
+    }
+
     // Sanitize user-provided strings to prevent XSS in email HTML
     const name = sanitize(userName || to);
-    const safeLink = encodeURI(actionLink);
+    const safeLink = parsedUrl.href;
 
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",

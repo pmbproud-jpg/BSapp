@@ -49,6 +49,8 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (loading) return;
+    // Poczekaj aż Expo Router rozwiąże URL — segments może być puste przy pierwszym renderze
+    if ((segments as string[]).length === 0) return;
 
     const inAuthGroup = segments[0] === "(app)";
 

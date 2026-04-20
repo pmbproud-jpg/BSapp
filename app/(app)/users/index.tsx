@@ -5,6 +5,7 @@ import type { Database } from "@/src/lib/supabase/database.types";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { useCompany } from "@/src/providers/CompanyProvider";
 import { openLink } from "@/src/utils/helpers";
+import { getRoleColor, getRoleIcon } from "@/src/utils/roleHelpers";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -87,37 +88,7 @@ export default function UsersScreen() {
     sendInviteLink, deleteUser, resetUserPassword,
   } = useUsersManagement(profile, t, fetchUsers, defaultPassword);
 
-  const getRoleColor = (role: string) => {
-    const colors: Record<string, string> = {
-      admin: "#ef4444",
-      management: "#f59e0b",
-      project_manager: "#3b82f6",
-      bauleiter: "#10b981",
-      worker: "#64748b",
-      subcontractor: "#8b5cf6",
-      office_worker: "#06b6d4",
-      logistics: "#f97316",
-      purchasing: "#ec4899",
-      warehouse_manager: "#7c3aed",
-    };
-    return colors[role] || "#94a3b8";
-  };
-
-  const getRoleIcon = (role: string) => {
-    const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
-      admin: "shield-checkmark",
-      management: "business",
-      project_manager: "briefcase",
-      bauleiter: "construct",
-      worker: "hammer",
-      subcontractor: "people",
-      office_worker: "desktop",
-      logistics: "cube",
-      purchasing: "cart",
-      warehouse_manager: "file-tray-stacked",
-    };
-    return icons[role] || "person";
-  };
+  // getRoleColor, getRoleIcon — imported from shared utility
 
   // ---- ADD USER ----
   const roleOptions = [
@@ -141,7 +112,7 @@ export default function UsersScreen() {
       <View style={styles.userHeader}>
         <View style={styles.userIcon}>
           <Ionicons
-            name={getRoleIcon(item.role)}
+            name={getRoleIcon(item.role) as any}
             size={24}
             color={getRoleColor(item.role)}
           />
@@ -223,18 +194,6 @@ export default function UsersScreen() {
     </TouchableOpacity>
   );
 
-  if (!canViewUsers && !canManageSubs) {
-    return null;
-  }
-
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
-      </View>
-    );
-  }
-
   const subcontractors = useMemo(() => users.filter((u) => u.role === "subcontractor"), [users]);
 
   const filteredUsers = useMemo(() => {
@@ -248,6 +207,9 @@ export default function UsersScreen() {
           t(`common.roles.${u.role}`).toLowerCase().includes(q);
       })
       .sort((a, b) => {
+        // Zalogowany użytkownik zawsze pierwszy
+        if (a.id === profile?.id) return -1;
+        if (b.id === profile?.id) return 1;
         let cmp = 0;
         if (sortBy === "name") {
           cmp = (a.full_name || "").localeCompare(b.full_name || "");
@@ -258,6 +220,18 @@ export default function UsersScreen() {
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users, searchQuery, sortBy, sortAsc, i18n.language]);
+
+  if (!canViewUsers && !canManageSubs) {
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
 
   const isExpired = (expiresAt: string | null) => {
     if (!expiresAt) return false;

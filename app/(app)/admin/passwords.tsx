@@ -42,20 +42,27 @@ export default function AdminPasswords() {
 
         let success = 0;
         let errors = 0;
+        const errorDetails: string[] = [];
+        const pw = defaultPassword.trim();
         for (const user of nonAdmins) {
           try {
-            const { error } = await supabaseAdmin.auth.admin.updateUser(user.id, { password: defaultPassword });
+            const { error } = await supabaseAdmin.auth.admin.updateUser(user.id, { password: pw });
             if (error) throw error;
             success++;
-          } catch {
+          } catch (err: any) {
             errors++;
+            errorDetails.push(`${(user as any).full_name || user.id}: ${err?.message || "unknown"}`);
+            console.error(`[resetAll] Failed for ${user.id}:`, err);
           }
         }
 
-        const msg = `${t("settings.reset_all_result", "Zresetowano: {{success}}, błędy: {{errors}}")
+        let msg = t("settings.reset_all_result", "Zresetowano: {{success}}, błędy: {{errors}}")
           .replace("{{success}}", String(success))
-          .replace("{{errors}}", String(errors))}`;
-        showMsg(t("common.success"), msg);
+          .replace("{{errors}}", String(errors));
+        if (errorDetails.length > 0) {
+          msg += "\n\n" + errorDetails.slice(0, 5).join("\n");
+        }
+        showMsg(errors > 0 ? t("common.error") : t("common.success"), msg);
       } catch (error: any) {
         showMsg(t("common.error"), error?.message || t("common.error"));
       } finally {
@@ -79,13 +86,14 @@ export default function AdminPasswords() {
   };
 
   const save = async () => {
-    if (editPw.length < 6) {
+    const pw = editPw.trim();
+    if (pw.length < 6) {
       showMsg(t("common.error"), t("settings.default_pw_too_short", "Hasło musi mieć min. 6 znaków"));
       return;
     }
     setSaving(true);
     try {
-      await updateDefaultPassword(editPw);
+      await updateDefaultPassword(pw);
       showMsg(t("common.success"), t("settings.default_pw_saved", "Domyślne hasło zapisane"));
     } catch {
       showMsg(t("common.error"), t("settings.default_pw_error", "Błąd zapisu hasła"));

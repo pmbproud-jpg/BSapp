@@ -1,6 +1,7 @@
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
 import { useAuth } from "@/src/providers/AuthProvider";
+import { getRoleColor } from "@/src/utils/roleHelpers";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
@@ -311,16 +312,6 @@ export default function ImportUsersScreen() {
   );
 }
 
-function getRoleColor(role: string): string {
-  const colors: Record<string, string> = {
-    admin: "#ef4444",
-    management: "#f59e0b",
-    project_manager: "#3b82f6",
-    bauleiter: "#10b981",
-    worker: "#64748b",
-  };
-  return colors[role] || "#64748b";
-}
 
 const styles = StyleSheet.create({
   container: {

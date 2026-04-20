@@ -8,6 +8,7 @@ import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import { getRoleDefaults, RoleName } from "@/src/hooks/usePermissions";
 import { supabase } from "@/src/lib/supabase/client";
+import { getRoleColor } from "@/src/utils/roleHelpers";
 
 export function useSettingsPermissions(t: any) {
   const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -279,20 +280,7 @@ export function useSettingsPermissions(t: any) {
     }
   };
 
-  const getRoleColor = (role: string) => {
-    const colorMap: Record<string, string> = {
-      admin: "#ef4444",
-      management: "#f59e0b",
-      project_manager: "#3b82f6",
-      bauleiter: "#10b981",
-      worker: "#64748b",
-      office_worker: "#06b6d4",
-      logistics: "#f97316",
-      purchasing: "#ec4899",
-      warehouse_manager: "#7c3aed",
-    };
-    return colorMap[role] || "#94a3b8";
-  };
+  // getRoleColor — imported from shared utility
 
   return {
     // Users

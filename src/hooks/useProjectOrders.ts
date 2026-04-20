@@ -10,7 +10,10 @@ import { Alert, Platform } from "react-native";
 
 const supabaseAdmin = adminApi;
 
-export function useProjectOrders(projectId: string | undefined, userId: string | undefined, t: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TFunc = (...args: any[]) => any;
+
+export function useProjectOrders(projectId: string | undefined, userId: string | undefined, t: TFunc) {
 
   // Material orders state
   const [materialsList, setMaterialsList] = useState<any[]>([]);
@@ -53,7 +56,7 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
   };
 
   const submitOrder = async () => {
-    if (!orderForm.material_id || !orderForm.ilosc) return;
+    if (!projectId || !orderForm.material_id || !orderForm.ilosc) return;
     setOrderSaving(true);
     try {
       const { error } = await supabaseAdmin.from("project_material_orders").insert({
@@ -83,6 +86,7 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
   };
 
   const submitCartOrders = async () => {
+    if (!projectId) return;
     const entries = Object.entries(orderCart).filter(([_, qty]) => parseFloat(qty) > 0);
     if (entries.length === 0) {
       const msg = "Bitte mindestens ein Material mit Menge auswählen";
@@ -141,6 +145,7 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
   };
 
   const submitToolCartOrders = async () => {
+    if (!projectId) return;
     const entries = Object.entries(toolOrderCart).filter(([_, qty]) => parseFloat(qty) > 0);
     if (entries.length === 0) {
       const msg = "Bitte mindestens ein Werkzeug mit Menge auswählen";

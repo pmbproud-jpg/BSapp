@@ -17,12 +17,17 @@ type ProjectMember = {
   profile?: { full_name: string | null; email: string; role: string };
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TFunc = (...args: any[]) => any;
+type SendNotificationFn = (userId: string, title: string, body: string, type?: string, data?: any) => Promise<void>;
+type ProfileLike = { id?: string; company_id?: string | null };
+
 export function useProjectMembers(
   projectId: string | undefined,
-  profile: any,
+  profile: ProfileLike | null,
   project: Project | null,
-  t: any,
-  sendNotification: any,
+  t: TFunc,
+  sendNotification: SendNotificationFn,
   fetchAll: () => Promise<void>,
 ) {
   const [members, setMembers] = useState<ProjectMember[]>([]);
@@ -39,16 +44,19 @@ export function useProjectMembers(
 
       if (error) throw error;
 
-      // Pobierz profile członków
-      const membersWithProfiles = await Promise.all(
-        (data || []).map(async (m: any) => {
-          const { data: prof } = await supabaseAdmin.from("profiles")
-            .select("full_name, email, role")
-            .eq("id", m.user_id)
-            .single();
-          return { ...m, profile: prof };
-        })
-      );
+      // Pobierz profile członków jednym batch query (zamiast N+1)
+      const userIds = (data || []).map((m: any) => m.user_id);
+      const { data: profiles } = userIds.length > 0
+        ? await supabaseAdmin.from("profiles")
+            .select("id, full_name, email, role")
+            .in("id", userIds)
+        : { data: [] };
+
+      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+      const membersWithProfiles = (data || []).map((m: any) => ({
+        ...m,
+        profile: profileMap.get(m.user_id) || undefined,
+      }));
       setMembers(membersWithProfiles);
       return membersWithProfiles;
     } catch (error) {
