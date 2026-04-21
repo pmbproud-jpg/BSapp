@@ -41,7 +41,7 @@ export function useProjectDeadlines(projectId: string | undefined, profileId: st
 
       // Auto-update status based on dates
       const now = new Date();
-      const updated = (data || []).map((d) => {
+      const updated = ((data as ProjectDeadline[] | null) || []).map((d) => {
         if (d.status === "completed") return d;
         const deadline = new Date(d.deadline_date + "T23:59:59");
         const warningDate = new Date(deadline);

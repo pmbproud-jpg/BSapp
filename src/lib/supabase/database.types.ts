@@ -105,6 +105,7 @@ export interface Database {
           location: string | null
           project_manager_id: string | null
           bauleiter_id: string | null
+          project_number: string | null
           created_by: string | null
           created_at: string
           updated_at: string
@@ -121,6 +122,7 @@ export interface Database {
           location?: string | null
           project_manager_id?: string | null
           bauleiter_id?: string | null
+          project_number?: string | null
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -137,6 +139,7 @@ export interface Database {
           location?: string | null
           project_manager_id?: string | null
           bauleiter_id?: string | null
+          project_number?: string | null
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -349,6 +352,91 @@ export interface Database {
           created_at?: string
         }
       }
+      user_absences: {
+        Row: {
+          id: string
+          user_id: string
+          type: 'vacation' | 'sick_leave' | 'special_leave' | 'training' | 'unexcused'
+          date_from: string
+          date_to: string
+          days: number
+          status: 'pending' | 'approved' | 'rejected'
+          note: string | null
+          approved_by: string | null
+          approved_at: string | null
+          rejection_reason: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type?: 'vacation' | 'sick_leave' | 'special_leave' | 'training' | 'unexcused'
+          date_from: string
+          date_to: string
+          days?: number
+          status?: 'pending' | 'approved' | 'rejected'
+          note?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
+          rejection_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: 'vacation' | 'sick_leave' | 'special_leave' | 'training' | 'unexcused'
+          date_from?: string
+          date_to?: string
+          days?: number
+          status?: 'pending' | 'approved' | 'rejected'
+          note?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
+          rejection_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      user_locations: {
+        Row: {
+          id: string
+          user_id: string
+          latitude: number
+          longitude: number
+          accuracy: number | null
+          altitude: number | null
+          speed: number | null
+          heading: number | null
+          recorded_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          latitude: number
+          longitude: number
+          accuracy?: number | null
+          altitude?: number | null
+          speed?: number | null
+          heading?: number | null
+          recorded_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          latitude?: number
+          longitude?: number
+          accuracy?: number | null
+          altitude?: number | null
+          speed?: number | null
+          heading?: number | null
+          recorded_at?: string
+          created_at?: string
+        }
+      }
       plan_requests: {
         Row: {
           id: string
@@ -357,6 +445,7 @@ export interface Database {
           requested_by: string
           status: string
           notes: string | null
+          vehicle_ids: string[] | null
           created_at: string
           updated_at: string
         }
@@ -367,6 +456,7 @@ export interface Database {
           requested_by: string
           status?: string
           notes?: string | null
+          vehicle_ids?: string[] | null
           created_at?: string
           updated_at?: string
         }
@@ -377,6 +467,7 @@ export interface Database {
           requested_by?: string
           status?: string
           notes?: string | null
+          vehicle_ids?: string[] | null
           created_at?: string
           updated_at?: string
         }
@@ -404,6 +495,7 @@ export interface Database {
           request_id: string
           worker_id: string
           vehicle_id: string | null
+          vehicle_ids: string[] | null
           day_of_week: number
           departure_time: string | null
           start_time: string | null
@@ -416,6 +508,7 @@ export interface Database {
           request_id: string
           worker_id: string
           vehicle_id?: string | null
+          vehicle_ids?: string[] | null
           day_of_week: number
           departure_time?: string | null
           start_time?: string | null
@@ -428,6 +521,7 @@ export interface Database {
           request_id?: string
           worker_id?: string
           vehicle_id?: string | null
+          vehicle_ids?: string[] | null
           day_of_week?: number
           departure_time?: string | null
           start_time?: string | null

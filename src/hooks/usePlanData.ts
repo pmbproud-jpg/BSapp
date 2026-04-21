@@ -6,39 +6,98 @@
  */
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { fetchAllWorkers, fetchProfileMap } from "@/src/services/profileService";
+import type { Database } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
 
+// ── Typy z Supabase schema ──
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
+type PlanAssignmentRow = Database["public"]["Tables"]["plan_assignments"]["Row"];
+type PlanRequestRow = Database["public"]["Tables"]["plan_requests"]["Row"];
+type UserAbsenceRow = Database["public"]["Tables"]["user_absences"]["Row"];
+type ProjectMemberRow = Database["public"]["Tables"]["project_members"]["Row"];
+
 export type Vehicle = { id: string; name: string; license_plate: string; seats: number; active: boolean };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type TFunc = (...args: any[]) => any;
-type SendNotificationFn = (userId: string, title: string, body: string, type?: string, data?: any) => Promise<void>;
+// Pola projektu wybierane w fetchProjects (ograniczony SELECT)
+type ProjectLite = Pick<ProjectRow, "id" | "name" | "location" | "status" | "project_number">;
+
+// Skrócony profil (z joina)
+type WorkerLite = Pick<ProfileRow, "id" | "full_name" | "role">;
+
+// plan_requests z dołączonym project + workers + requester
+type RequestWithRelations = PlanRequestRow & {
+  project?: Pick<ProjectRow, "name" | "location"> | null;
+  workers?: Array<{ worker_id: string; profile?: { id: string; full_name: string | null } | null }>;
+  requester?: { id?: string; full_name: string | null } | null;
+};
+
+// plan_assignments po zasileniu join-ami w pamięci
+type AssignmentWithRelations = PlanAssignmentRow & {
+  project?: Pick<ProjectRow, "id" | "name" | "location"> | null;
+  worker?: WorkerLite | null;
+  vehicle?: Vehicle | null;
+  vehicles?: Vehicle[];
+};
+
+// user_absences z dołączonym użytkownikiem
+type AbsenceWithUser = UserAbsenceRow & {
+  user?: { id: string; full_name: string | null } | null;
+};
+
+// project_members z profile join
+type MemberWithProfile = ProjectMemberRow & {
+  profile?: WorkerLite | null;
+};
+
+// Struktura "dnia" z widoku planu (komponent plan.tsx przekazuje).
+// `date` to ISO YYYY-MM-DD używane do filtrowania nieobecności.
+export type PlanDay = {
+  dayOfWeek: number;
+  dayNum: number;
+  monthNum: number;
+  date: string;
+  yearNum?: number;
+  dayName?: string;
+};
+
+type NotificationData = Record<string, unknown>;
+type SendNotificationFn = (
+  userId: string,
+  title: string,
+  body: string,
+  type?: string,
+  data?: NotificationData,
+) => Promise<void>;
+
+type DayFullFn = (day: PlanDay, lang: string) => string;
 
 export function usePlanData(
   weekStart: string,
   profileId: string | undefined,
   sendNotification: SendNotificationFn,
-  t: TFunc,
+  t: TFunction,
   i18nLang: string,
-  dayFullFn: (day: any, lang: string) => string,
+  dayFullFn: DayFullFn,
 ) {
   // Shared data
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [workers, setWorkers] = useState<any[]>([]);
-  const [assignments, setAssignments] = useState<any[]>([]);
-  const [requests, setRequests] = useState<any[]>([]);
-  const [absences, setAbsences] = useState<any[]>([]);
+  const [projects, setProjects] = useState<ProjectLite[]>([]);
+  const [workers, setWorkers] = useState<ProfileRow[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentWithRelations[]>([]);
+  const [requests, setRequests] = useState<RequestWithRelations[]>([]);
+  const [absences, setAbsences] = useState<AbsenceWithUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [projectMembers, setProjectMembers] = useState<Map<string, any[]>>(new Map());
+  const [projectMembers, setProjectMembers] = useState<Map<string, MemberWithProfile[]>>(new Map());
 
   // Day view
-  const [selectedDay, setSelectedDay] = useState<any | null>(null);
+  const [selectedDay, setSelectedDay] = useState<PlanDay | null>(null);
 
   // Assign modal
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [editingAssign, setEditingAssign] = useState<any | null>(null);
+  const [editingAssign, setEditingAssign] = useState<AssignmentWithRelations | null>(null);
   const [assignProject, setAssignProject] = useState<string | null>(null);
   const [assignVehicles, setAssignVehicles] = useState<Set<string>>(new Set());
   const [assignDeparture, setAssignDeparture] = useState("06:00");
@@ -82,20 +141,20 @@ export function usePlanData(
       .lte("date_from", rEnd)
       .gte("date_to", rStart)
       .order("date_from");
-    setAbsences(data || []);
+    setAbsences((data ?? []) as AbsenceWithUser[]);
   };
 
   const fetchVehicles = async () => {
     const { data } = await supabaseAdmin.from("vehicles").select("*").eq("active", true).order("name");
-    setVehicles(data || []);
+    setVehicles((data ?? []) as Vehicle[]);
   };
   const fetchProjects = async () => {
     const { data } = await supabaseAdmin.from("projects").select("id, name, location, status, project_number").order("name");
-    setProjects(data || []);
+    setProjects((data ?? []) as ProjectLite[]);
   };
   const fetchWorkers = async () => {
     const data = await fetchAllWorkers();
-    setWorkers(data);
+    setWorkers(data as ProfileRow[]);
   };
 
   const fetchProjectMembers = async () => {
@@ -103,8 +162,8 @@ export function usePlanData(
       .select("project_id, user_id, role, profile:profiles(id, full_name, role)")
       .order("project_id");
     if (data) {
-      const map = new Map<string, any[]>();
-      for (const m of data) {
+      const map = new Map<string, MemberWithProfile[]>();
+      for (const m of data as MemberWithProfile[]) {
         const pid = m.project_id;
         if (!map.has(pid)) map.set(pid, []);
         map.get(pid)!.push(m);
@@ -117,25 +176,33 @@ export function usePlanData(
     const { data: reqs } = await supabaseAdmin.from("plan_requests")
       .select("id, project_id, week_start, status, project:projects(id, name, location)")
       .eq("week_start", weekStart);
-    if (!reqs || reqs.length === 0) { setAssignments([]); return; }
-    const reqIds = reqs.map((r: any) => r.id);
+    const reqsTyped = (reqs ?? []) as Array<Pick<PlanRequestRow, "id" | "project_id" | "week_start" | "status"> & { project?: Pick<ProjectRow, "id" | "name" | "location"> | null }>;
+    if (reqsTyped.length === 0) { setAssignments([]); return; }
+    const reqIds = reqsTyped.map((r) => r.id);
     const { data: asgn } = await supabaseAdmin.from("plan_assignments").select("*").in("request_id", reqIds);
-    const wIds = [...new Set((asgn || []).map((a: any) => a.worker_id))];
-    let pMap = new Map();
+    const asgnTyped = (asgn ?? []) as PlanAssignmentRow[];
+    const wIds = [...new Set(asgnTyped.map((a) => a.worker_id))];
+    let pMap = new Map<string, WorkerLite>();
     if (wIds.length > 0) {
       const { data: profs } = await supabaseAdmin.from("profiles").select("id, full_name, role").in("id", wIds);
-      pMap = new Map((profs || []).map((p: any) => [p.id, p]));
+      pMap = new Map(((profs ?? []) as WorkerLite[]).map((p) => [p.id, p]));
     }
     const { data: freshVehicles } = await supabaseAdmin.from("vehicles").select("*").eq("active", true);
-    const vMap = new Map((freshVehicles || []).map((v: any) => [v.id, v]));
-    setAssignments((asgn || []).map((a: any) => {
-      const req = reqs.find((r: any) => r.id === a.request_id);
+    const vMap = new Map(((freshVehicles ?? []) as Vehicle[]).map((v) => [v.id, v]));
+    setAssignments(asgnTyped.map((a): AssignmentWithRelations => {
+      const req = reqsTyped.find((r) => r.id === a.request_id);
       // Single vehicle per worker — take last from vehicle_ids (latest change) or fallback to vehicle_id
       const firstVid = (Array.isArray(a.vehicle_ids) && a.vehicle_ids.length > 0)
         ? a.vehicle_ids[a.vehicle_ids.length - 1]
-        : a.vehicle_id || null;
-      const resolvedVehicle = firstVid ? vMap.get(firstVid) || null : null;
-      return { ...a, project: req?.project, worker: pMap.get(a.worker_id) || null, vehicle: resolvedVehicle, vehicles: resolvedVehicle ? [resolvedVehicle] : [] };
+        : a.vehicle_id ?? null;
+      const resolvedVehicle = firstVid ? vMap.get(firstVid) ?? null : null;
+      return {
+        ...a,
+        project: req?.project ?? null,
+        worker: pMap.get(a.worker_id) ?? null,
+        vehicle: resolvedVehicle,
+        vehicles: resolvedVehicle ? [resolvedVehicle] : [],
+      };
     }));
   };
 
@@ -143,18 +210,29 @@ export function usePlanData(
     const { data } = await supabaseAdmin.from("plan_requests")
       .select("*, project:projects(name, location), workers:plan_request_workers(worker_id)")
       .eq("week_start", weekStart).order("created_at", { ascending: false });
-    if (data) {
-      const allWIds = [...new Set(data.flatMap((r: any) => [...(r.workers || []).map((w: any) => w.worker_id), r.requested_by]))] as string[];
+    const rows = (data ?? []) as RequestWithRelations[];
+    if (rows.length > 0) {
+      const allWIds = [...new Set(
+        rows.flatMap((r) => [
+          ...(r.workers ?? []).map((w) => w.worker_id),
+          r.requested_by,
+        ]),
+      )].filter((id): id is string => Boolean(id));
       if (allWIds.length > 0) {
         const profMap = await fetchProfileMap(allWIds);
-        const pm = new Map(Object.entries(profMap).map(([id, name]) => [id, { id, full_name: name }]));
-        for (const req of data) {
-          req.requester = pm.get(req.requested_by) || { full_name: null };
-          req.workers = (req.workers || []).map((w: any) => ({ ...w, profile: pm.get(w.worker_id) || null }));
+        const pm = new Map<string, { id: string; full_name: string | null }>(
+          Object.entries(profMap).map(([id, name]) => [id, { id, full_name: name }]),
+        );
+        for (const req of rows) {
+          req.requester = pm.get(req.requested_by) ?? { full_name: null };
+          req.workers = (req.workers ?? []).map((w) => ({
+            ...w,
+            profile: pm.get(w.worker_id) ?? null,
+          }));
         }
       }
     }
-    setRequests(data || []);
+    setRequests(rows);
   };
 
   const fetchAll = async () => {
@@ -165,7 +243,7 @@ export function usePlanData(
 
   // ── Helpers ──
   const getWorkerAbsence = (workerId: string, dateStr: string) => {
-    return absences.find((a: any) => a.user_id === workerId && a.status === "approved" && dateStr >= a.date_from && dateStr <= a.date_to);
+    return absences.find((a) => a.user_id === workerId && a.status === "approved" && dateStr >= a.date_from && dateStr <= a.date_to);
   };
 
   const dayCount = (dow: number) => assignments.filter((a) => a.day_of_week === dow).length;
@@ -176,19 +254,19 @@ export function usePlanData(
     return a.vehicle_id === vid;
   }).length;
 
-  const getWorkersForProject = (projectId: string | null): any[] => {
+  const getWorkersForProject = (projectId: string | null): ProfileRow[] => {
     if (!projectId) return [];
-    const members = projectMembers.get(projectId) || [];
+    const members = projectMembers.get(projectId) ?? [];
     if (members.length === 0) return workers;
-    const memberIds = new Set(members.map((m: any) => m.user_id));
-    return workers.filter((w: any) => memberIds.has(w.id));
+    const memberIds = new Set(members.map((m) => m.user_id));
+    return workers.filter((w) => memberIds.has(w.id));
   };
 
   const getRequestedWorkerIds = (projectId: string | null): Set<string> => {
     if (!projectId) return new Set();
     const ids = new Set<string>();
-    requests.filter((r: any) => r.project_id === projectId).forEach((r: any) => {
-      (r.workers || []).forEach((w: any) => { if (w.worker_id) ids.add(w.worker_id); });
+    requests.filter((r) => r.project_id === projectId).forEach((r) => {
+      (r.workers ?? []).forEach((w) => { if (w.worker_id) ids.add(w.worker_id); });
     });
     return ids;
   };
@@ -198,10 +276,16 @@ export function usePlanData(
     return (h || 0) * 60 + (m || 0);
   };
 
-  const getWorkerConflicts = (workerId: string, dayOfWeek: number, startTime: string, endTime: string, excludeId?: string): any[] => {
+  const getWorkerConflicts = (
+    workerId: string,
+    dayOfWeek: number,
+    startTime: string,
+    endTime: string,
+    excludeId?: string,
+  ): AssignmentWithRelations[] => {
     const start = timeToMinutes(startTime);
     const end = timeToMinutes(endTime);
-    return assignments.filter((a: any) => {
+    return assignments.filter((a) => {
       if (a.worker_id !== workerId) return false;
       if (a.day_of_week !== dayOfWeek) return false;
       if (excludeId && a.id === excludeId) return false;
@@ -230,8 +314,8 @@ export function usePlanData(
         if (error) throw error;
       }
       setVName(""); setVPlate(""); setVSeats("5"); setEditingVehicleId(null); setShowVehicleModal(false); fetchVehicles();
-    } catch (e: any) {
-      const msg = e?.message || t("common.error");
+    } catch (e: unknown) {
+      const msg = (e instanceof Error ? e.message : null) || t("common.error");
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     } finally { setSavingV(false); }
   };
@@ -240,8 +324,8 @@ export function usePlanData(
       const { error } = await supabaseAdmin.from("vehicles").update({ active: false }).eq("id", vehicleId);
       if (error) throw error;
       fetchVehicles();
-    } catch (e: any) {
-      const msg = e?.message || t("common.error");
+    } catch (e: unknown) {
+      const msg = (e instanceof Error ? e.message : null) || t("common.error");
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     }
   };
@@ -254,19 +338,19 @@ export function usePlanData(
     setShowAssignModal(true);
   };
 
-  const openEditAssign = (a: any) => {
+  const openEditAssign = (a: AssignmentWithRelations) => {
     setEditingAssign(a);
-    setAssignProject(a.project?.id || null);
+    setAssignProject(a.project?.id ?? null);
     // Load the latest vehicle (last in array = most recent change)
     const firstVid = (Array.isArray(a.vehicle_ids) && a.vehicle_ids.length > 0)
       ? a.vehicle_ids[a.vehicle_ids.length - 1]
-      : a.vehicle_id || null;
+      : a.vehicle_id ?? null;
     setAssignVehicles(firstVid ? new Set([firstVid]) : new Set());
     setAssignDeparture(a.departure_time?.slice(0, 5) || "06:00");
     setAssignStartTime(a.start_time?.slice(0, 5) || "06:00");
     setAssignEndTime(a.end_time?.slice(0, 5) || "16:00");
-    const sameGroup = assignments.filter((x: any) => x.request_id === a.request_id && x.day_of_week === a.day_of_week);
-    const wIds = new Set<string>(sameGroup.map((x: any) => x.worker_id).filter(Boolean));
+    const sameGroup = assignments.filter((x) => x.request_id === a.request_id && x.day_of_week === a.day_of_week);
+    const wIds = new Set<string>(sameGroup.map((x) => x.worker_id).filter(Boolean));
     setAssignWorkers(wIds);
     setAssignShowProjects(false); setAssignShowVehicles(false); setAssignShowWorkers(false);
     setShowAssignModal(true);
@@ -283,16 +367,16 @@ export function usePlanData(
     }
     const excludeIds = new Set<string>();
     if (editingAssign) {
-      assignments.filter((x: any) => x.request_id === editingAssign.request_id && x.day_of_week === editingAssign.day_of_week)
-        .forEach((x: any) => excludeIds.add(x.id));
+      assignments.filter((x) => x.request_id === editingAssign.request_id && x.day_of_week === editingAssign.day_of_week)
+        .forEach((x) => excludeIds.add(x.id));
     }
     const conflicts: string[] = [];
     for (const wid of Array.from(assignWorkers)) {
-      const c = getWorkerConflicts(wid, selectedDay.dayOfWeek, assignStartTime, assignEndTime).filter((a: any) => !excludeIds.has(a.id));
+      const c = getWorkerConflicts(wid, selectedDay.dayOfWeek, assignStartTime, assignEndTime).filter((a) => !excludeIds.has(a.id));
       if (c.length > 0) {
-        const wName = workers.find((w: any) => w.id === wid)?.full_name || wid.slice(0, 8);
-        const projNames = c.map((a: any) => a.project?.name || "?").join(", ");
-        const times = c.map((a: any) => `${(a.start_time || "00:00").slice(0, 5)}-${(a.end_time || "24:00").slice(0, 5)}`).join(", ");
+        const wName = workers.find((w) => w.id === wid)?.full_name || wid.slice(0, 8);
+        const projNames = c.map((a) => a.project?.name || "?").join(", ");
+        const times = c.map((a) => `${(a.start_time || "00:00").slice(0, 5)}-${(a.end_time || "24:00").slice(0, 5)}`).join(", ");
         conflicts.push(`${wName}: ${projNames} (${times})`);
       }
     }
@@ -305,8 +389,8 @@ export function usePlanData(
     const firstVehicleId = vehicleIdsArr.length > 0 ? vehicleIdsArr[0] : null;
     try {
       if (editingAssign) {
-        const sameGroup = assignments.filter((x: any) => x.request_id === editingAssign.request_id && x.day_of_week === editingAssign.day_of_week);
-        const existingWorkerIds = new Set(sameGroup.map((x: any) => x.worker_id));
+        const sameGroup = assignments.filter((x) => x.request_id === editingAssign.request_id && x.day_of_week === editingAssign.day_of_week);
+        const existingWorkerIds = new Set(sameGroup.map((x) => x.worker_id));
         const newWorkerIds = assignWorkers;
         for (const a of sameGroup) {
           if (!newWorkerIds.has(a.worker_id)) {
@@ -316,7 +400,7 @@ export function usePlanData(
         const editedWorkerId = editingAssign.worker_id;
         for (const wid of Array.from(newWorkerIds)) {
           if (existingWorkerIds.has(wid)) {
-            const existing = sameGroup.find((x: any) => x.worker_id === wid);
+            const existing = sameGroup.find((x) => x.worker_id === wid);
             if (existing) {
               const isEditedWorker = wid === editedWorkerId;
               if (isEditedWorker) {
@@ -342,14 +426,16 @@ export function usePlanData(
           }
         }
       } else {
-        let { data: existingReq } = await supabaseAdmin.from("plan_requests")
+        const { data: existingReq } = await supabaseAdmin.from("plan_requests")
           .select("id").eq("project_id", assignProject).eq("week_start", weekStart).maybeSingle();
         let requestId: string;
-        if (existingReq) { requestId = existingReq.id; }
+        if (existingReq) { requestId = (existingReq as { id: string }).id; }
         else {
           const { data: newReq, error } = await supabaseAdmin.from("plan_requests")
             .insert({ project_id: assignProject, week_start: weekStart, requested_by: profileId || null, status: "published" }).select().single();
-          if (error) throw error; requestId = newReq.id;
+          if (error) throw error;
+          if (!newReq) throw new Error("Failed to create plan_request");
+          requestId = (newReq as { id: string }).id;
         }
         for (const wid of Array.from(assignWorkers)) {
           await supabaseAdmin.from("plan_request_workers").upsert({ request_id: requestId, worker_id: wid }, { onConflict: "request_id,worker_id" });
@@ -378,9 +464,10 @@ export function usePlanData(
       const msg = t("plan.assignment_saved");
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
       setShowAssignModal(false); setEditingAssign(null); fetchAssignments();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message || "Error");
+      const msg = (e instanceof Error ? e.message : null) || "Error";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     } finally { setSavingAssign(false); }
   };
 
@@ -425,14 +512,17 @@ export function usePlanData(
         const { data: req, error } = await supabaseAdmin.from("plan_requests")
           .insert({ project_id: orderProject, week_start: weekStart, requested_by: profileId || null, notes: orderNotes.trim() || null, vehicle_ids: vehicleIdsArr }).select().single();
         if (error) throw error;
-        const rows = Array.from(orderWorkers).map((wid) => ({ request_id: req.id, worker_id: wid }));
+        if (!req) throw new Error("Failed to create plan_request");
+        const reqId = (req as { id: string }).id;
+        const rows = Array.from(orderWorkers).map((wid) => ({ request_id: reqId, worker_id: wid }));
         await supabaseAdmin.from("plan_request_workers").insert(rows);
       }
       const msg = orderEditingId ? (t("common.saved") || "Gespeichert") : t("plan.request_sent");
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
       resetOrderForm(); fetchRequests();
-    } catch (e: any) {
-      Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message || "Error");
+    } catch (e: unknown) {
+      const msg = (e instanceof Error ? e.message : null) || "Error";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     } finally { setSendingOrder(false); }
   };
 
@@ -453,15 +543,16 @@ export function usePlanData(
       await supabaseAdmin.from("plan_requests").delete().eq("id", id);
       if (orderEditingId === id) resetOrderForm();
       fetchRequests();
-    } catch (e: any) {
-      Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message || "Error");
+    } catch (e: unknown) {
+      const msg = (e instanceof Error ? e.message : null) || "Error";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     }
   };
 
-  const openEditOrder = (req: any) => {
+  const openEditOrder = (req: RequestWithRelations) => {
     setOrderEditingId(req.id);
     setOrderProject(req.project_id || null);
-    setOrderWorkers(new Set((req.workers || []).map((w: any) => w.worker_id)));
+    setOrderWorkers(new Set((req.workers ?? []).map((w) => w.worker_id)));
     setOrderVehicles(new Set(Array.isArray(req.vehicle_ids) ? req.vehicle_ids : []));
     setOrderNotes(req.notes || "");
     setOrderShowForm(true);
