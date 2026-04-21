@@ -27,7 +27,8 @@ Warstwy obrony (od frontu do bazy):
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | publiczna | `.env` + Netlify env | jawna w bundlu frontendu |
 | `EXPO_PUBLIC_SITE_URL` | publiczna | `.env` + Netlify env | jawna |
 | `SUPABASE_SERVICE_ROLE_KEY` | **tajna** | Netlify env (prod) + `.env` (dev) | **nigdy w bundlu** |
-| `RESEND_API_KEY` | **tajna** | Netlify env (prod) + `.env` (dev) | **nigdy w bundlu** |
+| `GMAIL_USER` | **tajna** | Netlify env | server-side (send-email.js) |
+| `GMAIL_APP_PASSWORD` | **tajna** | Netlify env | server-side (send-email.js) |
 
 **Krytyczne:** `SUPABASE_SERVICE_ROLE_KEY` omija RLS. Wyciek = pełny dostęp
 do bazy danych (odczyt haseł hashy? nie — Supabase Auth trzyma hasła w
@@ -52,13 +53,15 @@ Wykonaj w tej kolejności:
 6. Zweryfikuj, że `/.netlify/functions/supabase-admin` nadal działa
    (zaloguj się w aplikacji i wykonaj dowolną operację admin).
 
-### 3.2. `RESEND_API_KEY`
+### 3.2. `GMAIL_APP_PASSWORD` (Gmail SMTP dla send-email.js)
 
-1. **Resend Dashboard** → `API Keys` → revoke stary klucz.
-2. Utwórz nowy klucz z uprawnieniami `Sending access` do domeny projektu.
-3. **Netlify Dashboard** → `Environment variables` → zaktualizuj.
-4. Trigger deploy.
-5. Zweryfikuj wysyłkę emaila przez `netlify/functions/send-email.js`.
+1. https://myaccount.google.com/apppasswords — zaloguj się na konto z `GMAIL_USER`.
+2. Znajdź istniejące hasło dla BSapp → **Remove**.
+3. **Create** nowe → nazwa np. `bsapp-netlify-smtp`.
+4. Google pokaże 16-znakowy string w 4 blokach po 4 — skopiuj **bez spacji**.
+5. **Netlify Dashboard** → `Environment variables` → zaktualizuj `GMAIL_APP_PASSWORD`.
+   Albo CLI: `netlify env:set GMAIL_APP_PASSWORD "xxxxxxxxxxxxxxxx"`.
+6. Zweryfikuj wysyłkę emaila przez flow reset hasła / zaproszenia.
 
 ### 3.3. Po rotacji — weryfikacja
 
@@ -84,8 +87,8 @@ klucz staje się nieważny po `Roll` w Supabase.
    nieznanych IP.
 3. **Supabase Dashboard → Authentication → Users** — sprawdź, czy są
    konta, których nie założyłeś.
-4. **Resend Dashboard → Emails** — sprawdź, czy nie wysłano niczego
-   nieautoryzowanego.
+4. **Gmail → Recent activity** (https://myaccount.google.com/notifications)
+   — sprawdź, czy nie wysłano niczego nieautoryzowanego przez SMTP.
 5. Jeśli ktoś mógł pobrać tabelę `profiles` — wymuś reset haseł wszystkim
    użytkownikom przez `auth.admin.generateLink(type: 'recovery')`.
 
