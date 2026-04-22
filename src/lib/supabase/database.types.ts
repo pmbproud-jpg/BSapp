@@ -217,6 +217,7 @@ export interface Database {
           user_id: string
           comment: string
           language: SupportedLanguage
+          attachment_id: string | null
           created_at: string
         }
         Insert: {
@@ -225,6 +226,7 @@ export interface Database {
           user_id: string
           comment: string
           language?: SupportedLanguage
+          attachment_id?: string | null
           created_at?: string
         }
         Update: {
@@ -233,7 +235,121 @@ export interface Database {
           user_id?: string
           comment?: string
           language?: SupportedLanguage
+          attachment_id?: string | null
           created_at?: string
+        }
+      }
+      project_attachments: {
+        Row: {
+          id: string
+          project_id: string
+          file_name: string
+          file_url: string
+          file_type: string
+          file_size: number | null
+          uploaded_by: string | null
+          folder_id: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          file_name: string
+          file_url: string
+          file_type: string
+          file_size?: number | null
+          uploaded_by?: string | null
+          folder_id?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          file_name?: string
+          file_url?: string
+          file_type?: string
+          file_size?: number | null
+          uploaded_by?: string | null
+          folder_id?: string | null
+          created_at?: string | null
+        }
+      }
+      task_attachments: {
+        Row: {
+          id: string
+          task_id: string
+          file_name: string
+          file_url: string
+          file_type: string
+          file_size: number | null
+          uploaded_by: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          task_id: string
+          file_name: string
+          file_url: string
+          file_type: string
+          file_size?: number | null
+          uploaded_by?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          task_id?: string
+          file_name?: string
+          file_url?: string
+          file_type?: string
+          file_size?: number | null
+          uploaded_by?: string | null
+          created_at?: string | null
+        }
+      }
+      task_assignees: {
+        Row: {
+          id: string
+          task_id: string
+          user_id: string
+          assigned_by: string | null
+          assigned_at: string | null
+        }
+        Insert: {
+          id?: string
+          task_id: string
+          user_id: string
+          assigned_by?: string | null
+          assigned_at?: string | null
+        }
+        Update: {
+          id?: string
+          task_id?: string
+          user_id?: string
+          assigned_by?: string | null
+          assigned_at?: string | null
+        }
+      }
+      attachment_folders: {
+        Row: {
+          id: string
+          project_id: string
+          name: string
+          created_by: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          name: string
+          created_by?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          name?: string
+          created_by?: string | null
+          created_at?: string | null
         }
       }
       project_members: {

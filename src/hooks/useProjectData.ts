@@ -6,18 +6,33 @@
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
 import type { Database } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
-type Attachment = {
-  id: string;
-  file_name: string;
-  file_url: string;
-  file_type: string;
-  file_size: number;
-  created_at: string;
+type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
+type AttachmentFolderRow = Database["public"]["Tables"]["attachment_folders"]["Row"];
+type ProjectAttachmentRow = Database["public"]["Tables"]["project_attachments"]["Row"];
+type TaskAssigneeRow = Database["public"]["Tables"]["task_assignees"]["Row"];
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+
+// Task + computed display fields (zbudowane w pamięci, nie w DB)
+export type TaskWithNames = TaskRow & {
+  assignee_name: string;
+  assignee_names: string[];
+  creator_name: string;
 };
+
+// Skrócony profil dla lookup po id → nazwa
+type ProfileLite = Pick<ProfileRow, "id" | "full_name" | "email">;
+
+// Wpis z joinem profile (dla project_members)
+type MemberWithProfile = {
+  joined_at: string;
+  profile?: Pick<ProfileRow, "full_name" | "email"> | null;
+};
+
 type HistoryEntry = {
   type: "created" | "member_added" | "member_removed" | "task_created" | "task_completed";
   date: string;
@@ -27,22 +42,19 @@ type HistoryEntry = {
   taskId?: string;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type TFunc = (...args: any[]) => any;
-
-export function useProjectData(projectId: string | undefined, profileId: string | undefined, t: TFunc) {
+export function useProjectData(projectId: string | undefined, profileId: string | undefined, t: TFunction) {
   const [project, setProject] = useState<Project | null>(null);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [tasks, setTasks] = useState<TaskWithNames[]>([]);
+  const [attachments, setAttachments] = useState<ProjectAttachmentRow[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [pmName, setPmName] = useState<string>("");
   const [blName, setBlName] = useState<string>("");
 
   // Attachment folders
-  const [folders, setFolders] = useState<any[]>([]);
+  const [folders, setFolders] = useState<AttachmentFolderRow[]>([]);
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
-  const [folderAttachments, setFolderAttachments] = useState<Record<string, any[]>>({});
+  const [folderAttachments, setFolderAttachments] = useState<Record<string, ProjectAttachmentRow[]>>({});
   const [showNewFolderInput, setShowNewFolderInput] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
@@ -56,16 +68,19 @@ export function useProjectData(projectId: string | undefined, profileId: string 
         .single();
 
       if (error) throw error;
-      setProject(data);
+      // Supabase type inference dla direct client + .single() zawęża do `never`
+      // w niektórych kombinacjach tsc/SDK — cast na Project jest bezpieczny bo
+      // `.select("*")` faktycznie zwraca wszystkie kolumny `projects`.
+      const proj = data as Project;
+      setProject(proj);
 
       // Pobierz nazwy PM i BL jednym batch query
-      const proj = data as Project & { project_manager_id?: string; bauleiter_id?: string };
-      const leaderIds = [proj.project_manager_id, proj.bauleiter_id].filter(Boolean) as string[];
+      const leaderIds = [proj.project_manager_id, proj.bauleiter_id].filter((id): id is string => Boolean(id));
       if (leaderIds.length > 0) {
         const { data: leaders } = await supabaseAdmin.from("profiles")
           .select("id, full_name, email")
           .in("id", leaderIds);
-        const leaderMap = new Map<string, string>((leaders || []).map((l: any) => [l.id, l.full_name || l.email || ""]));
+        const leaderMap = new Map<string, string>(((leaders ?? []) as ProfileLite[]).map((l) => [l.id, l.full_name || l.email || ""]));
         if (proj.project_manager_id) setPmName(leaderMap.get(proj.project_manager_id) || "");
         if (proj.bauleiter_id) setBlName(leaderMap.get(proj.bauleiter_id) || "");
       }
@@ -86,15 +101,16 @@ export function useProjectData(projectId: string | undefined, profileId: string 
 
       if (error) throw error;
 
-      const taskIds = (data || []).map((t: any) => t.id);
+      const rows = (data ?? []) as TaskRow[];
+      const taskIds = rows.map((task) => task.id);
 
       // Pobierz task_assignees dla wszystkich zadań
-      let assigneesMap: Record<string, string[]> = {};
+      const assigneesMap: Record<string, string[]> = {};
       if (taskIds.length > 0) {
         const { data: assignees } = await supabaseAdmin.from("task_assignees")
           .select("task_id, user_id")
           .in("task_id", taskIds);
-        (assignees || []).forEach((a: any) => {
+        ((assignees ?? []) as Pick<TaskAssigneeRow, "task_id" | "user_id">[]).forEach((a) => {
           if (!assigneesMap[a.task_id]) assigneesMap[a.task_id] = [];
           assigneesMap[a.task_id].push(a.user_id);
         });
@@ -104,26 +120,26 @@ export function useProjectData(projectId: string | undefined, profileId: string 
       const allAssigneeIds = Object.values(assigneesMap).flat();
       const userIds = [
         ...new Set(
-          (data || [])
-            .flatMap((t: any) => [t.assigned_to, t.created_by])
-            .filter(Boolean)
-            .concat(allAssigneeIds)
+          rows
+            .flatMap((task) => [task.assigned_to, task.created_by])
+            .filter((id): id is string => Boolean(id))
+            .concat(allAssigneeIds),
         ),
       ];
-      let profileMap: Record<string, string> = {};
+      const profileMap: Record<string, string> = {};
       if (userIds.length > 0) {
         const { data: profiles } = await supabaseAdmin.from("profiles")
           .select("id, full_name, email")
           .in("id", userIds);
-        (profiles || []).forEach((p: any) => {
+        ((profiles ?? []) as ProfileLite[]).forEach((p) => {
           profileMap[p.id] = p.full_name || p.email || "";
         });
       }
 
-      const tasksWithNames = (data || []).map((task: any) => {
+      const tasksWithNames: TaskWithNames[] = rows.map((task) => {
         // Użyj task_assignees jeśli istnieją, w przeciwnym razie fallback na assigned_to
-        const taskAssigneeIds = assigneesMap[task.id] || (task.assigned_to ? [task.assigned_to] : []);
-        const assigneeNames = taskAssigneeIds.map((uid: string) => profileMap[uid] || "").filter(Boolean);
+        const taskAssigneeIds = assigneesMap[task.id] ?? (task.assigned_to ? [task.assigned_to] : []);
+        const assigneeNames = taskAssigneeIds.map((uid) => profileMap[uid] || "").filter(Boolean);
         return {
           ...task,
           assignee_name: assigneeNames.join(", "),
@@ -139,15 +155,15 @@ export function useProjectData(projectId: string | undefined, profileId: string 
 
   const fetchAttachments = async () => {
     try {
-      const { data, error } = await (supabase
-        .from("project_attachments") as any)
+      const { data, error } = await supabase
+        .from("project_attachments")
         .select("*")
         .eq("project_id", projectId!)
         .is("folder_id", null)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setAttachments(data || []);
+      setAttachments((data ?? []) as ProjectAttachmentRow[]);
     } catch (error) {
       console.error("Error fetching attachments:", error);
     }
@@ -160,7 +176,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
         .eq("project_id", projectId!)
         .order("name", { ascending: true });
       if (error) throw error;
-      setFolders(data || []);
+      setFolders((data ?? []) as AttachmentFolderRow[]);
     } catch (error) {
       console.error("Error fetching folders:", error);
     }
@@ -174,7 +190,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
         .eq("folder_id", folderId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      setFolderAttachments((prev) => ({ ...prev, [folderId]: data || [] }));
+      setFolderAttachments((prev) => ({ ...prev, [folderId]: (data ?? []) as ProjectAttachmentRow[] }));
     } catch (error) {
       console.error("Error fetching folder attachments:", error);
     }
@@ -220,7 +236,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
     }
   };
 
-  const buildHistory = (membersData: any[], currentTasks: any[], currentProject: Project | null) => {
+  const buildHistory = (membersData: MemberWithProfile[], currentTasks: TaskWithNames[], currentProject: Project | null) => {
     const entries: HistoryEntry[] = [];
 
     // Projekt utworzony
@@ -235,7 +251,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
     }
 
     // Członkowie dodani
-    membersData.forEach((m: any) => {
+    membersData.forEach((m) => {
       entries.push({
         type: "member_added",
         date: m.joined_at,
@@ -246,7 +262,7 @@ export function useProjectData(projectId: string | undefined, profileId: string 
     });
 
     // Zadania utworzone / zakończone
-    currentTasks.forEach((task: any) => {
+    currentTasks.forEach((task) => {
       entries.push({
         type: "task_created",
         date: task.created_at,
@@ -273,11 +289,12 @@ export function useProjectData(projectId: string | undefined, profileId: string 
 
   const handleKanbanStatusChange = async (taskId: string, newStatus: string) => {
     try {
-      const { error } = await (supabase.from("tasks") as any)
-        .update({ status: newStatus })
+      const status = newStatus as TaskRow["status"];
+      const { error } = await supabaseAdmin.from("tasks")
+        .update({ status })
         .eq("id", taskId);
       if (error) throw error;
-      setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: newStatus } : t));
+      setTasks((prev) => prev.map((task) => task.id === taskId ? { ...task, status } : task));
     } catch (error) {
       console.error("Error updating task status:", error);
     }

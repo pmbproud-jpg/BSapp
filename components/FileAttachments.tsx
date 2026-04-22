@@ -27,9 +27,9 @@ type Attachment = {
   file_name: string;
   file_url: string;
   file_type: string;
-  file_size: number;
-  created_at: string;
-  uploaded_by?: string;
+  file_size: number | null;
+  created_at: string | null;
+  uploaded_by?: string | null;
 };
 
 type FileAttachmentsProps = {
@@ -442,7 +442,7 @@ export default function FileAttachments({
                   {attachment.file_name}
                 </Text>
                 <Text style={styles.fileSize}>
-                  {formatFileSize(attachment.file_size)}
+                  {formatFileSize(attachment.file_size ?? 0)}
                   {!isImage(attachment.file_type) && " · Tippen zum Öffnen"}
                 </Text>
               </TouchableOpacity>
