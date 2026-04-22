@@ -54,13 +54,17 @@ type MemberWithProfile = ProjectMemberRow & {
 
 // Struktura "dnia" z widoku planu (komponent plan.tsx przekazuje).
 // `date` to ISO YYYY-MM-DD używane do filtrowania nieobecności.
+// Name/short variants opcjonalne — dostarczane przez getWeekDays() w plan.tsx
+// (bazuje na aktywnym języku) i konsumowane przez helpery dayFull()/dayShort().
 export type PlanDay = {
   dayOfWeek: number;
   dayNum: number;
   monthNum: number;
   date: string;
-  yearNum?: number;
-  dayName?: string;
+  nameDE?: string; nameEN?: string; namePL?: string;
+  shortDE?: string; shortEN?: string; shortPL?: string;
+  isToday?: boolean;
+  isWeekend?: boolean;
 };
 
 // Musi pasowac do sendNotification z NotificationProvider (Json-compatible).

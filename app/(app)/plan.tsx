@@ -56,11 +56,15 @@ function getWeekDays(mondayStr: string) {
   return days;
 }
 
-function dayShort(day: any, lang: string) {
-  return lang === "de" ? day.shortDE : lang === "en" ? day.shortEN : day.shortPL;
+type DayNames = {
+  shortDE?: string; shortEN?: string; shortPL?: string;
+  nameDE?: string; nameEN?: string; namePL?: string;
+};
+function dayShort(day: DayNames, lang: string): string {
+  return (lang === "de" ? day.shortDE : lang === "en" ? day.shortEN : day.shortPL) ?? "";
 }
-function dayFull(day: any, lang: string) {
-  return lang === "de" ? day.nameDE : lang === "en" ? day.nameEN : day.namePL;
+function dayFull(day: DayNames, lang: string): string {
+  return (lang === "de" ? day.nameDE : lang === "en" ? day.nameEN : day.namePL) ?? "";
 }
 function fmtWeek(m: string) {
   const mon = new Date(m); const sun = new Date(mon); sun.setDate(sun.getDate() + 6);
@@ -175,10 +179,10 @@ export default function PlanScreen() {
   // ═══════════════════════════════════════════════════════
   if (selectedDay) {
     const items = dayAsgn(selectedDay.dayOfWeek);
-    const byProj = new Map<string, any[]>();
+    const byProj = new Map<string, typeof items>();
     items.forEach((a) => { const k = a.project?.name || a.request_id; if (!byProj.has(k)) byProj.set(k, []); byProj.get(k)!.push(a); });
     const dayDateStr = selectedDay.date;
-    const dayAbsences = absences.filter((a: any) => dayDateStr >= a.date_from && dayDateStr <= a.date_to);
+    const dayAbsences = absences.filter((a) => dayDateStr >= a.date_from && dayDateStr <= a.date_to);
     const absTypeLabels: Record<string, string> = { vacation: t("plan.abs_vacation") || "Urlaub", sick_leave: t("plan.abs_sick") || "Krankmeldung", special_leave: t("plan.abs_special") || "Sonderurlaub", training: t("plan.abs_training") || "Schulung", unexcused: t("plan.abs_unexcused") || "Unentschuldigt" };
     const absTypeColors: Record<string, string> = { vacation: "#ef4444", sick_leave: "#f59e0b", special_leave: "#8b5cf6", training: "#3b82f6", unexcused: "#64748b" };
 
@@ -253,7 +257,7 @@ export default function PlanScreen() {
                 {t("plan.absences_today") || "Abwesend"} ({dayAbsences.length})
               </Text>
             </View>
-            {dayAbsences.map((a: any) => (
+            {dayAbsences.map((a) => (
               <View key={a.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#fecaca", gap: 8 }}>
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: absTypeColors[a.type] || "#ef4444" }} />
                 <Ionicons name="person" size={14} color="#ef4444" />
@@ -294,14 +298,14 @@ export default function PlanScreen() {
                 <Text style={[s.projName, { color: tc.text }]}>{pName}</Text>
               </View>
               {arr[0]?.project?.location ? <Text style={{ fontSize: 12, color: tc.textMuted, marginLeft: 24, marginBottom: 4 }}>{arr[0].project.location}</Text> : null}
-              {arr.map((a: any, idx: number) => (
+              {arr.map((a, idx: number) => (
                 <View key={a.id || idx} style={[s.aRow, { borderTopColor: tc.borderLight }, idx === 0 && { borderTopWidth: 0 }]}>
                   <TouchableOpacity style={{ flex: 1 }} onPress={() => canEditPlan ? openEditAssign(a) : null} disabled={!canEditPlan}>
                     <Text style={{ fontSize: 14, fontWeight: "500", color: tc.text }}>
                       <Ionicons name="person" size={14} color={tc.textSecondary} /> {a.worker?.full_name || a.worker_id?.slice(0, 8)}
                     </Text>
                     <View style={{ flexDirection: "row", marginTop: 4, gap: 12, flexWrap: "wrap" }}>
-                      {(a.vehicles && a.vehicles.length > 0) ? a.vehicles.map((veh: any, vi: number) => (
+                      {(a.vehicles && a.vehicles.length > 0) ? a.vehicles.map((veh: typeof a.vehicles[number], vi: number) => (
                         <Text key={veh.id || vi} style={{ fontSize: 12, color: tc.textSecondary }}><Ionicons name="car" size={12} color={tc.success} /> {veh.name} ({veh.license_plate})</Text>
                       )) : a.vehicle ? <Text style={{ fontSize: 12, color: tc.textSecondary }}><Ionicons name="car" size={12} color={tc.success} /> {a.vehicle.name} ({a.vehicle.license_plate})</Text> : null}
                       {a.departure_time ? <Text style={{ fontSize: 12, color: tc.text, fontWeight: "700" }}><Ionicons name="time" size={12} color={tc.warning} /> {a.departure_time.slice(0, 5)}</Text> : null}
@@ -334,7 +338,9 @@ export default function PlanScreen() {
   // ═══════════════════════════════════════════════════════
   function renderAssignModal() {
     const selectedProjectName = projects.find((p) => p.id === assignProject)?.name;
-    const selectedVehicleNames = Array.from(assignVehicles).map((vid) => vehicles.find((v) => v.id === vid)).filter(Boolean);
+    const selectedVehicleNames = Array.from(assignVehicles)
+      .map((vid) => vehicles.find((v) => v.id === vid))
+      .filter((v): v is NonNullable<typeof v> => Boolean(v));
     const requestedIds = getRequestedWorkerIds(assignProject);
     const allWorkersList = assignProject ? getWorkersForProject(assignProject) : workers;
     // Sortuj: najpierw z zapotrzebowania, potem reszta
@@ -400,7 +406,7 @@ export default function PlanScreen() {
                   <Ionicons name="car" size={18} color={assignVehicles.size > 0 ? tc.primary : tc.textMuted} />
                   <Text style={{ flex: 1, marginLeft: 8, fontSize: 14, fontWeight: "600", color: assignVehicles.size > 0 ? tc.primary : tc.textSecondary }}>
                     {assignVehicles.size > 0
-                      ? selectedVehicleNames.map((v: any) => `${v.name}`).join(", ")
+                      ? selectedVehicleNames.map((v) => `${v.name}`).join(", ")
                       : t("plan.select_vehicle")} ({assignVehicles.size})
                   </Text>
                   <Ionicons name={assignShowVehicles ? "chevron-up" : "chevron-down"} size={18} color={tc.textMuted} />
@@ -486,7 +492,7 @@ export default function PlanScreen() {
                               </View>
                               {hasConflict && (
                                 <Text style={{ fontSize: 10, color: tc.danger, marginTop: 2 }}>
-                                  ⚠ {t("plan.busy", "Beschäftigt")}: {conflictInfo.map((a: any) => `${(a.start_time || "00:00").slice(0, 5)}-${(a.end_time || "24:00").slice(0, 5)}`).join(", ")}
+                                  ⚠ {t("plan.busy", "Beschäftigt")}: {conflictInfo.map((a) => `${(a.start_time || "00:00").slice(0, 5)}-${(a.end_time || "24:00").slice(0, 5)}`).join(", ")}
                                 </Text>
                               )}
                             </View>
@@ -600,7 +606,7 @@ export default function PlanScreen() {
         <View style={s.daysGrid} {...swipeRef.panHandlers}>
           {weekDays.map((day) => {
             const c = dayCount(day.dayOfWeek);
-            const dayAbsCount = absences.filter((a: any) => day.date >= a.date_from && day.date <= a.date_to).length;
+            const dayAbsCount = absences.filter((a) => day.date >= a.date_from && day.date <= a.date_to).length;
             return (
               <TouchableOpacity key={day.dayOfWeek} style={[s.dayBtn, { backgroundColor: tc.card, borderColor: day.isToday ? tc.primary : tc.border, borderWidth: day.isToday ? 2 : 1 }, day.isWeekend && { backgroundColor: tc.surfaceVariant }]} onPress={() => setSelectedDay(day)}>
                 <Text style={[s.dayName, { color: day.isToday ? tc.primary : day.isWeekend ? tc.textMuted : tc.text }]}>{dayShort(day, i18n.language)}</Text>
@@ -687,7 +693,7 @@ export default function PlanScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
                 <Ionicons name="business" size={16} color={orderProject ? tc.primary : tc.textMuted} />
                 <Text style={{ flex: 1, marginLeft: 8, fontSize: 14, color: orderProject ? tc.text : tc.textMuted }} numberOfLines={1}>
-                  {orderProject ? (projects.find((p: any) => p.id === orderProject)?.name || "—") : (t("plan.select_project") || "Baustelle auswählen...")}
+                  {orderProject ? (projects.find((p) => p.id === orderProject)?.name || "—") : (t("plan.select_project") || "Baustelle auswählen...")}
                 </Text>
               </View>
               <Ionicons name={orderShowProjectPicker ? "chevron-up" : "chevron-down"} size={16} color={tc.textSecondary} />
@@ -695,7 +701,7 @@ export default function PlanScreen() {
             {orderShowProjectPicker && (
               <View style={{ maxHeight: 200, borderWidth: 1, borderColor: tc.border, borderRadius: 8, marginBottom: 8, marginTop: 4, overflow: "hidden" }}>
                 <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }}>
-                  {projects.map((p: any) => (
+                  {projects.map((p) => (
                     <TouchableOpacity
                       key={p.id}
                       style={[s.selItem, { borderColor: tc.border, borderWidth: 0, borderBottomWidth: 1, borderRadius: 0 }, orderProject === p.id && { backgroundColor: tc.primaryLight }]}
@@ -719,7 +725,7 @@ export default function PlanScreen() {
             >
               <Text style={{ flex: 1, fontSize: 14, color: orderWorkers.size > 0 ? tc.text : tc.textMuted }} numberOfLines={2}>
                 {orderWorkers.size > 0
-                  ? Array.from(orderWorkers).map((id) => workers.find((w: any) => w.id === id)?.full_name || "?").join(", ")
+                  ? Array.from(orderWorkers).map((id) => workers.find((w) => w.id === id)?.full_name || "?").join(", ")
                   : (t("plan.select_workers") || "Mitarbeiter auswählen...")}
               </Text>
               <Ionicons name={orderShowWorkerPicker ? "chevron-up" : "chevron-down"} size={16} color={tc.textSecondary} />
@@ -727,7 +733,7 @@ export default function PlanScreen() {
             {orderShowWorkerPicker && (
               <View style={{ maxHeight: 220, borderWidth: 1, borderColor: tc.border, borderRadius: 8, marginBottom: 8, marginTop: 4, overflow: "hidden" }}>
                 <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }}>
-                  {(orderProject ? getWorkersForProject(orderProject) : workers).map((w: any) => (
+                  {(orderProject ? getWorkersForProject(orderProject) : workers).map((w) => (
                     <TouchableOpacity
                       key={w.id}
                       style={[s.selItem, { borderColor: tc.border, borderWidth: 0, borderBottomWidth: 1, borderRadius: 0 }, orderWorkers.has(w.id) && { backgroundColor: tc.successLight }]}
@@ -752,7 +758,7 @@ export default function PlanScreen() {
                 <Ionicons name="car" size={16} color={orderVehicles.size > 0 ? tc.primary : tc.textMuted} />
                 <Text style={{ flex: 1, marginLeft: 8, fontSize: 14, color: orderVehicles.size > 0 ? tc.text : tc.textMuted }} numberOfLines={2}>
                   {orderVehicles.size > 0
-                    ? Array.from(orderVehicles).map((id) => vehicles.find((v) => v.id === id)).filter(Boolean).map((v: any) => `${v.name} (${v.license_plate})`).join(", ")
+                    ? Array.from(orderVehicles).map((id) => vehicles.find((v) => v.id === id)).filter((v): v is NonNullable<typeof v> => Boolean(v)).map((v) => `${v.name} (${v.license_plate})`).join(", ")
                     : (t("plan.select_vehicle") || "Fahrzeug auswählen...")}
                 </Text>
               </View>
@@ -817,7 +823,7 @@ export default function PlanScreen() {
           </View>
         ) : (
           <View style={{ gap: 10, marginHorizontal: 16 }}>
-            {requests.map((req: any) => (
+            {requests.map((req) => (
               <View key={req.id} style={{ backgroundColor: tc.card, borderRadius: 12, borderWidth: 1, borderColor: tc.border, padding: 14 }}>
                 {/* Header: project name + actions */}
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
@@ -843,7 +849,7 @@ export default function PlanScreen() {
                 {/* Workers */}
                 {(req.workers || []).length > 0 ? (
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                    {(req.workers || []).map((w: any, wi: number) => (
+                    {(req.workers || []).map((w, wi: number) => (
                       <View key={wi} style={{ flexDirection: "row", alignItems: "center", backgroundColor: tc.surfaceVariant || "#f1f5f9", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 }}>
                         <Ionicons name="person" size={12} color={tc.textSecondary} />
                         <Text style={{ fontSize: 12, color: tc.text }}>{w.profile?.full_name || "?"}</Text>
