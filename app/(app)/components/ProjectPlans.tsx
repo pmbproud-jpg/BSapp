@@ -24,6 +24,11 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import type { ThemeColors } from "@/src/providers/ThemeProvider";
+
+// WebView z react-native-webview (platform-specific require). Zostawiony
+// jako any — typy są dostępne, ale używamy tylko kilku prop-ów.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let WebView: any = null;
 if (Platform.OS !== "web") {
   try { WebView = require("react-native-webview").default; } catch (e) {}
@@ -33,8 +38,12 @@ if (Platform.OS !== "web") {
 const PDFJS_VERSION = "3.11.174";
 const PDFJS_CDN = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`;
 
+// pdf.js loaded from CDN — brak @types/pdfjs-dist, API lib traktujemy
+// jako any (external unmanaged lib). Callers uzywaja tylko kilku metod.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function loadPdfJs(): Promise<any> {
   if (Platform.OS !== "web") return Promise.reject("Not web");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const w = window as any;
   if (w.pdfjsLib) return Promise.resolve(w.pdfjsLib);
   return new Promise((resolve, reject) => {
@@ -54,8 +63,12 @@ function loadPdfJs(): Promise<any> {
   });
 }
 
+// style akceptuje rozne shape'y na web/native; zostawiamy szeroko.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function PdfRenderer({ url, style }: { url: string; style?: any }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const canvasRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -193,6 +206,7 @@ function PdfRenderer({ url, style }: { url: string; style?: any }) {
 }
 
 // ─── Mobile Pinch-to-Zoom Plan View ─────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function MobilePlanZoomView({ isDark, addingPin, containerRef, planViewRef, setContainerSize, handlePlanPress, selectedPlan, renderPins }: any) {
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -263,7 +277,7 @@ function MobilePlanZoomView({ isDark, addingPin, containerRef, planViewRef, setC
       <GestureDetector gesture={gesture}>
         <Animated.View style={[{ flex: 1 }, animatedStyle]}>
           <View
-            ref={(ref: any) => { containerRef.current = ref; planViewRef.current = ref; }}
+            ref={(ref) => { containerRef.current = ref; planViewRef.current = ref; }}
             onLayout={(e) => {
               const { width, height } = e.nativeEvent.layout;
               setContainerSize({ width, height });
@@ -324,7 +338,7 @@ type Pin = {
 
 type Props = {
   projectId: string;
-  workers: any[];
+  workers: { id: string; full_name?: string | null; role?: string | null }[];
   onTaskCreated?: () => void;
   onBack?: () => void;
   initialPlanId?: string;
@@ -399,6 +413,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
   const [translateY, setTranslateY] = useState(0);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const containerRef = useRef<View>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const planViewRef = useRef<any>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [screenshotHint, setScreenshotHint] = useState(false);
@@ -442,13 +457,15 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
   }, [initialPinId, pins]);
 
   // ─── Pin Actions (wrappers around hook) ─────────────────────
-  const handlePlanPress = (evt: any) => {
+  const handlePlanPress = (evt: import("react-native").GestureResponderEvent) => {
     if (!addingPin || !selectedPlan) return;
     const { locationX, locationY } = evt.nativeEvent;
     const x = Math.max(0, Math.min(100, (locationX / (containerSize.width || 1)) * 100));
     const y = Math.max(0, Math.min(100, (locationY / (containerSize.height || 1)) * 100));
     setPinTitle(""); setPinDescription(""); setPinStatus("open"); setPinPriority("medium");
     setPinCategory(""); setPinAssignedTo(null); setPinDueDate(""); setPinPhotos([]);
+    // Partial Pin — hook akceptuje (przy nowym pinie tworzy pełny obiekt).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setEditingPin({ x_percent: x, y_percent: y } as any);
     setShowPinDetail(true);
     setAddingPin(false);
@@ -464,9 +481,9 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
         t,
         () => { setShowPinDetail(false); setEditingPin(null); onTaskCreated?.(); },
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Error saving pin:", e);
-      const msg = e?.message || "Error";
+      const msg = (e instanceof Error ? e.message : null) || "Error";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert("Error", msg);
     } finally {
@@ -498,7 +515,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
   const pinStats = useMemo(() => {
     const s = { open: 0, in_progress: 0, resolved: 0, closed: 0 };
     for (const p of pins) {
-      if (p.status in s) (s as any)[p.status]++;
+      if (p.status in s) (s as Record<string, number>)[p.status]++;
     }
     return s;
   }, [pins]);
@@ -544,6 +561,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
   const resetZoom = () => { setScale(1); setTranslateX(0); setTranslateY(0); };
 
   // ─── Refs for drag + zoom ────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scrollContainerRef = useRef<any>(null);
   const addingPinRef = useRef(addingPin);
   addingPinRef.current = addingPin;
@@ -557,6 +575,8 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
     if (Platform.OS !== "web" || !planViewRef.current) return;
     try {
       // Load html2canvas from CDN if not loaded
+      // html2canvas loaded from CDN — external lib bez typów.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any;
       if (!w.html2canvas) {
         await new Promise<void>((resolve, reject) => {
@@ -1243,7 +1263,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
                 elevation: isHighlighted ? 12 : 6,
               }),
             }}>
-              <Ionicons name={catIcon as any} size={Math.round(14 * pinScale)} color="#fff" />
+              <Ionicons name={catIcon as keyof typeof Ionicons.glyphMap} size={Math.round(14 * pinScale)} color="#fff" />
               <Text style={{ color: "#fff", fontSize: Math.round(10 * pinScale), fontWeight: "700", marginLeft: 4, maxWidth: isMobile ? 60 : 90 }} numberOfLines={1}>
                 {pin.title}
               </Text>
@@ -1401,7 +1421,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
             </Text>
           </TouchableOpacity>
           {(["open", "in_progress", "resolved", "closed"] as const).map((s) => {
-            const count = (pinStats as any)[s] || 0;
+            const count = (pinStats as Record<string, number>)[s] || 0;
             if (count === 0) return null;
             return (
               <TouchableOpacity
@@ -1597,10 +1617,10 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
           overflow: "auto",
           cursor: isDragging ? "grabbing" : (addingPin ? "crosshair" : "grab"),
           userSelect: "none",
-        } as any}
+        } as unknown as import("react-native").ViewStyle}
       >
         <View
-          ref={(ref: any) => { containerRef.current = ref; planViewRef.current = ref; }}
+          ref={(ref) => { containerRef.current = ref; planViewRef.current = ref; }}
           onLayout={(e) => {
             const { width, height } = e.nativeEvent.layout;
             setContainerSize({ width, height });
@@ -1611,7 +1631,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
             transformOrigin: "top left",
           }}
           {...(addingPin ? {
-            onClick: (e: any) => {
+            onClick: (e: React.MouseEvent<HTMLElement>) => {
               const rect = e.currentTarget.getBoundingClientRect();
               const x = ((e.clientX - rect.left) / rect.width) * 100;
               const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -1624,6 +1644,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
               setPinDueDate("");
               setPinPhotos([]);
               setPinTranslatedTitle(""); setPinTranslatedDesc("");
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               setEditingPin({ x_percent: Math.max(0, Math.min(100, x)), y_percent: Math.max(0, Math.min(100, y)) } as any);
               setShowPinDetail(true);
               setAddingPin(false);
@@ -1654,7 +1675,7 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
 }
 
 // ─── Style helpers ────────────────────────────────────────────
-const lbl = (tc: any) => ({
+const lbl = (tc: ThemeColors) => ({
   fontSize: 14,
   fontWeight: "600" as const,
   color: tc.textSecondary,
@@ -1662,7 +1683,7 @@ const lbl = (tc: any) => ({
   marginTop: 4,
 });
 
-const inp = (tc: any) => ({
+const inp = (tc: ThemeColors) => ({
   backgroundColor: tc.inputBg,
   borderWidth: 1,
   borderColor: tc.border,
