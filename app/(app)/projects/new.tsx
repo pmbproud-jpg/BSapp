@@ -58,7 +58,7 @@ export default function NewProjectScreen() {
 
   // Guard: redirect if user cannot create projects
   if (!perms.canCreateProject) {
-    router.replace("/projects" as any);
+    router.replace("/projects");
     return null;
   }
 
@@ -82,10 +82,10 @@ export default function NewProjectScreen() {
   const fetchUsersForPicker = async (type: "pm" | "bl") => {
     setUsersLoading(true);
     try {
-      const { data, error } = await (supabaseAdmin
-        .from("profiles") as any)
+      const { data, error } = await supabaseAdmin
+        .from("profiles")
         .select("id, full_name, email, role")
-        .eq("company_id", profile?.company_id)
+        .eq("company_id", profile?.company_id ?? "")
         .order("full_name");
       if (error) throw error;
       setAvailableUsers(data || []);
@@ -116,7 +116,7 @@ export default function NewProjectScreen() {
     setLoading(true);
     try {
       // 1. Tworzenie projektu
-      const projectData: any = {
+      const projectData: Record<string, unknown> = {
         name: formData.name.trim(),
         project_number: formData.project_number.trim(),
         description: formData.description.trim() || null,
@@ -141,8 +141,8 @@ export default function NewProjectScreen() {
         }
       }
 
-      const { data: project, error: projectError } = await (supabaseAdmin
-        .from("projects") as any)
+      const { data: project, error: projectError } = await supabaseAdmin
+        .from("projects")
         .insert(projectData)
         .select()
         .single();
@@ -157,8 +157,8 @@ export default function NewProjectScreen() {
           role: member.role || "member",
         }));
 
-        const { error: membersError } = await (supabaseAdmin
-          .from("project_members") as any)
+        const { error: membersError } = await supabaseAdmin
+          .from("project_members")
           .insert(membersData);
 
         if (membersError) {
@@ -188,7 +188,7 @@ export default function NewProjectScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.replace("/projects" as any)} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.replace("/projects")} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t("projects.new")}</Text>

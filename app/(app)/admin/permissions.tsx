@@ -181,7 +181,7 @@ export default function AdminPermissionsScreen() {
                   onPress={async () => {
                     if (selectedUser && opt.value !== selectedUser.role) {
                       await changeUserRole(selectedUser.id, opt.value);
-                      setSelectedUser({ ...selectedUser, role: opt.value });
+                      setSelectedUser({ ...selectedUser, role: opt.value as typeof selectedUser.role });
                       const newDefaults = getRoleDefaults(opt.value as RoleName);
                       setUserRoleDefaults(newDefaults);
                       setUserPerms({ ...newDefaults });

@@ -90,8 +90,8 @@ export default function ProjectsScreen() {
     if (!confirmed) return;
 
     try {
-      const { error } = await (supabaseAdmin
-        .from("projects") as any)
+      const { error } = await supabaseAdmin
+        .from("projects")
         .delete()
         .eq("id", projectId);
       if (error) throw error;
@@ -175,8 +175,8 @@ export default function ProjectsScreen() {
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={[styles.projectName, { color: tc.text }]}>{item.name}</Text>
-            {(item as any).project_number ? (
-              <Text style={{ fontSize: 11, color: tc.textSecondary || "#94a3b8", marginLeft: 8, marginTop: 2 }}>{(item as any).project_number}</Text>
+            {item.project_number ? (
+              <Text style={{ fontSize: 11, color: tc.textSecondary || "#94a3b8", marginLeft: 8, marginTop: 2 }}>{item.project_number}</Text>
             ) : null}
           </View>
         </View>
@@ -273,10 +273,10 @@ export default function ProjectsScreen() {
               if (statusFilter.length > 0 && !statusFilter.includes(p.status)) return false;
               if (!search.trim()) return true;
               const q = search.toLowerCase();
-              return (p.name || "").toLowerCase().includes(q) || ((p as any).project_number || "").toLowerCase().includes(q) || (p.location || "").toLowerCase().includes(q);
+              return (p.name || "").toLowerCase().includes(q) || (p.project_number || "").toLowerCase().includes(q) || (p.location || "").toLowerCase().includes(q);
             })
             .sort((a, b) => {
-              if (sortBy === "number") return ((a as any).project_number || "").localeCompare((b as any).project_number || "", "de", { numeric: true });
+              if (sortBy === "number") return (a.project_number || "").localeCompare(b.project_number || "", "de", { numeric: true });
               return (a.name || "").localeCompare(b.name || "", "de");
             })
           }

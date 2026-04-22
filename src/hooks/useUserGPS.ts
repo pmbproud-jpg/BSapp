@@ -6,12 +6,16 @@
 import { useCallback, useState } from "react";
 import { Alert, Platform } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import type { Database } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 
-export function useUserGPS(userId: string | undefined, t: any) {
+type UserLocation = Database["public"]["Tables"]["user_locations"]["Row"];
+
+export function useUserGPS(userId: string | undefined, t: TFunction) {
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [gpsTogglingLoading, setGpsTogglingLoading] = useState(false);
-  const [lastLocation, setLastLocation] = useState<any>(null);
-  const [locationHistory, setLocationHistory] = useState<any[]>([]);
+  const [lastLocation, setLastLocation] = useState<UserLocation | null>(null);
+  const [locationHistory, setLocationHistory] = useState<UserLocation[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [historyDate, setHistoryDate] = useState(() => new Date().toISOString().split("T")[0]);
 
@@ -33,10 +37,18 @@ export function useUserGPS(userId: string | undefined, t: any) {
           .eq("id", userId)
           .single();
         if (profileData?.last_latitude && profileData?.last_longitude) {
+          // Partial UserLocation z profiles fallback — pozostałe pola null.
           setLastLocation({
+            id: "",
+            user_id: userId,
             latitude: profileData.last_latitude,
             longitude: profileData.last_longitude,
+            accuracy: null,
+            altitude: null,
+            speed: null,
+            heading: null,
             recorded_at: profileData.last_location_at || new Date().toISOString(),
+            created_at: new Date().toISOString(),
           });
         } else {
           setLastLocation(null);

@@ -132,7 +132,7 @@ export default function AdminUpdatesScreen() {
                   style={styles.linkRow}
                   onPress={() => openUrl(link.url)}
                 >
-                  <Ionicons name={link.icon as any} size={20} color={link.color} />
+                  <Ionicons name={link.icon as keyof typeof Ionicons.glyphMap} size={20} color={link.color} />
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={[styles.linkLabel, { color: colors.text }]}>{link.label}</Text>
                     <Text style={{ fontSize: 11, color: colors.textMuted }} numberOfLines={1}>{link.url}</Text>

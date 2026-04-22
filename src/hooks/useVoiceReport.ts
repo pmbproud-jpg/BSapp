@@ -75,7 +75,9 @@ async function stopWebRecording(): Promise<{ base64: string; mimeType: string }>
 
 // ─── Mobile recording helpers (expo-av) ───
 
-let mobileRecording: any = null;
+// expo-av's Recording — import type only, ponieważ modul jest wymagany dynamicznie.
+type Recording = { stopAndUnloadAsync(): Promise<void>; getURI(): string | null };
+let mobileRecording: Recording | null = null;
 
 async function startMobileRecording(): Promise<void> {
   const { Audio } = require("expo-av");
@@ -159,8 +161,8 @@ export function useVoiceReport(projectId?: string, projectName?: string) {
       timerRef.current = setInterval(() => {
         setRecordingDuration((d) => d + 1);
       }, 1000);
-    } catch (e: any) {
-      setError(e.message || "Failed to start recording");
+    } catch (e: unknown) {
+      setError((e instanceof Error ? e.message : null) || "Failed to start recording");
       setState("idle");
     }
   }, []);
@@ -219,8 +221,8 @@ export function useVoiceReport(projectId?: string, projectName?: string) {
 
       setResult(data as VoiceReportResult);
       setState("idle");
-    } catch (e: any) {
-      setError(e.message || "Processing failed");
+    } catch (e: unknown) {
+      setError((e instanceof Error ? e.message : null) || "Processing failed");
       setState("idle");
     }
   }, [state, projectId, projectName]);

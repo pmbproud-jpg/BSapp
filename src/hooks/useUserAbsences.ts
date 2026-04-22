@@ -7,14 +7,18 @@
 import { useCallback, useState } from "react";
 import { Alert, Platform } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import type { Database } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 import { countWorkdays } from "@/src/utils/helpers";
+
+type UserAbsence = Database["public"]["Tables"]["user_absences"]["Row"];
 
 export function useUserAbsences(
   userId: string | undefined,
   currentUserId: string | undefined,
-  t: any,
+  t: TFunction,
 ) {
-  const [absences, setAbsences] = useState<any[]>([]);
+  const [absences, setAbsences] = useState<UserAbsence[]>([]);
   const [absCalMonth, setAbsCalMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -49,8 +53,8 @@ export function useUserAbsences(
   const statusColor = (s: string) => s === "approved" ? "#10b981" : s === "rejected" ? "#ef4444" : "#f59e0b";
 
   const usedVacationDays = absences
-    .filter((a: any) => a.type === "vacation" && a.status !== "rejected")
-    .reduce((sum: number, a: any) => sum + (a.days || 0), 0);
+    .filter((a) => a.type === "vacation" && a.status !== "rejected")
+    .reduce((sum, a) => sum + (a.days || 0), 0);
 
   const fetchAbsences = useCallback(async () => {
     if (!userId) return;
@@ -99,8 +103,9 @@ export function useUserAbsences(
         ? (t("users.abs_saved_approved") || "Abwesenheit eingetragen und genehmigt")
         : (t("users.abs_saved_pending") || "Antrag eingereicht — wartet auf Genehmigung");
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-    } catch (e: any) {
-      Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message || "Error");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     } finally { setAbsSaving(false); }
   };
 
@@ -112,8 +117,9 @@ export function useUserAbsences(
       fetchAbsences();
       const msg = t("users.abs_approved") || "Genehmigt";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-    } catch (e: any) {
-      Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     }
   };
 
@@ -125,8 +131,9 @@ export function useUserAbsences(
       fetchAbsences();
       const msg = t("users.abs_rejected") || "Abgelehnt";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-    } catch (e: any) {
-      Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     }
   };
 
@@ -136,8 +143,9 @@ export function useUserAbsences(
       try {
         await supabaseAdmin.from("user_absences").delete().eq("id", absId);
         fetchAbsences();
-      } catch (e: any) {
-        Platform.OS === "web" ? window.alert(e?.message || "Error") : Alert.alert(t("common.error"), e?.message);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Error";
+      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
       }
     };
     if (Platform.OS === "web") { if (window.confirm(confirmMsg)) doDelete(); }
@@ -150,11 +158,11 @@ export function useUserAbsences(
     const firstDay = new Date(y, m - 1, 1);
     const daysInMonth = new Date(y, m, 0).getDate();
     const startDow = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; // Monday=0
-    const days: { day: number; date: string; absences: any[] }[] = [];
+    const days: { day: number; date: string; absences: UserAbsence[] }[] = [];
     for (let i = 0; i < startDow; i++) days.push({ day: 0, date: "", absences: [] });
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      const dayAbs = absences.filter((a: any) => a.status !== "rejected" && dateStr >= a.date_from && dateStr <= a.date_to);
+      const dayAbs = absences.filter((a) => a.status !== "rejected" && dateStr >= a.date_from && dateStr <= a.date_to);
       days.push({ day: d, date: dateStr, absences: dayAbs });
     }
     return days;

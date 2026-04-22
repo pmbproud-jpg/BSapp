@@ -10,7 +10,8 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { useTheme } from "@/src/providers/ThemeProvider";
+import { useTheme, type ThemeColors } from "@/src/providers/ThemeProvider";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useVoiceReport } from "@/src/hooks/useVoiceReport";
 import { supabase } from "@/src/lib/supabase/client";
@@ -50,8 +51,8 @@ function ExtractedDataView({
   t,
 }: {
   data: NonNullable<import("@/src/hooks/useVoiceReport").VoiceReportResult["extracted_data"]>;
-  colors: any;
-  t: any;
+  colors: ThemeColors;
+  t: TFunction;
 }) {
   return (
     <View style={[styles.extractedContainer, { borderColor: colors.border }]}>

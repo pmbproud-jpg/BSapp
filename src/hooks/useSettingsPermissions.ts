@@ -7,13 +7,18 @@
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import { getRoleDefaults, RoleName } from "@/src/hooks/usePermissions";
-import { supabase } from "@/src/lib/supabase/client";
+import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import type { Database } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 import { getRoleColor } from "@/src/utils/roleHelpers";
 
-export function useSettingsPermissions(t: any) {
-  const [allUsers, setAllUsers] = useState<any[]>([]);
+type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+type UserRow = Pick<Profile, "id" | "full_name" | "email" | "role" | "custom_permissions">;
+
+export function useSettingsPermissions(t: TFunction) {
+  const [allUsers, setAllUsers] = useState<UserRow[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showPermModal, setShowPermModal] = useState(false);
   const [userPerms, setUserPerms] = useState<Record<string, boolean>>({});
@@ -169,12 +174,12 @@ export function useSettingsPermissions(t: any) {
   const fetchAllUsers = async () => {
     setUsersLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from("profiles")
         .select("id, full_name, email, role")
         .order("full_name");
       if (error) throw error;
-      setAllUsers(data || []);
+      setAllUsers(((data ?? []) as UserRow[]));
     } catch (e) {
       console.error("Error fetching users:", e);
     } finally {
@@ -184,17 +189,17 @@ export function useSettingsPermissions(t: any) {
 
   const changeUserRole = async (userId: string, newRole: string) => {
     try {
-      const { error } = await (supabase.from("profiles") as any)
+      const { error } = await supabaseAdmin.from("profiles")
         .update({ role: newRole })
         .eq("id", userId);
       if (error) throw error;
-      setAllUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: newRole } : u));
+      setAllUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: newRole as Profile["role"] } : u));
       setShowRoleModal(false);
       setSelectedUser(null);
       const msg = t("settings.role_changed_success") || "Funktion wurde geändert";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.success"), msg);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Error changing role:", e);
       const msg = t("settings.role_change_error") || "Fehler beim Ändern der Funktion";
       if (Platform.OS === "web") window.alert(msg);
@@ -204,12 +209,12 @@ export function useSettingsPermissions(t: any) {
 
   const loadUserPerms = async (userId: string) => {
     try {
-      const { data, error } = await (supabase.from("profiles") as any)
+      const { data, error } = await supabaseAdmin.from("profiles")
         .select("custom_permissions, role")
         .eq("id", userId)
         .single();
       if (error) throw error;
-      const role = (data?.role || allUsers.find((u: any) => u.id === userId)?.role || "worker") as RoleName;
+      const role = (data?.role || allUsers.find((u) => u.id === userId)?.role || "worker") as RoleName;
       const defaults = getRoleDefaults(role);
       setUserRoleDefaults(defaults);
       setUserOverrides(data?.custom_permissions || null);
@@ -260,7 +265,7 @@ export function useSettingsPermissions(t: any) {
         }
       }
       const toSave = Object.keys(overridesOnly).length > 0 ? overridesOnly : null;
-      const { data, error } = await (supabase.from("profiles") as any)
+      const { data, error } = await supabaseAdmin.from("profiles")
         .update({ custom_permissions: toSave })
         .eq("id", selectedUser.id)
         .select("id, custom_permissions");

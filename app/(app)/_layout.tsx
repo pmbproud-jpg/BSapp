@@ -31,7 +31,7 @@ function AppHeader({ compact = false }: { compact?: boolean }) {
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
-              onPress={() => router.push("/(app)/notifications" as any)}
+              onPress={() => router.push("/(app)/notifications")}
               style={styles.notifButton}
             >
               <Ionicons name="notifications-outline" size={20} color={colors.textSecondary} />
@@ -76,7 +76,7 @@ function AppHeader({ compact = false }: { compact?: boolean }) {
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
-            onPress={() => router.push("/(app)/notifications" as any)}
+            onPress={() => router.push("/(app)/notifications")}
             style={styles.notifButton}
           >
             <Ionicons name="notifications-outline" size={22} color={colors.textSecondary} />
@@ -245,7 +245,7 @@ export default function AppLayout() {
         name="admin"
         options={{
           title: "Admin",
-          href: (perms.isAdmin || perms.isManagement) ? ("/(app)/admin" as any) : null,
+          href: (perms.isAdmin || perms.isManagement) ? "/(app)/admin" : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="shield-checkmark" size={size} color={color} />
           ),

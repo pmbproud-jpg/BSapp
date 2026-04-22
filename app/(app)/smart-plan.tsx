@@ -3,10 +3,11 @@ import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   ActivityIndicator, TextInput,
 } from "react-native";
-import { useTheme } from "@/src/providers/ThemeProvider";
+import { useTheme, type ThemeColors } from "@/src/providers/ThemeProvider";
 import { useTranslation } from "react-i18next";
 import { useSmartPlan, PlanSuggestion } from "@/src/hooks/useSmartPlan";
 import { Ionicons } from "@expo/vector-icons";
+import type { TFunction } from "i18next";
 
 function getNextMonday(): string {
   const d = new Date();
@@ -18,7 +19,7 @@ function getNextMonday(): string {
 
 const DAY_COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#22c55e", "#f59e0b"];
 
-function SuggestionCard({ item, index, colors, t }: { item: PlanSuggestion; index: number; colors: any; t: any }) {
+function SuggestionCard({ item, index, colors, t }: { item: PlanSuggestion; index: number; colors: ThemeColors; t: TFunction }) {
   const dayColor = DAY_COLORS[new Date(item.day).getDay() % DAY_COLORS.length];
   const dayName = new Date(item.day).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
 
