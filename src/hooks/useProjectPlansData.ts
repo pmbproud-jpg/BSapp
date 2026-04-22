@@ -6,8 +6,27 @@
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import type { Database, Json } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+
+type PlanRow = Database["public"]["Tables"]["project_plans"]["Row"];
+type PlanPinRow = Database["public"]["Tables"]["plan_pins"]["Row"];
+type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
+type ProfileLite = { id: string; full_name: string | null; role: string | null };
+
+// Union assetów — DocumentPicker i ImagePicker zwracają różne shape'y,
+// ale my używamy tylko uri/name/type — minimalny common subset.
+type PickedAsset = {
+  uri: string;
+  name?: string;
+  mimeType?: string;
+  fileName?: string;
+  type?: string;
+};
+
+type NotificationData = Record<string, Json | undefined>;
 
 interface Plan {
   id: string;
@@ -62,7 +81,7 @@ export function useProjectPlansData(
   const [uploadName, setUploadName] = useState("");
   const [uploadFloor, setUploadFloor] = useState("");
   const [uploadDescription, setUploadDescription] = useState("");
-  const [uploadFile, setUploadFile] = useState<any>(null);
+  const [uploadFile, setUploadFile] = useState<PickedAsset | null>(null);
 
   // State: plan list view
   const [showPlanList, setShowPlanList] = useState(true);
@@ -104,19 +123,28 @@ export function useProjectPlansData(
         .eq("plan_id", planId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      const assigneeIds = [...new Set((data || []).filter((p: any) => p.assigned_to).map((p: any) => p.assigned_to))];
-      let assigneeMap = new Map<string, any>();
+      const rows = (data ?? []) as PlanPinRow[];
+      const assigneeIds = [...new Set(
+        rows.filter((p) => p.assigned_to).map((p) => p.assigned_to).filter((id): id is string => Boolean(id)),
+      )];
+      let assigneeMap = new Map<string, ProfileLite>();
       if (assigneeIds.length > 0) {
         const { data: profiles } = await supabaseAdmin.from("profiles")
           .select("id, full_name, role")
           .in("id", assigneeIds);
-        assigneeMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+        assigneeMap = new Map(((profiles ?? []) as ProfileLite[]).map((p) => [p.id, p]));
       }
-      setPins((data || []).map((p: any) => ({
+      setPins(rows.map((p): Pin => ({
         ...p,
-        photos: Array.isArray(p.photos) ? p.photos : [],
-        assignee: p.assigned_to ? assigneeMap.get(p.assigned_to) || null : null,
-      })));
+        // plan_pins.Row ma pola z DB, ale nasz interfejs Pin jest trochę luźniejszy
+        title: p.title,
+        photos: Array.isArray(p.photos) ? (p.photos as string[]) : [],
+        assignee: p.assigned_to
+          ? (assigneeMap.get(p.assigned_to)
+              ? { full_name: assigneeMap.get(p.assigned_to)!.full_name ?? "", role: assigneeMap.get(p.assigned_to)!.role ?? "" }
+              : null)
+          : null,
+      } as Pin)));
     } catch (e) {
       console.error("Error fetching pins:", e);
     } finally {
@@ -146,7 +174,7 @@ export function useProjectPlansData(
         quality: 0.8,
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setUploadFile(result.assets[0]);
+        setUploadFile(result.assets[0] as PickedAsset);
       }
     } catch (e) {
       console.error("Error picking image:", e);
@@ -193,9 +221,9 @@ export function useProjectPlansData(
       setUploadFile(null);
       setShowUploadModal(false);
       fetchPlans();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Error uploading plan:", e);
-      const msg = e?.message || "Upload error";
+      const msg = (e instanceof Error ? e.message : null) || "Upload error";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert("Error", msg);
     } finally {
@@ -222,14 +250,14 @@ export function useProjectPlansData(
       dueDate: string;
       photos: string[];
     },
-    editingPin: any,
-    sendNotification: (userId: string, title: string, body: string, type: string, data: any) => void,
-    t: any,
+    editingPin: (Partial<Pin> & { x_percent?: number; y_percent?: number; task_id?: string | null }) | null,
+    sendNotification: (userId: string, title: string, body: string, type: string, data: NotificationData) => void,
+    t: TFunction,
     onSuccess: () => void,
   ) => {
     if (!pinFormData.title.trim() || !selectedPlan) return;
 
-    const pinData: any = {
+    const pinData: Record<string, unknown> = {
       plan_id: selectedPlan.id,
       title: pinFormData.title.trim(),
       description: pinFormData.description.trim() || null,
@@ -242,11 +270,11 @@ export function useProjectPlansData(
       created_by: profileId,
     };
 
-    const taskData: any = {
+    const taskData: Record<string, unknown> = {
       title: `📌 ${pinData.title}`,
       description: pinData.description ? `[Plan: ${selectedPlan.name}]\n${pinData.description}` : `[Plan: ${selectedPlan.name}]`,
       project_id: projectId,
-      status: pinStatusToTaskStatus(pinData.status),
+      status: pinStatusToTaskStatus(pinData.status as string),
       priority: pinData.priority === "critical" ? "high" : pinData.priority,
       created_by: profileId || null,
     };
@@ -301,7 +329,7 @@ export function useProjectPlansData(
           if (pinData.assigned_to !== editingPin.assigned_to && pinData.assigned_to !== profileId) {
             const notifTitle = t("notifications.task_assigned_title", "Nowe zadanie");
             const notifBody = `📌 ${pinData.title} • ${selectedPlan.name}`;
-            sendNotification(pinData.assigned_to, notifTitle, notifBody, "task_assigned", {
+            sendNotification(String(pinData.assigned_to), notifTitle, notifBody, "task_assigned", {
               task_id: editingPin.task_id,
               project_id: projectId,
             });
@@ -313,8 +341,8 @@ export function useProjectPlansData(
       pinData.x_percent = editingPin?.x_percent ?? 50;
       pinData.y_percent = editingPin?.y_percent ?? 50;
 
-      let newTask: any = null;
-      let taskError: any = null;
+      let newTask: Pick<TaskRow, "id"> | null = null;
+      let taskError: { message?: string; code?: string } | null = null;
       {
         const res = await supabaseAdmin.from("tasks")
           .insert(taskData)
@@ -352,7 +380,7 @@ export function useProjectPlansData(
         if (pinData.assigned_to && pinData.assigned_to !== profileId) {
           const notifTitle = t("notifications.task_assigned_title", "Nowe zadanie");
           const notifBody = `📌 ${pinData.title} • ${selectedPlan.name}`;
-          sendNotification(pinData.assigned_to, notifTitle, notifBody, "task_assigned", {
+          sendNotification(String(pinData.assigned_to), notifTitle, notifBody, "task_assigned", {
             task_id: newTask.id,
             project_id: projectId,
           });
@@ -367,7 +395,7 @@ export function useProjectPlansData(
     onSuccess();
   };
 
-  const deletePin = async (pinId: string, t: any) => {
+  const deletePin = async (pinId: string, t: TFunction) => {
     const confirmed = Platform.OS === "web"
       ? window.confirm(t("common.delete") + "?")
       : await new Promise<boolean>((resolve) => {
@@ -390,7 +418,7 @@ export function useProjectPlansData(
     }
   };
 
-  const deletePlan = async (planId: string, t: any) => {
+  const deletePlan = async (planId: string, t: TFunction) => {
     const confirmed = Platform.OS === "web"
       ? window.confirm(t("common.delete") + "?")
       : await new Promise<boolean>((resolve) => {

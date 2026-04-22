@@ -318,6 +318,106 @@ export interface Database {
           created_at?: string | null
         }
       }
+      project_plans: {
+        Row: {
+          id: string
+          project_id: string
+          name: string
+          description: string | null
+          floor_level: string | null
+          file_url: string
+          file_type: string
+          version: number
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          name: string
+          description?: string | null
+          floor_level?: string | null
+          file_url: string
+          file_type?: string
+          version?: number
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          name?: string
+          description?: string | null
+          floor_level?: string | null
+          file_url?: string
+          file_type?: string
+          version?: number
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      plan_pins: {
+        Row: {
+          id: string
+          plan_id: string
+          x_percent: number
+          y_percent: number
+          title: string
+          description: string | null
+          status: string
+          priority: string
+          category: string | null
+          assigned_to: string | null
+          due_date: string | null
+          task_id: string | null
+          photos: Json
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          plan_id: string
+          x_percent: number
+          y_percent: number
+          title: string
+          description?: string | null
+          status?: string
+          priority?: string
+          category?: string | null
+          assigned_to?: string | null
+          due_date?: string | null
+          task_id?: string | null
+          photos?: Json
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          plan_id?: string
+          x_percent?: number
+          y_percent?: number
+          title?: string
+          description?: string | null
+          status?: string
+          priority?: string
+          category?: string | null
+          assigned_to?: string | null
+          due_date?: string | null
+          task_id?: string | null
+          photos?: Json
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
       task_assignees: {
         Row: {
           id: string
