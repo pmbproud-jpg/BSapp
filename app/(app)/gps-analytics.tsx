@@ -10,15 +10,18 @@ import {
   Platform,
   TextInput,
 } from "react-native";
-import { useTheme } from "@/src/providers/ThemeProvider";
+import { useTheme, type ThemeColors } from "@/src/providers/ThemeProvider";
 import { useTranslation } from "react-i18next";
 import { useGPSAnalytics, GeofenceZone, WorkerDaySummary, SitePresence } from "@/src/hooks/useGPSAnalytics";
 import { supabase } from "@/src/lib/supabase/client";
 import { Ionicons } from "@expo/vector-icons";
+import type { TFunction } from "i18next";
+
+type IoniconName = keyof typeof Ionicons.glyphMap;
 
 // ─── Helpers ───
 
-function formatMinutes(min: number, t: any): string {
+function formatMinutes(min: number, t: TFunction): string {
   if (min < 60) return `${min} ${t("gps_analytics.minutes_short")}`;
   const h = Math.floor(min / 60);
   const m = min % 60;
@@ -32,7 +35,7 @@ function formatTime(dateStr: string | null): string {
   return new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function formatDistance(meters: number | null, t: any): string {
+function formatDistance(meters: number | null, t: TFunction): string {
   if (meters === null) return "—";
   if (meters < 1000) return `${meters} ${t("gps_analytics.meters")}`;
   return `${(meters / 1000).toFixed(1)} km`;
@@ -47,16 +50,16 @@ function StatCard({
   color,
   colors,
 }: {
-  icon: string;
+  icon: IoniconName;
   label: string;
   value: string | number;
   color: string;
-  colors: any;
+  colors: ThemeColors;
 }) {
   return (
     <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={[styles.statIcon, { backgroundColor: color + "15" }]}>
-        <Ionicons name={icon as any} size={20} color={color} />
+        <Ionicons name={icon} size={20} color={color} />
       </View>
       <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
       <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{label}</Text>
@@ -70,8 +73,8 @@ function PresenceCard({
   t,
 }: {
   item: SitePresence;
-  colors: any;
-  t: any;
+  colors: ThemeColors;
+  t: TFunction;
 }) {
   const statusColor = item.isOnSite ? "#22c55e" : "#ef4444";
   const statusBg = item.isOnSite ? "#f0fdf4" : "#fef2f2";
@@ -115,8 +118,8 @@ function WorkerSummaryCard({
   t,
 }: {
   item: WorkerDaySummary;
-  colors: any;
-  t: any;
+  colors: ThemeColors;
+  t: TFunction;
 }) {
   const hasData = item.totalPoints > 0;
   const barWidth = hasData ? Math.min((item.totalMinutesOnSite / 480) * 100, 100) : 0;

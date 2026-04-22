@@ -101,7 +101,8 @@ export default function MagazynScreen() {
   const loadUsers = async () => {
     try {
       const { data } = await supabase.from("profiles").select("id, full_name").order("full_name");
-      setAllUsers((data || []).filter((u: any) => u.full_name).map((u: any) => ({ id: u.id, full_name: u.full_name || "" })));
+      const rows = (data ?? []) as { id: string; full_name: string | null }[];
+      setAllUsers(rows.filter((u) => u.full_name).map((u) => ({ id: u.id, full_name: u.full_name || "" })));
     } catch (e) { console.error("Error loading users:", e); }
   };
 
@@ -158,7 +159,7 @@ export default function MagazynScreen() {
         </View>
         <View style={[s.card, { backgroundColor: tc.card, borderColor: tc.border }]}>
           {FIELDS.map((f) => {
-            let val: any = (selectedItem as any)[f.key];
+            let val: unknown = (selectedItem as Record<string, unknown>)[f.key];
             if (f.key === "assigned_to" && val) {
               const userName = selectedItem.assigned_to_profile?.full_name || allUsers.find(u => u.id === val)?.full_name || val;
               val = userName;
@@ -220,7 +221,7 @@ export default function MagazynScreen() {
         )}
         <View style={[s.card, { backgroundColor: tc.card, borderColor: tc.border }]}>
           {MAT_FIELDS.map((f) => {
-            const val = (selectedMat as any)[f.key];
+            const val = (selectedMat as Record<string, unknown>)[f.key];
             return (
               <View key={f.key} style={s.detailRow}>
                 <Text style={[s.detailLabel, { color: tc.textSecondary }]}>{f.label}</Text>
@@ -808,7 +809,7 @@ export default function MagazynScreen() {
                     ))}
                   </View>
                   {/* Table rows */}
-                  {filteredOrders.map((order: any, idx: number) => {
+                  {filteredOrders.map((order, idx: number) => {
                     const sc = orderStatusColors[order.status] || "#94a3b8";
                     return (
                       <TouchableOpacity
@@ -1168,7 +1169,7 @@ export default function MagazynScreen() {
                     <input
                       type="date"
                       value={orderForm.ordered_at}
-                      onChange={(e: any) => setOrderForm((prev) => ({ ...prev, ordered_at: e.target.value }))}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrderForm((prev) => ({ ...prev, ordered_at: e.target.value }))}
                       style={{
                         width: 200, maxWidth: "100%", padding: 10, fontSize: 14, borderRadius: 8,
                         border: `1px solid ${tc.border || "#e2e8f0"}`,
@@ -1176,8 +1177,8 @@ export default function MagazynScreen() {
                         color: tc.text || "#1e293b",
                         fontFamily: "inherit",
                         cursor: "pointer",
-                        boxSizing: "border-box" as any,
-                      }}
+                        boxSizing: "border-box",
+                      } as React.CSSProperties}
                     />
                   </View>
                 ) : (
@@ -1206,7 +1207,7 @@ export default function MagazynScreen() {
                     <input
                       type="date"
                       value={orderForm.data_dostawy}
-                      onChange={(e: any) => setOrderForm((prev) => ({ ...prev, data_dostawy: e.target.value }))}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrderForm((prev) => ({ ...prev, data_dostawy: e.target.value }))}
                       style={{
                         width: 200, maxWidth: "100%", padding: 10, fontSize: 14, borderRadius: 8,
                         border: `1px solid ${tc.border || "#e2e8f0"}`,
@@ -1214,8 +1215,8 @@ export default function MagazynScreen() {
                         color: tc.text || "#1e293b",
                         fontFamily: "inherit",
                         cursor: "pointer",
-                        boxSizing: "border-box" as any,
-                      }}
+                        boxSizing: "border-box",
+                      } as React.CSSProperties}
                     />
                   </View>
                 ) : (
