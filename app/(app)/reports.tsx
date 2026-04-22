@@ -9,7 +9,8 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { useTheme } from "@/src/providers/ThemeProvider";
+import { useTheme, type ThemeColors } from "@/src/providers/ThemeProvider";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useAutoReport, ReportType } from "@/src/hooks/useAutoReport";
 import { supabase } from "@/src/lib/supabase/client";
@@ -18,7 +19,7 @@ import * as Clipboard from "expo-clipboard";
 
 // ─── Report Type Config ───
 
-const REPORT_TYPES: { type: ReportType; icon: string; color: string }[] = [
+const REPORT_TYPES: { type: ReportType; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
   { type: "daily", icon: "today-outline", color: "#3b82f6" },
   { type: "weekly", icon: "calendar-outline", color: "#8b5cf6" },
   { type: "monthly", icon: "stats-chart-outline", color: "#06b6d4" },
@@ -37,12 +38,12 @@ function ReportTypeCard({
   t,
 }: {
   type: ReportType;
-  icon: string;
+  icon: keyof typeof Ionicons.glyphMap;
   color: string;
   selected: boolean;
   onPress: () => void;
-  colors: any;
-  t: any;
+  colors: ThemeColors;
+  t: TFunction;
 }) {
   return (
     <TouchableOpacity
@@ -57,7 +58,7 @@ function ReportTypeCard({
       onPress={onPress}
     >
       <View style={[styles.typeIcon, { backgroundColor: color + "15" }]}>
-        <Ionicons name={icon as any} size={24} color={color} />
+        <Ionicons name={icon} size={24} color={color} />
       </View>
       <Text style={[styles.typeName, { color: colors.text }]}>
         {t(`reports.${type}`)}
@@ -77,8 +78,8 @@ function TaskStatsBar({
   t,
 }: {
   stats: { total: number; completed: number; in_progress: number; todo: number; blocked: number; completion_rate: number };
-  colors: any;
-  t: any;
+  colors: ThemeColors;
+  t: TFunction;
 }) {
   if (stats.total === 0) return null;
   const segments = [

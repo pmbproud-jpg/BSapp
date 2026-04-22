@@ -17,6 +17,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type ViewStyle,
 } from "react-native";
 
 export default function AdminPermissionsScreen() {
@@ -110,7 +111,7 @@ export default function AdminPermissionsScreen() {
             style={[styles.roleOption, selectedUser?.role === opt.value && styles.roleOptionActive]}
             onPress={() => selectedUser && changeUserRole(selectedUser.id, opt.value)}
           >
-            <Ionicons name={opt.icon as any} size={22} color={opt.color} />
+            <Ionicons name={opt.icon as keyof typeof Ionicons.glyphMap} size={22} color={opt.color} />
             <Text style={[styles.roleOptionLabel, { color: colors.text }]}>{opt.label}</Text>
             {selectedUser?.role === opt.value && (
               <Ionicons name="checkmark-circle" size={22} color={opt.color} />
@@ -122,7 +123,7 @@ export default function AdminPermissionsScreen() {
 
     return Platform.OS === "web" ? (
       showRoleModal && (
-        <View style={[styles.modalOverlay, { position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }]}>
+        <View style={[styles.modalOverlay, { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 } as ViewStyle]}>
           {content}
         </View>
       )
@@ -147,7 +148,7 @@ export default function AdminPermissionsScreen() {
                 onPress={() => setShowRolePickerInPerm(!showRolePickerInPerm)}
                 style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: `${getRoleColor(selectedUser?.role || "worker")}15`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}
               >
-                <Ionicons name={roleOptions.find(r => r.value === selectedUser?.role)?.icon as any || "person"} size={14} color={getRoleColor(selectedUser?.role || "worker")} />
+                <Ionicons name={(roleOptions.find(r => r.value === selectedUser?.role)?.icon || "person") as keyof typeof Ionicons.glyphMap} size={14} color={getRoleColor(selectedUser?.role || "worker")} />
                 <Text style={{ fontSize: 12, fontWeight: "700", color: getRoleColor(selectedUser?.role || "worker") }}>
                   {t(`common.roles.${selectedUser?.role || "worker"}`)}
                 </Text>
@@ -195,7 +196,7 @@ export default function AdminPermissionsScreen() {
                     borderWidth: 1, borderColor: selectedUser?.role === opt.value ? opt.color : colors.border,
                   }}
                 >
-                  <Ionicons name={opt.icon as any} size={14} color={opt.color} />
+                  <Ionicons name={opt.icon as keyof typeof Ionicons.glyphMap} size={14} color={opt.color} />
                   <Text style={{ fontSize: 12, fontWeight: "600", color: selectedUser?.role === opt.value ? opt.color : colors.text }}>{opt.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -229,7 +230,7 @@ export default function AdminPermissionsScreen() {
                   onPress={() => toggleGroupCollapse(group.title)}
                   style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 8, backgroundColor: `${group.color}08`, borderRadius: 8, marginBottom: isCollapsed ? 0 : 2 }}
                 >
-                  <Ionicons name={group.icon as any} size={16} color={group.color} />
+                  <Ionicons name={group.icon as keyof typeof Ionicons.glyphMap} size={16} color={group.color} />
                   <Text style={{ flex: 1, fontSize: 13, fontWeight: "700", color: group.color, marginLeft: 8 }}>
                     {group.title}
                   </Text>
@@ -288,7 +289,7 @@ export default function AdminPermissionsScreen() {
 
     return Platform.OS === "web" ? (
       showPermModal && (
-        <View style={[styles.modalOverlay, { position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }]}>
+        <View style={[styles.modalOverlay, { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 } as ViewStyle]}>
           {permContent}
         </View>
       )
@@ -354,7 +355,7 @@ export default function AdminPermissionsScreen() {
               {roleOptions.map((role) => (
                 <View key={role.value} style={styles.permMatrixRow}>
                   <View style={styles.permMatrixRole}>
-                    <Ionicons name={role.icon as any} size={16} color={role.color} />
+                    <Ionicons name={role.icon as keyof typeof Ionicons.glyphMap} size={16} color={role.color} />
                     <Text style={[styles.permMatrixRoleName, { color: role.color }]}>{role.label}</Text>
                   </View>
                   <View style={styles.permMatrixPerms}>

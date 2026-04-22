@@ -109,7 +109,8 @@ export default function ImportProjectsScreen() {
     const sheet = workbook.Sheets[sheetName];
 
     // Pobierz dane jako tablice (bez nagłówków) - każdy wiersz to array wartości
-    const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    type Cell = string | number | boolean | null | undefined;
+    const rawRows: Cell[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
     if (rawRows.length === 0) {
       if (Platform.OS === "web") {
         window.alert(t("projects.import.no_valid_data"));
@@ -126,7 +127,7 @@ export default function ImportProjectsScreen() {
     const dataRows = hasHeader ? rawRows.slice(1) : rawRows;
 
     // Helper: parse Excel date (can be serial number, date string, or garbage like "0")
-    const parseDate = (val: any): string | undefined => {
+    const parseDate = (val: Cell): string | undefined => {
       if (val == null || val === "" || val === 0 || val === "0") return undefined;
       // Excel serial number (e.g. 45678)
       if (typeof val === "number" && val > 30000 && val < 100000) {
@@ -149,16 +150,16 @@ export default function ImportProjectsScreen() {
 
     // Detect column mapping from headers
     // Expected order: Name, Nr.budowy, Lokalizacja, Data rozpoczęcia, Data zakończenia, Budżet
-    const hdr = hasHeader ? firstRow.map((h: any) => String(h).trim().toLowerCase()) : [];
-    const colName = hdr.findIndex((h: string) => h.includes("nazwa") || h.includes("name"));
-    const colNr = hdr.findIndex((h: string) => h.includes("numer") || h.includes("number") || h.includes("nr") || h.includes("baunummer"));
-    const colLoc = hdr.findIndex((h: string) => h.includes("lokalizacja") || h.includes("location") || h.includes("standort"));
-    const colStart = hdr.findIndex((h: string) => h.includes("rozpocz") || h.includes("start"));
-    const colEnd = hdr.findIndex((h: string) => h.includes("zakoń") || h.includes("end") || h.includes("ende"));
-    const colBudget = hdr.findIndex((h: string) => h.includes("budż") || h.includes("budget"));
+    const hdr = hasHeader ? firstRow.map((h) => String(h).trim().toLowerCase()) : [];
+    const colName = hdr.findIndex((h) => h.includes("nazwa") || h.includes("name"));
+    const colNr = hdr.findIndex((h) => h.includes("numer") || h.includes("number") || h.includes("nr") || h.includes("baunummer"));
+    const colLoc = hdr.findIndex((h) => h.includes("lokalizacja") || h.includes("location") || h.includes("standort"));
+    const colStart = hdr.findIndex((h) => h.includes("rozpocz") || h.includes("start"));
+    const colEnd = hdr.findIndex((h) => h.includes("zakoń") || h.includes("end") || h.includes("ende"));
+    const colBudget = hdr.findIndex((h) => h.includes("budż") || h.includes("budget"));
 
-    const projects: ImportedProject[] = dataRows.map((row: any[]) => {
-      const str = (val: any) => (val != null ? String(val).trim() : "");
+    const projects: ImportedProject[] = dataRows.map((row) => {
+      const str = (val: Cell) => (val != null ? String(val).trim() : "");
       // If headers detected, use mapped columns; otherwise fallback: A=name, B=nr.budowy, C=loc, D=start, E=end, F=budget
       const name = str(row[colName >= 0 ? colName : 0]);
       const nr = str(row[colNr >= 0 ? colNr : 1]);
@@ -212,8 +213,8 @@ export default function ImportProjectsScreen() {
         created_by: profile?.id,
       }));
 
-      const { data, error } = await (supabaseAdmin
-        .from("projects") as any)
+      const { data, error } = await supabaseAdmin
+        .from("projects")
         .insert(projectsToInsert)
         .select();
 
@@ -225,11 +226,14 @@ export default function ImportProjectsScreen() {
         Alert.alert(t("common.success"), t("projects.import.success", { count: data.length }));
       }
       router.replace("/projects");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error importing projects:", error);
-      
+
       // Sprawdź czy to błąd duplikatu
-      const msg = error.code === "23505"
+      const code = error && typeof error === "object" && "code" in error
+        ? (error as { code?: string }).code
+        : undefined;
+      const msg = code === "23505"
         ? t("projects.import.duplicate_error")
         : t("projects.import.error");
       if (Platform.OS === "web") {
@@ -245,7 +249,7 @@ export default function ImportProjectsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.replace("/projects" as any)} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.replace("/projects")} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t("projects.import.title")}</Text>

@@ -77,8 +77,8 @@ export default function SettingsScreen() {
       setConfirmPassword("");
       const msg = t("settings.pw_changed", "Hasło zostało zmienione");
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-    } catch (e: any) {
-      const msg = e?.message || t("settings.pw_change_error", "Błąd zmiany hasła");
+    } catch (e: unknown) {
+      const msg = (e instanceof Error ? e.message : null) || t("settings.pw_change_error", "Błąd zmiany hasła");
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     } finally {
       setPwChangeSaving(false);
@@ -166,9 +166,9 @@ export default function SettingsScreen() {
             recorded_at: gpsData.timestamp,
           });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("GPS error:", error);
-      const msg = error?.message || t("common.error");
+      const msg = (error instanceof Error ? error.message : null) || t("common.error");
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.error"), msg);
     } finally {
@@ -199,8 +199,8 @@ export default function SettingsScreen() {
 
     setSaving(true);
     try {
-      const { error } = await (supabase
-        .from("profiles") as any)
+      const { error } = await supabaseAdmin
+        .from("profiles")
         .update({ full_name: fullName.trim() })
         .eq("id", profile.id);
 
@@ -472,9 +472,9 @@ export default function SettingsScreen() {
                       Alert.alert(t("common.success"), t("settings.two_factor_disabled"));
                     }
                   }
-                } catch (error: any) {
+                } catch (error: unknown) {
                   console.error("2FA error:", error);
-                  const msg = error?.message || t("common.error");
+                  const msg = (error instanceof Error ? error.message : null) || t("common.error");
                   if (Platform.OS === "web") {
                     window.alert(msg);
                   } else {

@@ -7,10 +7,11 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { useTheme } from "@/src/providers/ThemeProvider";
+import { useTheme, type ThemeColors } from "@/src/providers/ThemeProvider";
 import { useTranslation } from "react-i18next";
 import { useProjectPrediction, ProjectPrediction, RiskLevel } from "@/src/hooks/useProjectPrediction";
 import { Ionicons } from "@expo/vector-icons";
+import type { TFunction } from "i18next";
 
 const RISK_COLORS: Record<RiskLevel, string> = {
   low: "#22c55e",
@@ -19,18 +20,18 @@ const RISK_COLORS: Record<RiskLevel, string> = {
   critical: "#ef4444",
 };
 
-const RISK_ICONS: Record<RiskLevel, string> = {
+const RISK_ICONS: Record<RiskLevel, keyof typeof Ionicons.glyphMap> = {
   low: "checkmark-circle",
   medium: "alert-circle",
   high: "warning",
   critical: "flame",
 };
 
-function RiskBadge({ level, colors, t }: { level: RiskLevel; colors: any; t: any }) {
+function RiskBadge({ level, colors, t }: { level: RiskLevel; colors: ThemeColors; t: TFunction }) {
   const color = RISK_COLORS[level];
   return (
     <View style={[styles.riskBadge, { backgroundColor: color + "18" }]}>
-      <Ionicons name={RISK_ICONS[level] as any} size={14} color={color} />
+      <Ionicons name={RISK_ICONS[level]} size={14} color={color} />
       <Text style={[styles.riskBadgeText, { color }]}>
         {t(`predictions.risk_${level}`)}
       </Text>
@@ -38,7 +39,7 @@ function RiskBadge({ level, colors, t }: { level: RiskLevel; colors: any; t: any
   );
 }
 
-function FactorBar({ factor, colors, t }: { factor: ProjectPrediction["factors"][0]; colors: any; t: any }) {
+function FactorBar({ factor, colors, t }: { factor: ProjectPrediction["factors"][0]; colors: ThemeColors; t: TFunction }) {
   const barColor = factor.score >= 70 ? "#ef4444" : factor.score >= 40 ? "#f59e0b" : "#22c55e";
   return (
     <View style={styles.factorRow}>
@@ -56,7 +57,7 @@ function FactorBar({ factor, colors, t }: { factor: ProjectPrediction["factors"]
   );
 }
 
-function ProjectCard({ prediction, colors, t }: { prediction: ProjectPrediction; colors: any; t: any }) {
+function ProjectCard({ prediction, colors, t }: { prediction: ProjectPrediction; colors: ThemeColors; t: TFunction }) {
   const riskColor = RISK_COLORS[prediction.riskLevel];
   const s = prediction.stats;
 

@@ -1,5 +1,6 @@
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
+import type { Database } from "@/src/lib/supabase/database.types";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { getRoleColor } from "@/src/utils/roleHelpers";
 import { Ionicons } from "@expo/vector-icons";
@@ -89,20 +90,22 @@ export default function ImportUsersScreen() {
     const sheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(sheet);
 
-    const users: ImportedUser[] = jsonData.map((row: any) => ({
-      full_name:
+    const users: ImportedUser[] = (jsonData as Record<string, unknown>[]).map((row) => ({
+      full_name: String(
         row["Imię i Nazwisko"] ||
         row["Full Name"] ||
         row["Name"] ||
         "",
-      email: row["Email"] || row["E-mail"] || "",
-      phone:
+      ),
+      email: String(row["Email"] || row["E-mail"] || ""),
+      phone: String(
         row["Telefon"] ||
         row["Phone"] ||
         row["Tel"] ||
         row["Nr tel"] ||
         "",
-      role: (row["Funkcja"] || row["Role"] || "worker").toLowerCase(),
+      ),
+      role: String(row["Funkcja"] || row["Role"] || "worker").toLowerCase(),
     }));
 
     // Walidacja ról
@@ -151,9 +154,10 @@ export default function ImportUsersScreen() {
           if (!authData.user) throw new Error("User not created");
 
           createdUsers.push(user.email);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error(`Error creating user ${user.email}:`, error);
-          errors.push(`${user.email}: ${error.message}`);
+          const msg = error instanceof Error ? error.message : "unknown";
+          errors.push(`${user.email}: ${msg}`);
         }
       }
 
@@ -164,20 +168,21 @@ export default function ImportUsersScreen() {
         // Update profiles with roles and company_id
         for (const user of preview) {
           try {
-            const { data: profileData } = await (supabase.from("profiles") as any)
+            const { data: profileData } = await supabase.from("profiles")
               .select("id")
               .eq("email", user.email)
               .maybeSingle();
 
-            if (profileData) {
+            const pid = (profileData as { id: string } | null)?.id;
+            if (pid) {
               await supabaseAdmin.from("profiles")
                 .update({
                   full_name: user.full_name,
                   phone: user.phone || null,
-                  role: user.role,
+                  role: user.role as Database["public"]["Tables"]["profiles"]["Update"]["role"],
                   company_id: profile?.company_id,
                 })
-                .eq("id", profileData.id);
+                .eq("id", pid);
             }
           } catch (err) {
             console.error(`Error updating profile for ${user.email}:`, err);
@@ -204,7 +209,7 @@ export default function ImportUsersScreen() {
         if (Platform.OS === "web") window.alert(errMsg);
         else Alert.alert(t("common.error"), errMsg);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error importing users:", error);
       Alert.alert(t("common.error"), t("users.import.error"));
     } finally {

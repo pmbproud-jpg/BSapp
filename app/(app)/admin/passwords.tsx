@@ -34,7 +34,7 @@ export default function AdminPasswords() {
         const { data: users, error: fetchError } = await supabaseAdmin.from("profiles").select("id,role,full_name");
         if (fetchError) throw fetchError;
 
-        const nonAdmins = (users || []).filter((u: any) => u.role !== "admin");
+        const nonAdmins = ((users ?? []) as { id: string; role: string; full_name: string | null }[]).filter((u) => u.role !== "admin");
         if (nonAdmins.length === 0) {
           showMsg(t("common.info", "Info"), t("settings.no_users_to_reset", "Brak użytkowników do zresetowania"));
           return;
@@ -49,9 +49,10 @@ export default function AdminPasswords() {
             const { error } = await supabaseAdmin.auth.admin.updateUser(user.id, { password: pw });
             if (error) throw error;
             success++;
-          } catch (err: any) {
+          } catch (err: unknown) {
             errors++;
-            errorDetails.push(`${(user as any).full_name || user.id}: ${err?.message || "unknown"}`);
+            const msg = err instanceof Error ? err.message : "unknown";
+            errorDetails.push(`${user.full_name || user.id}: ${msg}`);
             console.error(`[resetAll] Failed for ${user.id}:`, err);
           }
         }
@@ -63,8 +64,9 @@ export default function AdminPasswords() {
           msg += "\n\n" + errorDetails.slice(0, 5).join("\n");
         }
         showMsg(errors > 0 ? t("common.error") : t("common.success"), msg);
-      } catch (error: any) {
-        showMsg(t("common.error"), error?.message || t("common.error"));
+      } catch (error: unknown) {
+        const msg = (error instanceof Error ? error.message : null) || t("common.error");
+        showMsg(t("common.error"), msg);
       } finally {
         setResettingAll(false);
       }
