@@ -23,10 +23,29 @@ import {
     View
 } from "react-native";
 
+// Task enriched in fetchTask() z profili (created_by_user, edited_by_user,
+// assigned_by_user) oraz listą imion all_assignees.
 type Task = Database["public"]["Tables"]["tasks"]["Row"] & {
-  projects?: { name: string };
-  assigned_user?: { full_name: string };
+  projects?: { name: string } | null;
+  assigned_user?: { full_name: string } | null;
+  assigned_by_user?: { full_name: string | null } | null;
+  created_by_user?: { full_name: string | null } | null;
+  edited_by_user?: { full_name: string | null } | null;
+  all_assignees?: string[];
 };
+
+type PlanPinLite = {
+  id: string;
+  plan_id?: string;
+  x_percent?: number;
+  y_percent?: number;
+  title?: string;
+};
+type PlanLite = {
+  id: string;
+  name?: string;
+};
+type ProfileLite = { id: string; full_name: string | null; email?: string };
 
 type Comment = Database["public"]["Tables"]["task_comments"]["Row"] & {
   profiles?: { full_name: string };
@@ -55,9 +74,9 @@ export default function TaskDetailsScreen() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", description: "", status: "todo", priority: "medium", assigned_to: [] as string[], due_date: "" });
   const [editSaving, setEditSaving] = useState(false);
-  const [users, setUsers] = useState<any[]>([]);
-  const [planUsers, setPlanUsers] = useState<any[]>([]);
-  const [projectUsers, setProjectUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<ProfileLite[]>([]);
+  const [planUsers, setPlanUsers] = useState<ProfileLite[]>([]);
+  const [projectUsers, setProjectUsers] = useState<ProfileLite[]>([]);
 
   const perms = usePermissions();
   const canEdit = perms.canEditTask;
@@ -77,8 +96,8 @@ export default function TaskDetailsScreen() {
   const [commentTranslateDir, setCommentTranslateDir] = useState<"pl|de" | "de|pl">("pl|de");
 
   // Pin link state
-  const [linkedPin, setLinkedPin] = useState<any>(null);
-  const [linkedPlan, setLinkedPlan] = useState<any>(null);
+  const [linkedPin, setLinkedPin] = useState<PlanPinLite | null>(null);
+  const [linkedPlan, setLinkedPlan] = useState<PlanLite | null>(null);
 
   // Translation state (edit modal)
   const [editTranslating, setEditTranslating] = useState(false);
@@ -103,17 +122,17 @@ export default function TaskDetailsScreen() {
 
       let planWorkerIds: string[] = [];
       if (planReqs && planReqs.length > 0) {
-        const reqIds = planReqs.map((r: any) => r.id);
+        const reqIds = (planReqs as { id: string }[]).map((r) => r.id);
         const { data: planAssign } = await supabaseAdmin.from("plan_assignments")
           .select("worker_id")
           .in("request_id", reqIds);
         if (planAssign && planAssign.length > 0) {
-          planWorkerIds = [...new Set(planAssign.map((a: any) => a.worker_id))] as string[];
+          planWorkerIds = [...new Set((planAssign as { worker_id: string }[]).map((a) => a.worker_id))];
           const { data: pw } = await supabaseAdmin.from("profiles")
             .select("id, full_name, email")
             .in("id", planWorkerIds)
             .order("full_name");
-          setPlanUsers(pw || []);
+          setPlanUsers((pw ?? []) as ProfileLite[]);
         }
       }
 
@@ -123,31 +142,31 @@ export default function TaskDetailsScreen() {
         .eq("project_id", projectId);
 
       if (members && members.length > 0) {
-        const memberIds = members.map((m: any) => m.user_id).filter((mid: string) => !planWorkerIds.includes(mid));
+        const memberIds = (members as { user_id: string }[]).map((m) => m.user_id).filter((mid) => !planWorkerIds.includes(mid));
         if (memberIds.length > 0) {
           const { data: mp } = await supabaseAdmin.from("profiles")
             .select("id, full_name, email")
             .in("id", memberIds)
             .order("full_name");
-          setProjectUsers(mp || []);
+          setProjectUsers((mp ?? []) as ProfileLite[]);
         }
       }
 
       // 3. Wszyscy (do users — fallback jeśli brak planu i członków)
       const allPlan = planWorkerIds.length > 0 ? planWorkerIds : [];
-      const allMembers = members ? members.map((m: any) => m.user_id) : [];
+      const allMembers = members ? (members as { user_id: string }[]).map((m) => m.user_id) : [];
       const combined = [...new Set([...allPlan, ...allMembers])];
       if (combined.length > 0) {
         const { data: combinedProfiles } = await supabaseAdmin.from("profiles")
           .select("id, full_name, email")
           .in("id", combined)
           .order("full_name");
-        setUsers(combinedProfiles || []);
+        setUsers((combinedProfiles ?? []) as ProfileLite[]);
       } else {
         const { data, error } = await supabaseAdmin.from("profiles")
           .select("id, full_name, email")
           .order("full_name");
-        if (!error) setUsers(data || []);
+        if (!error) setUsers((data ?? []) as ProfileLite[]);
       }
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -161,9 +180,9 @@ export default function TaskDetailsScreen() {
     const { data: assignees } = await supabaseAdmin.from("task_assignees")
       .select("user_id").eq("task_id", id);
     if (assignees && assignees.length > 0) {
-      existingAssignees = assignees.map((a: any) => a.user_id);
-    } else if ((task as any).assigned_to) {
-      existingAssignees = [(task as any).assigned_to];
+      existingAssignees = (assignees as { user_id: string }[]).map((a) => a.user_id);
+    } else if (task.assigned_to) {
+      existingAssignees = [task.assigned_to];
     }
     setEditForm({
       title: task.title || "",
@@ -184,18 +203,18 @@ export default function TaskDetailsScreen() {
     setEditSaving(true);
     try {
       const primaryAssigned = editForm.assigned_to.length > 0 ? editForm.assigned_to[0] : null;
-      const updateData: any = {
+      const updateData: Database["public"]["Tables"]["tasks"]["Update"] = {
         title: editForm.title.trim(),
         description: editForm.description.trim() || null,
-        status: editForm.status,
-        priority: editForm.priority,
+        status: editForm.status as Database["public"]["Tables"]["tasks"]["Update"]["status"],
+        priority: editForm.priority as Database["public"]["Tables"]["tasks"]["Update"]["priority"],
         assigned_to: primaryAssigned,
         due_date: editForm.due_date && isValidDate(editForm.due_date) ? editForm.due_date : null,
         edited_by: profile?.id || null,
         edited_at: new Date().toISOString(),
       };
       // Jeśli zmieniono przypisanie — zapisz kto i kiedy przydzielił
-      const prevAssigned = (task as any)?.assigned_to || null;
+      const prevAssigned = task?.assigned_to || null;
       if (primaryAssigned && primaryAssigned !== prevAssigned) {
         updateData.assigned_by = profile?.id || null;
         updateData.assigned_at = new Date().toISOString();
@@ -203,7 +222,7 @@ export default function TaskDetailsScreen() {
         updateData.assigned_by = null;
         updateData.assigned_at = null;
       }
-      const { error } = await (supabase.from("tasks") as any)
+      const { error } = await supabaseAdmin.from("tasks")
         .update(updateData)
         .eq("id", id);
       if (error) throw error;
@@ -211,7 +230,7 @@ export default function TaskDetailsScreen() {
       // Pobierz starych przypisanych przed synchronizacją
       const { data: oldAssignees } = await supabaseAdmin.from("task_assignees")
         .select("user_id").eq("task_id", id);
-      const oldIds = new Set((oldAssignees || []).map((a: any) => a.user_id));
+      const oldIds = new Set(((oldAssignees ?? []) as { user_id: string }[]).map((a) => a.user_id));
 
       // Synchronizuj task_assignees
       await supabaseAdmin.from("task_assignees").delete().eq("task_id", id);
@@ -225,12 +244,12 @@ export default function TaskDetailsScreen() {
       }
 
       // Wyślij powiadomienia do nowo przypisanych pracowników
-      const projName = (task as any)?.projects?.name || "";
+      const projName = task?.projects?.name || "";
       for (const uid of editForm.assigned_to) {
         if (uid !== profile?.id && !oldIds.has(uid)) {
           const title = t("notifications.task_assigned_title", "Nowe zadanie");
           const body = `${editForm.title.trim()}${projName ? ` • ${projName}` : ""}`;
-          sendNotification(uid, title, body, "task_assigned", { task_id: id, project_id: (task as any)?.project_id });
+          sendNotification(uid, title, body, "task_assigned", { task_id: id, project_id: task?.project_id });
         }
       }
 
@@ -336,26 +355,27 @@ export default function TaskDetailsScreen() {
       if (error) throw error;
 
       // Pobierz profil created_by i edited_by osobno (brak FK w bazie)
-      let enriched: any = { ...(data as any) };
-      if (data && (data as any).created_by) {
+      const baseTask = data as Task | null;
+      const enriched: Task = { ...(baseTask as Task) };
+      if (baseTask?.created_by) {
         const { data: cbUser } = await supabaseAdmin.from("profiles")
-          .select("full_name").eq("id", (data as any).created_by).single();
-        if (cbUser) enriched.created_by_user = cbUser;
+          .select("full_name").eq("id", baseTask.created_by).single();
+        if (cbUser) enriched.created_by_user = cbUser as { full_name: string | null };
       }
-      if (data && (data as any).edited_by) {
+      if (baseTask?.edited_by) {
         const { data: ebUser } = await supabaseAdmin.from("profiles")
-          .select("full_name").eq("id", (data as any).edited_by).single();
-        if (ebUser) enriched.edited_by_user = ebUser;
+          .select("full_name").eq("id", baseTask.edited_by).single();
+        if (ebUser) enriched.edited_by_user = ebUser as { full_name: string | null };
       }
 
       // Pobierz wszystkich przypisanych z task_assignees
       const { data: assignees } = await supabaseAdmin.from("task_assignees")
         .select("user_id").eq("task_id", id);
       if (assignees && assignees.length > 0) {
-        const aIds = assignees.map((a: any) => a.user_id);
+        const aIds = (assignees as { user_id: string }[]).map((a) => a.user_id);
         const { data: aProfiles } = await supabaseAdmin.from("profiles")
           .select("id, full_name, email").in("id", aIds);
-        enriched.all_assignees = (aProfiles || []).map((p: any) => p.full_name || p.email || "");
+        enriched.all_assignees = ((aProfiles ?? []) as ProfileLite[]).map((p) => p.full_name || p.email || "");
       } else if (enriched.assigned_user?.full_name) {
         enriched.all_assignees = [enriched.assigned_user.full_name];
       } else {
@@ -363,12 +383,12 @@ export default function TaskDetailsScreen() {
       }
 
       setTask(enriched);
-      if ((data as any)?.project_id) {
-        fetchUsersForProject((data as any).project_id);
+      if (baseTask?.project_id) {
+        fetchUsersForProject(baseTask.project_id);
       }
       // Fetch linked pin if task is from a plan pin
-      if (id && (data as any)?.title?.startsWith("📌")) {
-        fetchLinkedPin(id, (data as any)?.title, (data as any)?.description, (data as any)?.project_id);
+      if (id && baseTask?.title?.startsWith("📌")) {
+        fetchLinkedPin(id, baseTask.title, baseTask.description ?? undefined, baseTask.project_id);
       }
     } catch (error) {
       console.error("Error fetching task:", error);
@@ -395,14 +415,14 @@ export default function TaskDetailsScreen() {
 
   const fetchAttachments = async () => {
     try {
-      const { data, error } = await (supabase
-        .from("task_attachments") as any)
+      const { data, error } = await supabase
+        .from("task_attachments")
         .select("*")
         .eq("task_id", id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setAttachments(data || []);
+      setAttachments((data ?? []) as Attachment[]);
     } catch (error) {
       console.error("Error fetching attachments:", error);
     }
@@ -413,11 +433,11 @@ export default function TaskDetailsScreen() {
 
     setSubmittingComment(true);
     try {
-      const { error } = await supabase.from("task_comments").insert({
+      const { error } = await supabaseAdmin.from("task_comments").insert({
         task_id: id,
         user_id: profile.id,
         comment: newComment.trim(),
-      } as any);
+      });
 
       if (error) throw error;
 
@@ -434,9 +454,9 @@ export default function TaskDetailsScreen() {
   const updateStatus = async (newStatus: string) => {
     if (!id) return;
     try {
-      const { error } = await (supabase
-        .from("tasks") as any)
-        .update({ status: newStatus })
+      const { error } = await supabaseAdmin
+        .from("tasks")
+        .update({ status: newStatus as Database["public"]["Tables"]["tasks"]["Update"]["status"] })
         .eq("id", id);
 
       if (error) throw error;
@@ -465,7 +485,7 @@ export default function TaskDetailsScreen() {
 
               if (error) throw error;
               if (task?.project_id) {
-                router.replace(`/projects/${task.project_id}` as any);
+                router.replace(`/projects/${task.project_id}`);
               } else {
                 router.back();
               }
@@ -520,11 +540,11 @@ export default function TaskDetailsScreen() {
       <View style={styles.header}>
         <TouchableOpacity onPress={() => {
           if (task?.project_id) {
-            router.replace(`/projects/${task.project_id}` as any);
+            router.replace(`/projects/${task.project_id}`);
           } else if (router.canGoBack()) {
             router.back();
           } else {
-            router.replace("/projects" as any);
+            router.replace("/projects");
           }
         }} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
@@ -642,7 +662,7 @@ export default function TaskDetailsScreen() {
               }}
               onPress={() => {
                 if (task?.project_id) {
-                  router.replace(`/projects/${task.project_id}?tab=plans&planId=${linkedPlan.id}&pinId=${linkedPin.id}` as any);
+                  router.replace(`/projects/${task.project_id}?tab=plans&planId=${linkedPlan.id}&pinId=${linkedPin.id}`);
                 }
               }}
             >
@@ -742,13 +762,13 @@ export default function TaskDetailsScreen() {
               </View>
             ) : null}
 
-            {(task as any).all_assignees && (task as any).all_assignees.length > 0 ? (
+            {task.all_assignees && task.all_assignees.length > 0 ? (
               <View style={styles.infoItem}>
                 <View style={styles.infoLabel}>
                   <Ionicons name="people-outline" size={18} color="#64748b" />
-                  <Text style={styles.infoLabelText}>{t("tasks.assigned_to")} ({(task as any).all_assignees.length})</Text>
+                  <Text style={styles.infoLabelText}>{t("tasks.assigned_to")} ({task.all_assignees.length})</Text>
                 </View>
-                <Text style={styles.infoValue}>{(task as any).all_assignees.join(", ")}</Text>
+                <Text style={styles.infoValue}>{task.all_assignees.join(", ")}</Text>
               </View>
             ) : task.assigned_user?.full_name ? (
               <View style={styles.infoItem}>
@@ -760,16 +780,16 @@ export default function TaskDetailsScreen() {
               </View>
             ) : null}
 
-            {(task as any).assigned_by_user?.full_name ? (
+            {task.assigned_by_user?.full_name ? (
               <View style={styles.infoItem}>
                 <View style={styles.infoLabel}>
                   <Ionicons name="person-add-outline" size={18} color="#64748b" />
                   <Text style={styles.infoLabelText}>Zugewiesen von</Text>
                 </View>
                 <Text style={styles.infoValue}>
-                  {(task as any).assigned_by_user.full_name}
-                  {(task as any).assigned_at ? (
-                    ` • ${new Date((task as any).assigned_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })} ${new Date((task as any).assigned_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`
+                  {task.assigned_by_user.full_name}
+                  {task.assigned_at ? (
+                    ` • ${new Date(task.assigned_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })} ${new Date(task.assigned_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`
                   ) : ""}
                 </Text>
               </View>
@@ -787,14 +807,14 @@ export default function TaskDetailsScreen() {
               </View>
             ) : null}
 
-            {(task as any).created_by_user?.full_name ? (
+            {task.created_by_user?.full_name ? (
               <View style={styles.infoItem}>
                 <View style={styles.infoLabel}>
                   <Ionicons name="create-outline" size={18} color="#2563eb" />
                   <Text style={styles.infoLabelText}>{t("tasks.created_by") || "Zlecone przez"}</Text>
                 </View>
                 <Text style={styles.infoValue}>
-                  {(task as any).created_by_user.full_name}
+                  {task.created_by_user.full_name}
                   {task.created_at ? (
                     ` • ${new Date(task.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })} ${new Date(task.created_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`
                   ) : ""}
@@ -802,16 +822,16 @@ export default function TaskDetailsScreen() {
               </View>
             ) : null}
 
-            {(task as any).edited_by_user?.full_name ? (
+            {task.edited_by_user?.full_name ? (
               <View style={styles.infoItem}>
                 <View style={styles.infoLabel}>
                   <Ionicons name="pencil-outline" size={18} color="#f59e0b" />
                   <Text style={styles.infoLabelText}>{t("tasks.edited_by") || "Edytowane przez"}</Text>
                 </View>
                 <Text style={styles.infoValue}>
-                  {(task as any).edited_by_user.full_name}
-                  {(task as any).edited_at ? (
-                    ` • ${new Date((task as any).edited_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })} ${new Date((task as any).edited_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`
+                  {task.edited_by_user.full_name}
+                  {task.edited_at ? (
+                    ` • ${new Date(task.edited_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })} ${new Date(task.edited_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`
                   ) : ""}
                 </Text>
               </View>
