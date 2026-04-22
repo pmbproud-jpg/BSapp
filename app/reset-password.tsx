@@ -167,7 +167,7 @@ export default function ResetPasswordScreen() {
     }, 2000);
 
     // Native deep link listener
-    let linkSub: any;
+    let linkSub: { remove: () => void } | undefined;
     if (Platform.OS !== "web") {
       linkSub = Linking.addEventListener("url", async (event) => {
         const tok = extractTokens(event?.url || "");

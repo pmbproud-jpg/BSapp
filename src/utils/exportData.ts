@@ -1,9 +1,15 @@
 import { Platform, Alert } from "react-native";
 import XLSX from "xlsx";
 
-// Dynamically import mobile-only modules
+// Dynamically import mobile-only modules.
+// UWAGA: `expo-file-system` w SDK 54+ nie eksportuje juz legacy
+// `documentDirectory`/`EncodingType` (sa w `expo-file-system/legacy`).
+// Kod ponizej uzywa ich runtime przez loadMobileModules() — trzymamy
+// typ szeroki do czasu migracji na nowe API (Faza 8 Expo upgrade).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let FileSystemModule: any = null;
-let SharingModule: any = null;
+type SharingLib = typeof import("expo-sharing");
+let SharingModule: SharingLib | null = null;
 
 async function loadMobileModules() {
   if (Platform.OS !== "web") {

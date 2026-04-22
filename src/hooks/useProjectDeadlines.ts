@@ -4,11 +4,9 @@
 
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import type { ProjectDeadline, ProjectDeadlineInsert } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 import { useState, useCallback } from "react";
 import { Alert, Platform } from "react-native";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type TFunc = (...args: any[]) => any;
 
 // Predefiniowane szablony terminów VOB
 export const DEADLINE_TEMPLATES: { type: string; titleKey: string; fallback: string; days: number; icon: string }[] = [
@@ -22,7 +20,7 @@ export const DEADLINE_TEMPLATES: { type: string; titleKey: string; fallback: str
   { type: "custom", titleKey: "deadlines.typCustom", fallback: "Benutzerdefiniert", days: 0, icon: "create-outline" },
 ];
 
-export function useProjectDeadlines(projectId: string | undefined, profileId: string | undefined, t: TFunc) {
+export function useProjectDeadlines(projectId: string | undefined, profileId: string | undefined, t: TFunction) {
   const [deadlines, setDeadlines] = useState<ProjectDeadline[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -53,7 +51,7 @@ export function useProjectDeadlines(projectId: string | undefined, profileId: st
       });
 
       setDeadlines(updated);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("fetchDeadlines error:", err);
     } finally {
       setLoading(false);
@@ -74,7 +72,7 @@ export function useProjectDeadlines(projectId: string | undefined, profileId: st
       if (error) throw error;
       await fetchDeadlines();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("createDeadline error:", err);
       const msg = t("deadlines.saveError") || "Fehler beim Speichern";
       if (Platform.OS === "web") window.alert(msg);
@@ -117,7 +115,7 @@ export function useProjectDeadlines(projectId: string | undefined, profileId: st
       if (error) throw error;
       await fetchDeadlines();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("completeDeadline error:", err);
       return false;
     } finally {
@@ -135,7 +133,7 @@ export function useProjectDeadlines(projectId: string | undefined, profileId: st
       if (error) throw error;
       await fetchDeadlines();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("deleteDeadline error:", err);
       return false;
     }

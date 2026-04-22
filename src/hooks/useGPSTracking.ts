@@ -11,7 +11,7 @@ export function useGPSTracking() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appStateRef = useRef(AppState.currentState);
 
-  const gpsEnabled = !!(profile as any)?.gps_enabled;
+  const gpsEnabled = !!profile?.gps_enabled;
   const userId = profile?.id;
 
   const sendLocation = useCallback(async () => {

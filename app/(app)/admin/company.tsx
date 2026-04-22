@@ -7,9 +7,10 @@ import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { ActivityIndicator, Alert, Image, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-function showMsg(t: any, key: string, fallback: string, type: "success" | "error" = "success") {
+function showMsg(t: TFunction, key: string, fallback: string, type: "success" | "error" = "success") {
   const msg = t(`settings.${key}`, fallback);
   if (Platform.OS === "web") window.alert(msg);
   else Alert.alert(t(type === "success" ? "common.success" : "common.error"), msg);
@@ -37,7 +38,7 @@ export default function AdminCompany() {
         const asset = result.assets[0];
         const fileName = `company_logo_${Date.now()}.jpg`;
         const filePath = `company/${fileName}`;
-        let uploadError: any;
+        let uploadError: { message: string } | null = null;
         if (Platform.OS === "web") {
           const response = await fetch(asset.uri);
           const blob = await response.blob();

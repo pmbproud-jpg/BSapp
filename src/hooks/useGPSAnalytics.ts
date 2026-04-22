@@ -182,9 +182,17 @@ export function useGPSAnalytics() {
           return [];
         }
 
-        const result: SitePresence[] = profiles.map((p: any) => {
+        type PresenceProfile = {
+          id: string;
+          full_name: string | null;
+          role: string | null;
+          last_latitude: number | null;
+          last_longitude: number | null;
+          last_location_at: string | null;
+        };
+        const result: SitePresence[] = (profiles as PresenceProfile[]).map((p) => {
           const hasLocation = p.last_latitude != null && p.last_longitude != null;
-          const distance = hasLocation
+          const distance = hasLocation && p.last_latitude != null && p.last_longitude != null
             ? haversineDistance(p.last_latitude, p.last_longitude, siteZone.latitude, siteZone.longitude)
             : null;
 
@@ -208,8 +216,8 @@ export function useGPSAnalytics() {
         });
 
         return result;
-      } catch (e: any) {
-        setError(e.message || "Error");
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Error");
         return [];
       } finally {
         setLoading(false);
@@ -236,7 +244,7 @@ export function useGPSAnalytics() {
         const summaries: WorkerDaySummary[] = [];
         for (const p of profiles) {
           const summary = await getWorkerDaySummary(
-            p.id, (p as any).full_name || "?", date, zones
+            p.id, (p as { full_name: string | null }).full_name || "?", date, zones
           );
           if (summary) summaries.push(summary);
         }
@@ -245,8 +253,8 @@ export function useGPSAnalytics() {
         summaries.sort((a, b) => b.totalMinutesOnSite - a.totalMinutesOnSite);
 
         return summaries;
-      } catch (e: any) {
-        setError(e.message || "Error");
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Error");
         return [];
       } finally {
         setLoading(false);

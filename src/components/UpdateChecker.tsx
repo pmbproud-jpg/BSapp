@@ -33,11 +33,11 @@ export default function UpdateChecker() {
                       // Update pobrany — przeładuj apkę
                       await Updates.reloadAsync();
                     }
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     console.error("Error fetching/applying update:", e);
                     Alert.alert(
                       "Update Error",
-                      e?.message || "Nie udało się zainstalować aktualizacji. Spróbuj ponownie.",
+                      (e instanceof Error ? e.message : null) || "Nie udało się zainstalować aktualizacji. Spróbuj ponownie.",
                     );
                   }
                 },

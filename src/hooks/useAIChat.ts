@@ -84,9 +84,9 @@ export function useAIChat(projectId?: string) {
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
-      } catch (err: any) {
-        if (err.name === "AbortError") return;
-        setError(err.message || "AI error");
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "AI error");
       } finally {
         setLoading(false);
         abortRef.current = null;

@@ -58,8 +58,8 @@ export function useDashboardData(
       .select("id")
       .or(`project_manager_id.eq.${profileId},bauleiter_id.eq.${profileId}`);
 
-    const memberIds = (data || []).map((m: any) => m.project_id);
-    const pmIds = (pmProjects || []).map((p: any) => p.id);
+    const memberIds = ((data ?? []) as { project_id: string }[]).map((m) => m.project_id);
+    const pmIds = ((pmProjects ?? []) as { id: string }[]).map((p) => p.id);
     return [...new Set([...memberIds, ...pmIds])];
   };
 
@@ -152,7 +152,7 @@ export function useDashboardData(
       }
 
       // Jedno zapytanie zamiast 3*N (N+1 fix)
-      const projectIds = projects.map((p: any) => p.id);
+      const projectIds = (projects as { id: string; name: string | null; project_number: string | null }[]).map((p) => p.id);
       const { data: allTasks } = await supabase
         .from("tasks")
         .select("project_id, status")
@@ -169,7 +169,7 @@ export function useDashboardData(
         else if (task.status === "completed") c.completed++;
       }
 
-      const result = projects.map((proj: any) => {
+      const result = (projects as { id: string; name: string | null; project_number: string | null }[]).map((proj) => {
         const c = countsMap.get(proj.id) || { pending: 0, in_progress: 0, completed: 0 };
         return {
           project_number: proj.project_number || proj.name || "?",

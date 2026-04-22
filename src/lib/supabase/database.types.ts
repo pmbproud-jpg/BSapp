@@ -56,6 +56,10 @@ export interface Database {
           hide_email: boolean
           access_expires_at: string | null
           custom_permissions: Json | null
+          gps_enabled: boolean | null
+          last_latitude: number | null
+          last_longitude: number | null
+          last_location_at: string | null
           created_at: string
           updated_at: string
         }
@@ -72,6 +76,10 @@ export interface Database {
           hide_email?: boolean
           access_expires_at?: string | null
           custom_permissions?: Json | null
+          gps_enabled?: boolean | null
+          last_latitude?: number | null
+          last_longitude?: number | null
+          last_location_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -88,6 +96,10 @@ export interface Database {
           hide_email?: boolean
           access_expires_at?: string | null
           custom_permissions?: Json | null
+          gps_enabled?: boolean | null
+          last_latitude?: number | null
+          last_longitude?: number | null
+          last_location_at?: string | null
           created_at?: string
           updated_at?: string
         }
