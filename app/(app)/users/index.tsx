@@ -112,7 +112,7 @@ export default function UsersScreen() {
       <View style={styles.userHeader}>
         <View style={styles.userIcon}>
           <Ionicons
-            name={getRoleIcon(item.role) as any}
+            name={getRoleIcon(item.role) as keyof typeof Ionicons.glyphMap}
             size={24}
             color={getRoleColor(item.role)}
           />
@@ -136,19 +136,19 @@ export default function UsersScreen() {
               <Ionicons name="chevron-forward" size={18} color="#94a3b8" style={{ marginLeft: 6 }} />
             </View>
           </View>
-          {(item as any).hide_email && !(isAdmin || isManagement) ? null : (
+          {item.hide_email && !(isAdmin || isManagement) ? null : (
             <TouchableOpacity onPress={(e) => { e.stopPropagation(); openLink(`mailto:${item.email}`); }} activeOpacity={0.6}>
               <Text style={[styles.userEmail, { color: "#2563eb", textDecorationLine: "underline" }]} numberOfLines={1}>
-                {item.email}{(item as any).hide_email ? " 🔒" : ""}
+                {item.email}{item.hide_email ? " 🔒" : ""}
               </Text>
             </TouchableOpacity>
           )}
           {item.phone ? (
-            (item as any).hide_phone && !(isAdmin || isManagement) ? null : (
+            item.hide_phone && !(isAdmin || isManagement) ? null : (
               <TouchableOpacity style={styles.contactRow} onPress={(e) => { e.stopPropagation(); openLink(`tel:${item.phone}`); }} activeOpacity={0.6}>
                 <Ionicons name="call" size={14} color="#2563eb" />
                 <Text style={[styles.contactText, { color: "#2563eb", textDecorationLine: "underline" }]}>
-                  {item.phone}{(item as any).hide_phone ? " 🔒" : ""}
+                  {item.phone}{item.hide_phone ? " 🔒" : ""}
                 </Text>
               </TouchableOpacity>
             )
@@ -239,7 +239,7 @@ export default function UsersScreen() {
   };
 
   const renderSubcontractor = ({ item }: { item: Profile }) => {
-    const expired = isExpired((item as any).access_expires_at);
+    const expired = isExpired(item.access_expires_at);
     return (
       <TouchableOpacity
         style={[styles.userCard, expired && { borderColor: "#ef4444", borderWidth: 1.5 }]}
@@ -253,13 +253,13 @@ export default function UsersScreen() {
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{item.full_name || item.email}</Text>
             <Text style={styles.userEmail}>{item.email}</Text>
-            {(item as any).access_expires_at ? (
+            {item.access_expires_at ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
                 <Ionicons name={expired ? "alert-circle" : "time-outline"} size={14} color={expired ? "#ef4444" : "#8b5cf6"} />
                 <Text style={{ fontSize: 12, color: expired ? "#ef4444" : "#8b5cf6", fontWeight: "600" }}>
                   {expired
                     ? (t("users.subcontractors.expired") || "Abgelaufen")
-                    : `${t("users.subcontractors.expires") || "Läuft ab"}: ${new Date((item as any).access_expires_at).toLocaleDateString("de-DE")}`}
+                    : `${t("users.subcontractors.expires") || "Läuft ab"}: ${new Date(item.access_expires_at).toLocaleDateString("de-DE")}`}
                 </Text>
               </View>
             ) : null}
@@ -966,7 +966,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#1e293b",
     paddingVertical: 0,
-    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
+    ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as Record<string, string>) : {}),
   },
   sortRow: {
     flexDirection: "row",
