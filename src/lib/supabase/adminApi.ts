@@ -25,6 +25,39 @@ const PROXY_URL = Platform.OS === "web"
   ? "/.netlify/functions/supabase-admin"
   : `${process.env.EXPO_PUBLIC_APP_URL || "https://bsapp-management.netlify.app"}/.netlify/functions/supabase-admin`;
 
+// ─── Typy publiczne ───
+
+// PostgREST operator values mogą być dowolnymi prymitywami (lub ich tablicami dla .in()).
+export type FilterValue = string | number | boolean | null | Date | string[] | number[];
+
+// Odpowiedź z proxy — kształt mirroruje Supabase PostgrestResponse.
+export type AdminError = {
+  message: string;
+  details: unknown;
+  code?: string;
+  hint?: string;
+};
+// Default dla `T` to `any` — setki istniejących call sites zakładają
+// `const { data } = await adminApi.from(...)...` i używają `data.foo`.
+// Migrujemy je na konkretne typy stopniowo (AdminResponse<Project[]> itp.)
+// w ramach Fazy 1. Przy pełnej migracji defaultem stanie się `unknown`.
+//
+// Discriminated union: po `if (error) throw error;` TypeScript wie że
+// `data` jest T (non-null). Eliminuje potrzebę null-checks w call sites.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AdminResponse<T = any> =
+  | { data: T; error: null }
+  | { data: null; error: AdminError };
+
+// Wiersz / wiersze wejściowe dla insert/update/upsert.
+export type RowInput = Record<string, unknown>;
+
+// Typ body requesta do proxy — opaque na zewnątrz, używany tylko wewnętrznie.
+type ProxyRequestBody = Record<string, unknown>;
+
+// Storage file body — Supabase SDK akceptuje wiele typów.
+export type StorageFileBody = Blob | ArrayBuffer | Uint8Array | string;
+
 // ─── Helpers ───
 
 async function getAuthToken(): Promise<string> {
@@ -32,7 +65,7 @@ async function getAuthToken(): Promise<string> {
   return data?.session?.access_token || "";
 }
 
-async function callProxy(body: Record<string, any>): Promise<{ data: any; error: any }> {
+async function callProxy<T = unknown>(body: ProxyRequestBody): Promise<AdminResponse<T>> {
   try {
     const token = await getAuthToken();
     const response = await fetch(PROXY_URL, {
@@ -44,29 +77,36 @@ async function callProxy(body: Record<string, any>): Promise<{ data: any; error:
       body: JSON.stringify(body),
     });
 
-    const result = await response.json();
+    const result = (await response.json()) as {
+      data?: T;
+      error?: string;
+      details?: { code?: string; hint?: string; message?: string } | null;
+    };
 
     if (!response.ok || result.error) {
       return {
         data: null,
         error: {
           message: result.error || `HTTP ${response.status}`,
-          details: result.details || null,
+          details: result.details ?? null,
+          code: result.details?.code,
+          hint: result.details?.hint,
         },
       };
     }
 
-    return { data: result.data, error: null };
-  } catch (err: any) {
+    return { data: result.data as T, error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Network error";
     return {
       data: null,
-      error: { message: err.message || "Network error", details: null },
+      error: { message, details: null },
     };
   }
 }
 
 // Convert blob/ArrayBuffer/Uint8Array to base64 string
-async function toBase64(input: any): Promise<string> {
+async function toBase64(input: StorageFileBody): Promise<string> {
   // Already base64 string
   if (typeof input === "string") return input;
 
@@ -110,29 +150,36 @@ async function toBase64(input: any): Promise<string> {
   throw new Error("Unsupported data type for storage upload");
 }
 
-// ─── Filter type ───
+// ─── Filter ───
 
 type Filter = {
   type: string;
   column?: string;
-  value?: any;
+  value?: FilterValue | Record<string, FilterValue>;
   operator?: string;
   from?: number;
   to?: number;
 };
 
+type QueryAction = "select" | "insert" | "update" | "upsert" | "delete";
+
 // ─── Query Builder (mimics Supabase PostgREST builder) ───
+//
+// Thenable — tak jak PostgrestBuilder w supabase-js. Awaiting instancji
+// wywołuje _execute() i zwraca AdminResponse<T>. Generic T pozwala caller-om
+// określić kształt oczekiwanych danych (np. `await adminApi.from("projects")
+// .select("id,name").then<Project[]>(r => r.data)`).
 
 class QueryBuilder {
   private _table: string;
-  private _action: string = "select";
+  private _action: QueryAction = "select";
   private _selectColumns: string = "*";
   private _filters: Filter[] = [];
   private _order: { column: string; ascending: boolean }[] = [];
   private _limit?: number;
   private _single: boolean = false;
   private _maybeSingle: boolean = false;
-  private _data: any = null;
+  private _data: RowInput | RowInput[] | null = null;
   private _onConflict?: string;
   private _selectAfter?: string;
 
@@ -146,20 +193,20 @@ class QueryBuilder {
     return this;
   }
 
-  insert(data: any) {
+  insert(data: RowInput | RowInput[]) {
     this._action = "insert";
     this._data = data;
     return this;
   }
 
-  upsert(data: any, options?: { onConflict?: string }) {
+  upsert(data: RowInput | RowInput[], options?: { onConflict?: string }) {
     this._action = "upsert";
     this._data = data;
     if (options?.onConflict) this._onConflict = options.onConflict;
     return this;
   }
 
-  update(data: any) {
+  update(data: RowInput) {
     this._action = "update";
     this._data = data;
     return this;
@@ -172,42 +219,42 @@ class QueryBuilder {
 
   // ─── Filters ───
 
-  eq(column: string, value: any) {
+  eq(column: string, value: FilterValue) {
     this._filters.push({ type: "eq", column, value });
     return this;
   }
 
-  neq(column: string, value: any) {
+  neq(column: string, value: FilterValue) {
     this._filters.push({ type: "neq", column, value });
     return this;
   }
 
-  in(column: string, value: any[]) {
-    this._filters.push({ type: "in", column, value });
+  in(column: string, value: readonly unknown[]) {
+    this._filters.push({ type: "in", column, value: value as string[] | number[] });
     return this;
   }
 
-  is(column: string, value: any) {
+  is(column: string, value: FilterValue) {
     this._filters.push({ type: "is", column, value });
     return this;
   }
 
-  gte(column: string, value: any) {
+  gte(column: string, value: FilterValue) {
     this._filters.push({ type: "gte", column, value });
     return this;
   }
 
-  lte(column: string, value: any) {
+  lte(column: string, value: FilterValue) {
     this._filters.push({ type: "lte", column, value });
     return this;
   }
 
-  gt(column: string, value: any) {
+  gt(column: string, value: FilterValue) {
     this._filters.push({ type: "gt", column, value });
     return this;
   }
 
-  lt(column: string, value: any) {
+  lt(column: string, value: FilterValue) {
     this._filters.push({ type: "lt", column, value });
     return this;
   }
@@ -227,17 +274,17 @@ class QueryBuilder {
     return this;
   }
 
-  not(column: string, operator: string, value: any) {
+  not(column: string, operator: string, value: FilterValue) {
     this._filters.push({ type: "not", column, operator, value });
     return this;
   }
 
-  contains(column: string, value: any) {
+  contains(column: string, value: FilterValue) {
     this._filters.push({ type: "contains", column, value });
     return this;
   }
 
-  match(value: Record<string, any>) {
+  match(value: Record<string, FilterValue>) {
     this._filters.push({ type: "match", value });
     return this;
   }
@@ -264,22 +311,17 @@ class QueryBuilder {
     return this;
   }
 
-  // After insert/update/upsert — .select("*")
-  // Supabase allows: .insert(data).select("col")
-  // We detect if action is not "select" and this is called after
-  private _isChainedSelect = false;
-
   // ─── Execute (thenable) ───
 
-  then(
-    resolve: (value: { data: any; error: any }) => any,
-    reject?: (reason: any) => any
-  ) {
+  then<TResult1 = AdminResponse, TResult2 = never>(
+    resolve: (value: AdminResponse) => TResult1 | PromiseLike<TResult1>,
+    reject?: (reason: unknown) => TResult2 | PromiseLike<TResult2>,
+  ): Promise<TResult1 | TResult2> {
     return this._execute().then(resolve, reject);
   }
 
-  private async _execute(): Promise<{ data: any; error: any }> {
-    const params: Record<string, any> = {};
+  private async _execute(): Promise<AdminResponse> {
+    const params: Record<string, unknown> = {};
 
     switch (this._action) {
       case "select":
@@ -335,13 +377,19 @@ class QueryBuilder {
 
 const originalSelect = QueryBuilder.prototype.select;
 QueryBuilder.prototype.select = function (columns: string = "*") {
-  // If action is already set to a mutation, this is a chained .select()
+  // Accessing private fields przez ominięcie TS narrowing.
+  // `this` ma kształt QueryBuilder, ale _action/_selectAfter są private.
+  // Reinterpretujemy jako mutable record — akcja chainowania po insert/update/upsert.
+  const self = this as unknown as {
+    _action: QueryAction;
+    _selectAfter?: string;
+  };
   if (
-    (this as any)._action === "insert" ||
-    (this as any)._action === "update" ||
-    (this as any)._action === "upsert"
+    self._action === "insert" ||
+    self._action === "update" ||
+    self._action === "upsert"
   ) {
-    (this as any)._selectAfter = columns;
+    self._selectAfter = columns;
     return this;
   }
   return originalSelect.call(this, columns);
@@ -358,9 +406,9 @@ class StorageBucketApi {
 
   async upload(
     path: string,
-    fileBody: any,
-    options?: { contentType?: string; upsert?: boolean }
-  ): Promise<{ data: any; error: any }> {
+    fileBody: StorageFileBody,
+    options?: { contentType?: string; upsert?: boolean },
+  ): Promise<AdminResponse<{ path: string }>> {
     const base64 = await toBase64(fileBody);
     return callProxy({
       type: "storage",
@@ -384,8 +432,8 @@ class StorageBucketApi {
 
   async createSignedUrl(
     path: string,
-    expiresIn: number = 3600
-  ): Promise<{ data: { signedUrl: string } | null; error: any }> {
+    expiresIn: number = 3600,
+  ): Promise<AdminResponse<{ signedUrl: string }>> {
     return callProxy({
       type: "storage",
       bucket: this._bucket,
@@ -394,7 +442,7 @@ class StorageBucketApi {
     });
   }
 
-  async remove(paths: string[]): Promise<{ data: any; error: any }> {
+  async remove(paths: string[]): Promise<AdminResponse<{ name: string }[]>> {
     return callProxy({
       type: "storage",
       bucket: this._bucket,
@@ -412,13 +460,27 @@ class StorageApi {
 
 // ─── Auth Admin Builder ───
 
+// Minimalna struktura user'a zwracanego z auth.admin.*
+export type AuthAdminUser = {
+  id: string;
+  email?: string;
+  user_metadata?: Record<string, unknown>;
+  app_metadata?: Record<string, unknown>;
+  created_at?: string;
+};
+
+export type AuthAdminLink = {
+  properties?: { action_link?: string; hashed_token?: string };
+  user?: AuthAdminUser;
+};
+
 class AuthAdminApi {
   async createUser(opts: {
     email: string;
     password: string;
     email_confirm?: boolean;
-    user_metadata?: Record<string, any>;
-  }): Promise<{ data: any; error: any }> {
+    user_metadata?: Record<string, unknown>;
+  }): Promise<AdminResponse<{ user: AuthAdminUser }>> {
     return callProxy({
       type: "auth",
       action: "createUser",
@@ -431,7 +493,7 @@ class AuthAdminApi {
     });
   }
 
-  async deleteUser(userId: string): Promise<{ data: any; error: any }> {
+  async deleteUser(userId: string): Promise<AdminResponse<{ user: AuthAdminUser }>> {
     return callProxy({
       type: "auth",
       action: "deleteUser",
@@ -439,7 +501,7 @@ class AuthAdminApi {
     });
   }
 
-  async updateUser(userId: string, opts: { password: string }): Promise<{ data: any; error: any }> {
+  async updateUser(userId: string, opts: { password: string }): Promise<AdminResponse<{ user: AuthAdminUser }>> {
     return callProxy({
       type: "auth",
       action: "updateUser",
@@ -450,8 +512,8 @@ class AuthAdminApi {
   async generateLink(opts: {
     type: string;
     email: string;
-    options?: Record<string, any>;
-  }): Promise<{ data: any; error: any }> {
+    options?: Record<string, unknown>;
+  }): Promise<AdminResponse<AuthAdminLink>> {
     return callProxy({
       type: "auth",
       action: "generateLink",

@@ -160,7 +160,7 @@ export function useProjectMembers(
     try {
       const { data, error } = await supabaseAdmin.from("profiles")
         .select("id, full_name, email, role")
-        .eq("company_id", profile?.company_id)
+        .eq("company_id", profile?.company_id ?? "")
         .order("full_name");
       if (error) throw error;
       const memberIds = members.map((m) => m.user_id);
