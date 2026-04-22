@@ -810,7 +810,7 @@ export default function MagazynScreen() {
                   </View>
                   {/* Table rows */}
                   {filteredOrders.map((order, idx: number) => {
-                    const sc = orderStatusColors[order.status] || "#94a3b8";
+                    const sc = orderStatusColors[order.status ?? "pending"] || "#94a3b8";
                     return (
                       <TouchableOpacity
                         key={order.id}
@@ -830,10 +830,10 @@ export default function MagazynScreen() {
                         </Text>
                         <Text style={{ width: 170, fontSize: 12, color: tc.text, fontWeight: "600", paddingHorizontal: 6 }} numberOfLines={1}>{getOrderItemName(order) || "—"}</Text>
                         <Text style={{ width: 80, fontSize: 12, color: tc.textSecondary, paddingHorizontal: 6 }} numberOfLines={1}>{(order.order_type === "tool" ? order.tool?.art_nr : order.material?.art_nr) || "—"}</Text>
-                        <Text style={{ width: 60, fontSize: 12, color: "#2563eb", fontWeight: "700", paddingHorizontal: 6, textAlign: "center" }}>{order.ilosc ?? "—"}</Text>
+                        <Text style={{ width: 60, fontSize: 12, color: "#2563eb", fontWeight: "700", paddingHorizontal: 6, textAlign: "center" }}>{String(order.ilosc ?? "—")}</Text>
                         <View style={{ width: 90, paddingHorizontal: 4 }}>
                           <View style={{ backgroundColor: `${sc}20`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, alignSelf: "flex-start" }}>
-                            <Text style={{ fontSize: 10, fontWeight: "700", color: sc }}>{String(t(`magazyn.order_status.${order.status}`, order.status))}</Text>
+                            <Text style={{ fontSize: 10, fontWeight: "700", color: sc }}>{String(t(`magazyn.order_status.${order.status}`, { defaultValue: order.status ?? "" }))}</Text>
                           </View>
                         </View>
                         <Text style={{ width: 110, fontSize: 12, color: tc.textSecondary, paddingHorizontal: 6 }} numberOfLines={1}>{order.ordered_by_profile?.full_name || "—"}</Text>

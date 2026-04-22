@@ -7,9 +7,12 @@ import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { fetchProfileMap } from "@/src/services/profileService";
+import type { TFunction } from "i18next";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import * as XLSX from "xlsx";
+
+type ExcelCell = string | number | boolean | null | undefined;
 
 export type WarehouseItem = {
   id: string;
@@ -65,7 +68,7 @@ export const FIELDS: { key: keyof typeof EMPTY_FORM; label: string; labelDE: str
 export function useWarehouseTools(
   profileId: string | undefined,
   allUsers: { id: string; full_name: string }[],
-  t: any,
+  t: TFunction,
 ) {
   const [items, setItems] = useState<WarehouseItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,9 +115,10 @@ export function useWarehouseTools(
         .order("iv_pds", { ascending: true });
       if (error) throw error;
       // Enrich with assigned_to profile names
-      const assignedIds = [...new Set((data || []).map((i: any) => i.assigned_to).filter(Boolean))] as string[];
+      const rows = (data ?? []) as WarehouseItem[];
+      const assignedIds = [...new Set(rows.map((i) => i.assigned_to).filter((id): id is string => Boolean(id)))];
       const profileMap = await fetchProfileMap(assignedIds);
-      const enriched = (data || []).map((i: any) => ({
+      const enriched = rows.map((i) => ({
         ...i,
         assigned_to_profile: i.assigned_to ? { full_name: profileMap[i.assigned_to] || null } : null,
       }));
@@ -167,7 +171,7 @@ export function useWarehouseTools(
     }
     setSaving(true);
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         iv_pds: form.iv_pds.trim() || null,
         menge: form.menge.trim() || null,
         beschreibung: form.beschreibung.trim(),
@@ -262,7 +266,7 @@ export function useWarehouseTools(
             const data = new Uint8Array(e.target?.result as ArrayBuffer);
             const workbook = XLSX.read(data, { type: "array" });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            const rows: ExcelCell[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
             await processImportRows(rows);
           } catch (err) {
             console.error("Import error:", err);
@@ -275,7 +279,7 @@ export function useWarehouseTools(
       } else {
         try {
           const fileContent = await FileSystem.readAsStringAsync(file.uri, {
-            encoding: "base64" as any,
+            encoding: "base64" as "base64",
           });
           const workbook = XLSX.read(fileContent, { type: "base64" });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -294,8 +298,8 @@ export function useWarehouseTools(
     }
   };
 
-  const processImportRows = async (rows: any[][]) => {
-    const dataRows = rows.slice(1).filter((r) => r.length > 0 && r.some((c: any) => c != null && c !== ""));
+  const processImportRows = async (rows: ExcelCell[][]) => {
+    const dataRows = rows.slice(1).filter((r) => r.length > 0 && r.some((c) => c != null && c !== ""));
     if (dataRows.length === 0) {
       const msg = t("magazyn.import_empty") || "Datei enthält keine Daten";
       if (Platform.OS === "web") window.alert(msg);
@@ -460,14 +464,14 @@ export function useWarehouseTools(
 
   // Unique values for selected filter column
   const filterColumnValues = filterColumn
-    ? [...new Set(items.map((i) => ((i as any)[filterColumn] || "").toString().trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"))
+    ? [...new Set(items.map((i) => ((i as Record<string, unknown>)[filterColumn] || "").toString().trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"))
     : [];
 
   // ── FILTER + SORT (tools) ──
   const filtered = items
     .filter((item) => {
       if (filterColumn && filterValue) {
-        const val = ((item as any)[filterColumn] || "").toString().toLowerCase();
+        const val = ((item as Record<string, unknown>)[filterColumn] || "").toString().toLowerCase();
         if (val !== filterValue.toLowerCase()) return false;
       }
       if (!search.trim()) return true;
@@ -486,8 +490,8 @@ export function useWarehouseTools(
       );
     })
     .sort((a, b) => {
-      const va = ((a as any)[toolSortKey] || "").toString().toLowerCase();
-      const vb = ((b as any)[toolSortKey] || "").toString().toLowerCase();
+      const va = ((a as Record<string, unknown>)[toolSortKey] || "").toString().toLowerCase();
+      const vb = ((b as Record<string, unknown>)[toolSortKey] || "").toString().toLowerCase();
       const cmp = va.localeCompare(vb, "de");
       return toolSortAsc ? cmp : -cmp;
     });

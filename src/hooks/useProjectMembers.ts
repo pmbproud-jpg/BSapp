@@ -6,9 +6,12 @@
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
-import type { Database } from "@/src/lib/supabase/database.types";
+import type { Database, Json } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
+type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+type ProfileLite = Pick<Profile, "id" | "full_name" | "email" | "role">;
 type ProjectMember = {
   id: string;
   user_id: string;
@@ -17,22 +20,27 @@ type ProjectMember = {
   profile?: { full_name: string | null; email: string; role: string };
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type TFunc = (...args: any[]) => any;
-type SendNotificationFn = (userId: string, title: string, body: string, type?: string, data?: any) => Promise<void>;
+type NotificationData = Record<string, Json | undefined>;
+type SendNotificationFn = (
+  userId: string,
+  title: string,
+  body: string,
+  type?: string,
+  data?: NotificationData,
+) => Promise<void>;
 type ProfileLike = { id?: string; company_id?: string | null };
 
 export function useProjectMembers(
   projectId: string | undefined,
   profile: ProfileLike | null,
   project: Project | null,
-  t: TFunc,
+  t: TFunction,
   sendNotification: SendNotificationFn,
   fetchAll: () => Promise<void>,
 ) {
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [showAddMember, setShowAddMember] = useState(false);
-  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<ProfileLite[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
 
   const fetchMembers = async () => {
@@ -45,17 +53,20 @@ export function useProjectMembers(
       if (error) throw error;
 
       // Pobierz profile członków jednym batch query (zamiast N+1)
-      const userIds = (data || []).map((m: any) => m.user_id);
+      const rows = (data ?? []) as ProjectMember[];
+      const userIds = rows.map((m) => m.user_id);
       const { data: profiles } = userIds.length > 0
         ? await supabaseAdmin.from("profiles")
             .select("id, full_name, email, role")
             .in("id", userIds)
         : { data: [] };
 
-      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
-      const membersWithProfiles = (data || []).map((m: any) => ({
+      const profileMap = new Map(((profiles ?? []) as ProfileLite[]).map((p) => [p.id, p]));
+      const membersWithProfiles: ProjectMember[] = rows.map((m) => ({
         ...m,
-        profile: profileMap.get(m.user_id) || undefined,
+        profile: profileMap.get(m.user_id)
+          ? { full_name: profileMap.get(m.user_id)!.full_name, email: profileMap.get(m.user_id)!.email, role: profileMap.get(m.user_id)!.role }
+          : undefined,
       }));
       setMembers(membersWithProfiles);
       return membersWithProfiles;
@@ -78,27 +89,26 @@ export function useProjectMembers(
         .single();
 
       if (addedUser) {
-        const updateData: any = {};
+        const updateData: Database["public"]["Tables"]["projects"]["Update"] = {};
 
         if (addedUser.role === "project_manager") {
           updateData.project_manager_id = userId;
-          const currentMembers = [...members, { user_id: userId, profile: addedUser }];
+          const currentMemberIds = [...members.map((m) => m.user_id), userId];
           const { data: memberProfiles } = await supabaseAdmin.from("profiles")
             .select("id, role")
-            .in("id", currentMembers.map((m: any) => m.user_id));
-          const blUser = (memberProfiles || []).find((p: any) => p.role === "bauleiter");
+            .in("id", currentMemberIds);
+          const blUser = ((memberProfiles ?? []) as Pick<Profile, "id" | "role">[]).find((p) => p.role === "bauleiter");
           if (blUser) updateData.bauleiter_id = blUser.id;
         }
 
         if (addedUser.role === "bauleiter") {
           updateData.bauleiter_id = userId;
-          const proj: any = project;
-          if (!proj?.project_manager_id) {
-            const currentMembers = [...members, { user_id: userId, profile: addedUser }];
+          if (!project?.project_manager_id) {
+            const currentMemberIds = [...members.map((m) => m.user_id), userId];
             const { data: memberProfiles } = await supabaseAdmin.from("profiles")
               .select("id, role")
-              .in("id", currentMembers.map((m: any) => m.user_id));
-            const pmUser = (memberProfiles || []).find((p: any) => p.role === "project_manager");
+              .in("id", currentMemberIds);
+            const pmUser = ((memberProfiles ?? []) as Pick<Profile, "id" | "role">[]).find((p) => p.role === "project_manager");
             if (pmUser) updateData.project_manager_id = pmUser.id;
           }
         }
@@ -120,9 +130,10 @@ export function useProjectMembers(
 
       setShowAddMember(false);
       fetchAll();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error adding member:", error);
-      const msg = error.code === "23505" ? t("projects.member_already_exists") : t("common.error");
+      const code = error && typeof error === "object" && "code" in error ? (error as { code?: string }).code : undefined;
+      const msg = code === "23505" ? t("projects.member_already_exists") : t("common.error");
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.error"), msg);
     }
@@ -164,7 +175,7 @@ export function useProjectMembers(
         .order("full_name");
       if (error) throw error;
       const memberIds = members.map((m) => m.user_id);
-      setAvailableUsers((data || []).filter((u: any) => !memberIds.includes(u.id)));
+      setAvailableUsers(((data ?? []) as ProfileLite[]).filter((u) => !memberIds.includes(u.id)));
     } catch (error) {
       console.error("Error fetching users:", error);
     } finally {

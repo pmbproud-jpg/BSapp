@@ -6,9 +6,12 @@
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import type { TFunction } from "i18next";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import * as XLSX from "xlsx";
+
+type ExcelCell = string | number | boolean | null | undefined;
 
 export type MaterialItem = {
   id: string;
@@ -51,7 +54,7 @@ export const MAT_FIELDS: { key: keyof typeof MAT_EMPTY; label: string; labelDE: 
 export function useWarehouseMaterials(
   profileId: string | undefined,
   profileFullName: string | undefined,
-  t: any,
+  t: TFunction,
 ) {
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [matLoading, setMatLoading] = useState(true);
@@ -116,7 +119,7 @@ export function useWarehouseMaterials(
   const saveMatItem = async () => {
     setMatSaving(true);
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         pozycja: matForm.pozycja.trim() || null,
         art_nr: matForm.art_nr.trim() || null,
         nazwa: matForm.nazwa.trim() || null,
@@ -190,7 +193,7 @@ export function useWarehouseMaterials(
             const data = new Uint8Array(e.target?.result as ArrayBuffer);
             const workbook = XLSX.read(data, { type: "array" });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            const rows: ExcelCell[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
             await processMatImportRows(rows);
           } catch (err) {
             console.error("Mat import error:", err);
@@ -200,10 +203,10 @@ export function useWarehouseMaterials(
         reader.readAsArrayBuffer(blob);
       } else {
         try {
-          const fileContent = await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" as any });
+          const fileContent = await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" as "base64" });
           const workbook = XLSX.read(fileContent, { type: "base64" });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          const rows: ExcelCell[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
           await processMatImportRows(rows);
         } catch (err) {
           console.error("Mat import error:", err);
@@ -216,8 +219,8 @@ export function useWarehouseMaterials(
     }
   };
 
-  const processMatImportRows = async (rows: any[][]) => {
-    const dataRows = rows.slice(1).filter((r) => r.length > 0 && r.some((c: any) => c != null && c !== ""));
+  const processMatImportRows = async (rows: ExcelCell[][]) => {
+    const dataRows = rows.slice(1).filter((r) => r.length > 0 && r.some((c) => c != null && c !== ""));
     if (dataRows.length === 0) {
       const msg = t("magazyn.import_empty") || "Datei enthält keine Daten";
       if (Platform.OS === "web") window.alert(msg);
@@ -306,13 +309,13 @@ export function useWarehouseMaterials(
     { key: "waga", label: "Gewicht" },
   ];
   const matFilterColValues = matFilterCol
-    ? [...new Set(materials.map((i) => ((i as any)[matFilterCol] ?? "").toString().trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"))
+    ? [...new Set(materials.map((i) => ((i as Record<string, unknown>)[matFilterCol] ?? "").toString().trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"))
     : [];
 
   const filteredMat = materials
     .filter((item) => {
       if (matFilterCol && matFilterVal) {
-        const val = ((item as any)[matFilterCol] ?? "").toString().toLowerCase();
+        const val = ((item as Record<string, unknown>)[matFilterCol] ?? "").toString().toLowerCase();
         if (val !== matFilterVal.toLowerCase()) return false;
       }
       if (!matSearch.trim()) return true;
@@ -325,8 +328,8 @@ export function useWarehouseMaterials(
       );
     })
     .sort((a, b) => {
-      const va = ((a as any)[matSortKey] ?? "").toString().toLowerCase();
-      const vb = ((b as any)[matSortKey] ?? "").toString().toLowerCase();
+      const va = ((a as Record<string, unknown>)[matSortKey] ?? "").toString().toLowerCase();
+      const vb = ((b as Record<string, unknown>)[matSortKey] ?? "").toString().toLowerCase();
       const cmp = va.localeCompare(vb, "de");
       return matSortAsc ? cmp : -cmp;
     });

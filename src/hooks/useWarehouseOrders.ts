@@ -7,9 +7,28 @@ import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { fetchProfileMap } from "@/src/services/profileService";
+import type { TFunction } from "i18next";
 
-export function useWarehouseOrders(t: any) {
-  const [allOrders, setAllOrders] = useState<any[]>([]);
+// Luźny typ dla Order — warehouse_items/materials mają rozbudowane SELECTy z join,
+// których nie da się łatwo statycznie typować (różne shapes per rodzaj).
+// Record<string, unknown> + rzutowane pola-klucze.
+type Order = Record<string, unknown> & {
+  id: string;
+  order_type?: "material" | "tool";
+  ordered_by?: string | null;
+  created_at?: string;
+  status?: string;
+  data_dostawy?: string | null;
+  uwagi?: string | null;
+  ordered_at?: string | null;
+  material?: { nazwa?: string; art_nr?: string };
+  tool?: { beschreibung?: string; art_nr?: string; hersteller?: string };
+  project?: { name?: string; project_number?: string };
+  ordered_by_profile?: { full_name: string | null };
+};
+
+export function useWarehouseOrders(t: TFunction) {
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
 
   // Search/sort
@@ -24,7 +43,7 @@ export function useWarehouseOrders(t: any) {
 
   // Order edit modal
   const [showOrderEditModal, setShowOrderEditModal] = useState(false);
-  const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [orderForm, setOrderForm] = useState({ status: "", ordered_at: "", data_dostawy: "", uwagi: "" });
   const [orderSaving, setOrderSaving] = useState(false);
 
@@ -36,26 +55,26 @@ export function useWarehouseOrders(t: any) {
         .select("*, material:warehouse_materials(nazwa, art_nr, dlugosc, szerokosc, wysokosc, waga), project:projects(name, project_number)")
         .order("created_at", { ascending: false });
       if (matErr) console.error("Material orders error:", matErr);
-      const matOrders = (matData || []).map((o: any) => ({ ...o, order_type: "material" }));
+      const matOrders = ((matData ?? []) as Order[]).map((o) => ({ ...o, order_type: "material" as const }));
 
       // Fetch tool orders
       const { data: toolData, error: toolErr } = await supabaseAdmin.from("project_tool_orders")
         .select("*, tool:warehouse_items(beschreibung, art_nr, hersteller, kategorie, serial_nummer), project:projects(name, project_number)")
         .order("created_at", { ascending: false });
       if (toolErr) console.error("Tool orders error:", toolErr);
-      const toolOrders = (toolData || []).map((o: any) => ({ ...o, order_type: "tool" }));
+      const toolOrders = ((toolData ?? []) as Order[]).map((o) => ({ ...o, order_type: "tool" as const }));
 
-      const combined = [...matOrders, ...toolOrders];
+      const combined: Order[] = [...matOrders, ...toolOrders];
 
       // Fetch profile names for ordered_by users
-      const userIds = [...new Set(combined.map((o: any) => o.ordered_by).filter(Boolean))];
+      const userIds = [...new Set(combined.map((o) => o.ordered_by).filter((id): id is string => Boolean(id)))];
       const profileMap = await fetchProfileMap(userIds);
-      const enriched = combined.map((o: any) => ({
+      const enriched: Order[] = combined.map((o) => ({
         ...o,
-        ordered_by_profile: { full_name: profileMap[o.ordered_by] || null },
+        ordered_by_profile: { full_name: o.ordered_by ? profileMap[o.ordered_by] ?? null : null },
       }));
       // Sort by created_at descending
-      enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      enriched.sort((a, b) => new Date(b.created_at ?? "").getTime() - new Date(a.created_at ?? "").getTime());
       setAllOrders(enriched);
     } catch (e) {
       console.error("Error loading orders:", e);
@@ -88,13 +107,13 @@ export function useWarehouseOrders(t: any) {
     }
   };
 
-  const openEditOrder = (order: any) => {
+  const openEditOrder = (order: Order) => {
     setEditingOrder(order);
     setOrderForm({
-      status: order.status || "pending",
+      status: String(order.status ?? "pending"),
       ordered_at: order.ordered_at ? new Date(order.ordered_at).toISOString().slice(0, 10) : "",
-      data_dostawy: order.data_dostawy || "",
-      uwagi: order.uwagi || "",
+      data_dostawy: String(order.data_dostawy ?? ""),
+      uwagi: String(order.uwagi ?? ""),
     });
     setShowOrderEditModal(true);
   };
@@ -104,7 +123,7 @@ export function useWarehouseOrders(t: any) {
     setOrderSaving(true);
     try {
       const table = editingOrder.order_type === "tool" ? "project_tool_orders" : "project_material_orders";
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         status: orderForm.status || "pending",
         uwagi: orderForm.uwagi.trim() || null,
         ordered_at: orderForm.ordered_at.trim() || null,
@@ -166,12 +185,12 @@ export function useWarehouseOrders(t: any) {
     { key: "created_at", label: "Erstellt" },
   ];
 
-  const getOrderItemName = (o: any): string => {
+  const getOrderItemName = (o: Order): string => {
     if (o.order_type === "tool") return o.tool?.beschreibung || "";
     return o.material?.nazwa || "";
   };
 
-  const getOrdColVal = (o: any, key: string): string => {
+  const getOrdColVal = (o: Order, key: string): string => {
     if (key === "project") return o.project?.name || "";
     if (key === "material") return getOrderItemName(o);
     if (key === "order_type") return o.order_type === "tool" ? "Werkzeug" : "Material";
@@ -180,12 +199,12 @@ export function useWarehouseOrders(t: any) {
   };
 
   const ordFilterColValues = ordFilterCol
-    ? [...new Set(allOrders.map((o: any) => getOrdColVal(o, ordFilterCol).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"))
+    ? [...new Set(allOrders.map((o) => getOrdColVal(o, ordFilterCol).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"))
     : [];
 
   // Orders filter + sort
   const filteredOrders = allOrders
-    .filter((o: any) => {
+    .filter((o) => {
       if (ordFilterCol && ordFilterVal) {
         const val = getOrdColVal(o, ordFilterCol).toLowerCase();
         if (val !== ordFilterVal.toLowerCase()) return false;
@@ -204,7 +223,7 @@ export function useWarehouseOrders(t: any) {
         (o.order_type === "tool" ? "werkzeug" : "material").includes(q)
       );
     })
-    .sort((a: any, b: any) => {
+    .sort((a, b) => {
       let va: string, vb: string;
       if (orderSortKey === "material") { va = getOrderItemName(a).toLowerCase(); vb = getOrderItemName(b).toLowerCase(); }
       else if (orderSortKey === "project") { va = (a.project?.name || "").toLowerCase(); vb = (b.project?.name || "").toLowerCase(); }
