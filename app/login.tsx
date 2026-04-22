@@ -18,9 +18,14 @@ function showMsg(title: string, msg: string) {
   else Alert.alert(title, msg);
 }
 
-function prettyErr(err: any) {
+function prettyErr(err: unknown): string {
   if (!err) return "";
-  return String(err?.message || err?.error_description || err?.error || JSON.stringify(err));
+  if (typeof err === "string") return err;
+  if (typeof err === "object") {
+    const e = err as { message?: unknown; error_description?: unknown; error?: unknown };
+    return String(e.message || e.error_description || e.error || JSON.stringify(err));
+  }
+  return String(err);
 }
 
 export default function LoginScreen() {
@@ -42,7 +47,7 @@ export default function LoginScreen() {
     try {
       await setLanguage(lang);
       force((x) => x + 1);
-    } catch (e: any) {
+    } catch (e: unknown) {
       showMsg("i18n", prettyErr(e));
     }
   }
@@ -60,7 +65,7 @@ export default function LoginScreen() {
         showMsg(t("login.title"), t("login.invalid"));
         return;
       }
-    } catch (e2: any) {
+    } catch (e2: unknown) {
       showMsg(t("login.title"), prettyErr(e2));
     } finally {
       setLoginLoading(false);
@@ -82,7 +87,7 @@ export default function LoginScreen() {
       if (error) throw error;
 
       showMsg(t("login.resetTitle"), t("login.resetSent"));
-    } catch (e2: any) {
+    } catch (e2: unknown) {
       showMsg(t("login.resetTitle"), prettyErr(e2));
     } finally {
       setResetLoading(false);

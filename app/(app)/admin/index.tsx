@@ -43,7 +43,7 @@ export default function AdminDashboard() {
             <TouchableOpacity
               key={tile.key}
               style={{
-                width: isMobile ? "100%" : "calc(50% - 6px)" as any,
+                width: (isMobile ? "100%" : "calc(50% - 6px)") as unknown as number,
                 minWidth: isMobile ? undefined : 260,
                 backgroundColor: tile.bg,
                 borderRadius: 16,
@@ -52,7 +52,7 @@ export default function AdminDashboard() {
                 borderColor: tile.color + "22",
               }}
               activeOpacity={0.7}
-              onPress={() => router.push(`/(app)/admin/${tile.key}` as any)}
+              onPress={() => router.push(`/(app)/admin/${tile.key}`)}
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
                 <View style={{
@@ -60,7 +60,7 @@ export default function AdminDashboard() {
                   backgroundColor: tile.color + "18",
                   alignItems: "center", justifyContent: "center",
                 }}>
-                  <Ionicons name={tile.icon as any} size={26} color={tile.color} />
+                  <Ionicons name={tile.icon as keyof typeof Ionicons.glyphMap} size={26} color={tile.color} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 16, fontWeight: "700", color: tile.color }}>

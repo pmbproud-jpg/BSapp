@@ -11,7 +11,8 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { useTheme } from "@/src/providers/ThemeProvider";
+import { useTheme, type ThemeColors } from "@/src/providers/ThemeProvider";
+import type { TFunction } from "i18next";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { useTranslation } from "react-i18next";
 import { useAIChat, ChatMessage } from "@/src/hooks/useAIChat";
@@ -30,8 +31,8 @@ function SuggestionChips({
   t,
 }: {
   onPress: (text: string) => void;
-  colors: any;
-  t: any;
+  colors: ThemeColors;
+  t: TFunction;
 }) {
   const suggestions = [
     { key: "daily_report", icon: "document-text-outline" as const },
@@ -64,7 +65,7 @@ function SuggestionChips({
 }
 
 // Single message bubble
-function MessageBubble({ message, colors }: { message: ChatMessage; colors: any }) {
+function MessageBubble({ message, colors }: { message: ChatMessage; colors: ThemeColors }) {
   const isUser = message.role === "user";
 
   return (

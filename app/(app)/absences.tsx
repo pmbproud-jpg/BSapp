@@ -93,10 +93,11 @@ export default function AbsencesScreen() {
       fetchAbsences();
       const msg = t("users.abs_approved") || "Genehmigt";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error";
       Platform.OS === "web"
-        ? window.alert(e?.message || "Error")
-        : Alert.alert(t("common.error"), e?.message);
+        ? window.alert(msg)
+        : Alert.alert(t("common.error"), msg);
     }
   };
 
@@ -113,10 +114,11 @@ export default function AbsencesScreen() {
       fetchAbsences();
       const msg = t("users.abs_rejected") || "Abgelehnt";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error";
       Platform.OS === "web"
-        ? window.alert(e?.message || "Error")
-        : Alert.alert(t("common.error"), e?.message);
+        ? window.alert(msg)
+        : Alert.alert(t("common.error"), msg);
     }
   };
 
@@ -126,10 +128,11 @@ export default function AbsencesScreen() {
       try {
         await supabaseAdmin.from("user_absences").delete().eq("id", absId);
         fetchAbsences();
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Error";
         Platform.OS === "web"
-          ? window.alert(e?.message || "Error")
-          : Alert.alert(t("common.error"), e?.message);
+          ? window.alert(msg)
+          : Alert.alert(t("common.error"), msg);
       }
     };
     if (Platform.OS === "web") {

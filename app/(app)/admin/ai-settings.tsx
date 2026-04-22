@@ -43,7 +43,7 @@ export default function AISettingsScreen() {
           .single();
 
         if (data) {
-          const d = data as any;
+          const d = data as { anthropic_api_key: string | null; openai_api_key: string | null };
           if (d.anthropic_api_key) {
             setHasAnthropicKey(true);
             setAnthropicKey(d.anthropic_api_key);
@@ -65,7 +65,7 @@ export default function AISettingsScreen() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const updateData: Record<string, any> = {
+      const updateData: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       };
 
@@ -88,7 +88,7 @@ export default function AISettingsScreen() {
         const { error } = await supabaseAdmin
           .from("company_settings")
           .update(updateData)
-          .eq("id", (settings as any).id);
+          .eq("id", (settings as { id: string }).id);
 
         if (error) throw error;
       }
@@ -105,8 +105,8 @@ export default function AISettingsScreen() {
       } else {
         Alert.alert(t("common.success"), t("ai_settings.saved"));
       }
-    } catch (e: any) {
-      const msg = e.message || t("common.error");
+    } catch (e: unknown) {
+      const msg = (e instanceof Error ? e.message : null) || t("common.error");
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.error"), msg);
     } finally {
@@ -156,7 +156,7 @@ export default function AISettingsScreen() {
         await supabaseAdmin
           .from("company_settings")
           .update(updateData)
-          .eq("id", (settings as any).id);
+          .eq("id", (settings as { id: string }).id);
       }
     } catch (e) {
       console.error("Error deleting key:", e);
@@ -336,7 +336,7 @@ export default function AISettingsScreen() {
 
           return (
             <View key={i} style={styles.featureRow}>
-              <Ionicons name={feat.icon as any} size={16} color={ready ? "#22c55e" : colors.textMuted} />
+              <Ionicons name={feat.icon as keyof typeof Ionicons.glyphMap} size={16} color={ready ? "#22c55e" : colors.textMuted} />
               <Text style={[styles.featureLabel, { color: colors.text }]}>{feat.label}</Text>
               <Ionicons
                 name={ready ? "checkmark-circle" : "ellipse-outline"}
