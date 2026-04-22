@@ -8,6 +8,16 @@
  */
 import { useState, useCallback } from "react";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import type { Database } from "@/src/lib/supabase/database.types";
+
+type ProjectSlice = Pick<
+  Database["public"]["Tables"]["projects"]["Row"],
+  "id" | "name" | "status" | "start_date" | "end_date"
+>;
+type TaskSlice = Pick<
+  Database["public"]["Tables"]["tasks"]["Row"],
+  "id" | "status" | "priority" | "created_at" | "completed_at"
+>;
 
 // ─── Types ───
 
@@ -208,14 +218,14 @@ export function useProjectPrediction() {
 
       const results: ProjectPrediction[] = [];
 
-      for (const project of projects as any[]) {
+      for (const project of projects as ProjectSlice[]) {
         // Fetch tasks
         const { data: tasks } = await supabaseAdmin
           .from("tasks")
           .select("id, status, priority, created_at, completed_at")
           .eq("project_id", project.id);
 
-        const allTasks = (tasks || []) as any[];
+        const allTasks = (tasks ?? []) as TaskSlice[];
 
         // Fetch members
         const { data: members } = await supabaseAdmin
@@ -224,18 +234,19 @@ export function useProjectPrediction() {
           .eq("project_id", project.id);
 
         const totalTasks = allTasks.length;
-        const completedTasks = allTasks.filter((t: any) => t.status === "completed").length;
-        const blockedTasks = allTasks.filter((t: any) => t.status === "blocked").length;
-        const inProgressTasks = allTasks.filter((t: any) => t.status === "in_progress").length;
-        const todoTasks = allTasks.filter((t: any) => t.status === "todo").length;
+        const completedTasks = allTasks.filter((t) => t.status === "completed").length;
+        const blockedTasks = allTasks.filter((t) => t.status === "blocked").length;
+        const inProgressTasks = allTasks.filter((t) => t.status === "in_progress").length;
+        const todoTasks = allTasks.filter((t) => t.status === "todo").length;
 
         // Calculate avg task duration (completed tasks only)
         const completedWithDates = allTasks.filter(
-          (t: any) => t.status === "completed" && t.created_at && t.completed_at
+          (t): t is TaskSlice & { completed_at: string } =>
+            t.status === "completed" && Boolean(t.created_at) && Boolean(t.completed_at),
         );
         let avgTaskDuration = 0;
         if (completedWithDates.length > 0) {
-          const totalDays = completedWithDates.reduce((sum: number, t: any) => {
+          const totalDays = completedWithDates.reduce((sum, t) => {
             const created = new Date(t.created_at).getTime();
             const completed = new Date(t.completed_at).getTime();
             return sum + (completed - created) / (1000 * 60 * 60 * 24);
@@ -247,7 +258,7 @@ export function useProjectPrediction() {
         const fourWeeksAgo = new Date();
         fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
         const recentCompleted = completedWithDates.filter(
-          (t: any) => new Date(t.completed_at) >= fourWeeksAgo
+          (t) => new Date(t.completed_at) >= fourWeeksAgo,
         );
         const taskVelocity = recentCompleted.length / 4;
 

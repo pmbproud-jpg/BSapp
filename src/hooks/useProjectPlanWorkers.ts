@@ -6,14 +6,23 @@
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import type { Database } from "@/src/lib/supabase/database.types";
+
+type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+type ProfileLite = Pick<Profile, "id" | "full_name" | "email" | "role">;
+type PlanWorkerWithTime = ProfileLite & {
+  start_time: string | null;
+  end_time: string | null;
+  departure_time: string | null;
+};
 
 export function useProjectPlanWorkers(
   projectId: string | undefined,
-  profile: any,
+  profile: Profile | null,
 ) {
-  const [planWorkers, setPlanWorkers] = useState<any[]>([]);
+  const [planWorkers, setPlanWorkers] = useState<PlanWorkerWithTime[]>([]);
   const [showAddPlanWorker, setShowAddPlanWorker] = useState(false);
-  const [planWorkerCandidates, setPlanWorkerCandidates] = useState<any[]>([]);
+  const [planWorkerCandidates, setPlanWorkerCandidates] = useState<ProfileLite[]>([]);
   const [planWorkerSearch, setPlanWorkerSearch] = useState("");
   const [addingPlanWorker, setAddingPlanWorker] = useState(false);
 
@@ -31,22 +40,31 @@ export function useProjectPlanWorkers(
         .eq("project_id", projectId!)
         .eq("week_start", weekStart);
       if (!reqs || reqs.length === 0) { setPlanWorkers([]); return; }
-      const reqIds = reqs.map((r: any) => r.id);
+      const reqsTyped = reqs as { id: string }[];
+      const reqIds = reqsTyped.map((r) => r.id);
 
+      type AssignmentSlice = {
+        worker_id: string;
+        start_time: string | null;
+        end_time: string | null;
+        vehicle_id: string | null;
+        departure_time: string | null;
+      };
       const { data: asgn } = await supabaseAdmin.from("plan_assignments")
         .select("worker_id, start_time, end_time, vehicle_id, departure_time")
         .in("request_id", reqIds)
         .eq("day_of_week", dayOfWeek);
-      if (!asgn || asgn.length === 0) { setPlanWorkers([]); return; }
+      const asgnTyped = (asgn ?? []) as AssignmentSlice[];
+      if (asgnTyped.length === 0) { setPlanWorkers([]); return; }
 
-      const workerIds = [...new Set(asgn.map((a: any) => a.worker_id))];
+      const workerIds = [...new Set(asgnTyped.map((a) => a.worker_id))];
       const { data: profiles } = await supabaseAdmin.from("profiles")
         .select("id, full_name, email, role")
         .in("id", workerIds)
         .order("full_name");
 
-      const workersWithTime = (profiles || []).map((p: any) => {
-        const assignment = asgn.find((a: any) => a.worker_id === p.id);
+      const workersWithTime: PlanWorkerWithTime[] = ((profiles ?? []) as ProfileLite[]).map((p) => {
+        const assignment = asgnTyped.find((a) => a.worker_id === p.id);
         return {
           ...p,
           start_time: assignment?.start_time?.slice(0, 5) || null,
@@ -66,10 +84,11 @@ export function useProjectPlanWorkers(
     try {
       const { data } = await supabaseAdmin.from("profiles")
         .select("id, full_name, email, role")
-        .eq("company_id", profile?.company_id)
+        .eq("company_id", profile?.company_id ?? "")
         .order("full_name");
-      const existingIds = planWorkers.map((pw: any) => pw.id);
-      setPlanWorkerCandidates((data || []).filter((u: any) => !existingIds.includes(u.id)));
+      const existingIds = planWorkers.map((pw) => pw.id);
+      const candidates = ((data ?? []) as ProfileLite[]).filter((u) => !existingIds.includes(u.id));
+      setPlanWorkerCandidates(candidates);
     } catch (e) {
       console.error("Error fetching users for plan:", e);
     }
@@ -108,9 +127,10 @@ export function useProjectPlanWorkers(
 
       setShowAddPlanWorker(false);
       fetchPlanWorkers(teamDate);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Error adding plan worker:", e);
-      const msg = e?.code === "23505" ? "Mitarbeiter bereits zugewiesen" : "Fehler beim Hinzufügen";
+      const code = e && typeof e === "object" && "code" in e ? (e as { code?: string }).code : undefined;
+      const msg = code === "23505" ? "Mitarbeiter bereits zugewiesen" : "Fehler beim Hinzufügen";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert("Fehler", msg);
     } finally {
