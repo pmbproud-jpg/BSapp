@@ -11,13 +11,61 @@ import { Alert, Platform } from "react-native";
 
 const supabaseAdmin = adminApi;
 
-// Luzne typy dla magazynu/zamowien — istniejace hooki uzywaja shapes
-// zalezne od wybranego SELECT-a. Dokladniejsze typowanie wymagalo by
-// aktualnych migracji warehouse_materials/warehouse_items (Faza dalej).
-type MaterialRow = Record<string, unknown> & { id: string; nazwa?: string | null };
-type ToolRow = Record<string, unknown> & { id: string; beschreibung?: string | null };
-type MaterialOrder = Record<string, unknown> & { id: string; ordered_by?: string | null };
-type ToolOrder = Record<string, unknown> & { id: string; ordered_by?: string | null };
+// Luzne typy dla magazynu/zamowien — shape zalezy od wybranego SELECT-a.
+// Dokladniejsze typowanie wymagalo by aktualnych migracji warehouse_materials/warehouse_items (Faza dalej).
+type MaterialRow = {
+  id: string;
+  nazwa?: string | null;
+  art_nr?: string | null;
+  pozycja?: string | null;
+  ilosc?: number | string | null;
+  dlugosc?: number | string | null;
+  szerokosc?: number | string | null;
+  wysokosc?: number | string | null;
+  waga?: number | string | null;
+  jednostka?: string | null;
+  stan?: number | string | null;
+  [key: string]: unknown;
+};
+type ToolRow = {
+  id: string;
+  beschreibung?: string | null;
+  art_nr?: string | null;
+  hersteller?: string | null;
+  kategorie?: string | null;
+  serial_nummer?: string | null;
+  pozycja?: string | null;
+  menge?: number | string | null;
+  stan?: number | string | null;
+  jednostka?: string | null;
+  [key: string]: unknown;
+};
+type MaterialOrder = {
+  id: string;
+  ordered_by?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  ordered_at?: string | null;
+  data_dostawy?: string | null;
+  uwagi?: string | null;
+  ilosc?: number | string | null;
+  material?: { nazwa?: string | null; art_nr?: string | null } | null;
+  ordered_by_profile?: { full_name?: string | null } | null;
+  [key: string]: unknown;
+};
+type ToolOrder = {
+  id: string;
+  ordered_by?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  ordered_at?: string | null;
+  data_dostawy?: string | null;
+  uwagi?: string | null;
+  ilosc?: number | string | null;
+  tool?: { beschreibung?: string | null; art_nr?: string | null; hersteller?: string | null } | null;
+  ordered_by_profile?: { full_name?: string | null } | null;
+  [key: string]: unknown;
+};
 
 export function useProjectOrders(projectId: string | undefined, userId: string | undefined, t: TFunction) {
 

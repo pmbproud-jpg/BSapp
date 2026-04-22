@@ -12,14 +12,16 @@ import { isValidDate } from "@/src/utils/helpers";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-type ProjectMember = Database["public"]["Tables"]["project_members"]["Row"];
+// useProjectEdit używa tylko user_id z listy członków (sprawdzenie obecności PM/BL w zespole),
+// więc sygnatura przyjmuje minimalny subset. Kompatybilne z typem ProjectMember z useProjectMembers.
+type ProjectMemberLite = { user_id: string };
 type ProfileLite = Pick<Profile, "id" | "full_name" | "email" | "role">;
 
 export function useProjectEdit(
   projectId: string | undefined,
   profile: Profile | null,
   project: Project | null,
-  members: ProjectMember[],
+  members: ProjectMemberLite[],
   t: TFunction,
   fetchAll: () => Promise<void>,
 ) {

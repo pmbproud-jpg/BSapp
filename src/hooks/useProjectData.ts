@@ -9,6 +9,8 @@ import type { Database } from "@/src/lib/supabase/database.types";
 import type { TFunction } from "i18next";
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
+import type { Ionicons } from "@expo/vector-icons";
+type IoniconName = keyof typeof Ionicons.glyphMap;
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
@@ -37,7 +39,7 @@ type HistoryEntry = {
   type: "created" | "member_added" | "member_removed" | "task_created" | "task_completed";
   date: string;
   description: string;
-  icon: string;
+  icon: IoniconName;
   color: string;
   taskId?: string;
 };
