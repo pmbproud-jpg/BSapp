@@ -15,7 +15,11 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type ViewStyle,
 } from "react-native";
+
+// Wiersz dowolnej tabeli DB — klucze zależą od wybranej tabeli.
+type DbRow = Record<string, unknown>;
 
 // ─── Table metadata ───
 
@@ -535,7 +539,7 @@ export default function AdminDatabaseScreen() {
 
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [showTablePicker, setShowTablePicker] = useState(false);
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<DbRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(0);
@@ -543,9 +547,10 @@ export default function AdminDatabaseScreen() {
   const [sortAsc, setSortAsc] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Edit modal
-  const [editRow, setEditRow] = useState<any>(null);
-  const [editData, setEditData] = useState<Record<string, any>>({});
+  // Edit modal — dynamic DB row z tabeli; `Record<string, unknown>` bo klucze
+  // zaleza od wybranej tabeli (nie da sie statycznie typowac).
+  const [editRow, setEditRow] = useState<DbRow | null>(null);
+  const [editData, setEditData] = useState<Record<string, unknown>>({});
   const [editSaving, setEditSaving] = useState(false);
   const [isNewRecord, setIsNewRecord] = useState(false);
 
@@ -640,7 +645,7 @@ export default function AdminDatabaseScreen() {
     if (selectedTable) fetchData(selectedTable, newPage);
   };
 
-  const openEditModal = (row: any) => {
+  const openEditModal = (row: DbRow) => {
     setEditRow(row);
     setEditData({ ...row });
     setIsNewRecord(false);
@@ -649,7 +654,7 @@ export default function AdminDatabaseScreen() {
   const openNewModal = () => {
     if (!selectedTable) return;
     const meta = TABLE_META[selectedTable];
-    const emptyData: Record<string, any> = {};
+    const emptyData: Record<string, unknown> = {};
     meta.columns.forEach(col => {
       if (col.readonly) return;
       if (col.type === "boolean") emptyData[col.key] = false;
@@ -666,13 +671,13 @@ export default function AdminDatabaseScreen() {
     setEditSaving(true);
     try {
       const meta = TABLE_META[selectedTable];
-      const cleanData: Record<string, any> = {};
+      const cleanData: Record<string, unknown> = {};
 
       meta.columns.forEach(col => {
         if (col.readonly) return;
         let val = editData[col.key];
         if (val === "" || val === undefined) val = null;
-        if (col.type === "number" && val !== null) val = parseFloat(val);
+        if (col.type === "number" && val !== null) val = parseFloat(String(val));
         if (col.type === "boolean") val = !!val;
         if (col.type === "json" && typeof val === "string") {
           try { val = JSON.parse(val); } catch { /* keep string */ }
@@ -683,8 +688,8 @@ export default function AdminDatabaseScreen() {
       if (isNewRecord) {
         const { error } = await adminApi.from(selectedTable).insert(cleanData);
         if (error) throw error;
-      } else {
-        const { error } = await adminApi.from(selectedTable).update(cleanData).eq("id", editRow.id);
+      } else if (editRow) {
+        const { error } = await adminApi.from(selectedTable).update(cleanData).eq("id", String(editRow.id));
         if (error) throw error;
       }
 
@@ -693,8 +698,8 @@ export default function AdminDatabaseScreen() {
       const msg = isNewRecord ? "Rekord dodany" : "Rekord zapisany";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.success"), msg);
-    } catch (e: any) {
-      const msg = e?.message || "Błąd zapisu";
+    } catch (e: unknown) {
+      const msg = (e instanceof Error ? e.message : null) || "Błąd zapisu";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.error"), msg);
     } finally {
@@ -702,16 +707,16 @@ export default function AdminDatabaseScreen() {
     }
   };
 
-  const deleteRecord = async (row: any) => {
+  const deleteRecord = async (row: DbRow) => {
     if (!selectedTable) return;
 
     const doDelete = async () => {
       try {
-        const { error } = await adminApi.from(selectedTable).delete().eq("id", row.id);
+        const { error } = await adminApi.from(selectedTable).delete().eq("id", String(row.id));
         if (error) throw error;
         fetchData(selectedTable, page);
-      } catch (e: any) {
-        const msg = e?.message || "Błąd usuwania";
+      } catch (e: unknown) {
+        const msg = (e instanceof Error ? e.message : null) || "Błąd usuwania";
         if (Platform.OS === "web") window.alert(msg);
         else Alert.alert(t("common.error"), msg);
       }
@@ -735,11 +740,11 @@ export default function AdminDatabaseScreen() {
 
   // ─── Render helpers ───
 
-  const formatCellValue = (value: any, type: ColumnType): string => {
+  const formatCellValue = (value: unknown, type: ColumnType): string => {
     if (value === null || value === undefined) return "—";
     if (type === "boolean") return value ? "✓" : "✗";
-    if (type === "datetime") return new Date(value).toLocaleString();
-    if (type === "date") return value?.substring?.(0, 10) || String(value);
+    if (type === "datetime") return new Date(value as string | number).toLocaleString();
+    if (type === "date") return typeof value === "string" ? value.substring(0, 10) : String(value);
     if (type === "json") return JSON.stringify(value).substring(0, 50);
     if (type === "uuid") return String(value).substring(0, 8) + "…";
     return String(value).substring(0, 60);
@@ -776,7 +781,7 @@ export default function AdminDatabaseScreen() {
                 setShowTablePicker(false);
               }}
             >
-              <Ionicons name={tm.icon as any} size={18} color={tm.color} />
+              <Ionicons name={tm.icon as keyof typeof Ionicons.glyphMap} size={18} color={tm.color} />
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={[styles.tableName, { color: isActive ? tm.color : colors.text }]}>{tm.label}</Text>
                 <Text style={{ fontSize: 11, color: colors.textMuted }}>{table}</Text>
@@ -807,7 +812,7 @@ export default function AdminDatabaseScreen() {
             style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
             onPress={() => setShowTablePicker(true)}
           >
-            <Ionicons name={meta.icon as any} size={20} color={meta.color} />
+            <Ionicons name={meta.icon as keyof typeof Ionicons.glyphMap} size={20} color={meta.color} />
             <Text style={[styles.sectionTitle, { color: meta.color, marginBottom: 0 }]}>{meta.label}</Text>
             <Ionicons name="chevron-down" size={16} color={colors.textMuted} />
           </TouchableOpacity>
@@ -879,7 +884,7 @@ export default function AdminDatabaseScreen() {
               {/* Rows */}
               {rows.map((row, idx) => (
                 <TouchableOpacity
-                  key={row.id || idx}
+                  key={String(row.id ?? idx)}
                   style={[styles.dataRow, { backgroundColor: idx % 2 === 0 ? "transparent" : `${colors.border}30`, borderBottomColor: colors.borderLight }]}
                   onPress={() => openEditModal(row)}
                 >
@@ -1031,7 +1036,7 @@ export default function AdminDatabaseScreen() {
     );
 
     return Platform.OS === "web" ? (
-      <View style={[styles.modalOverlay, { position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }]}>
+      <View style={[styles.modalOverlay, { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 } as ViewStyle]}>
         {modalContent}
       </View>
     ) : (
@@ -1070,7 +1075,7 @@ export default function AdminDatabaseScreen() {
                   setShowTablePicker(false);
                 }}
               >
-                <Ionicons name={tm.icon as any} size={18} color={tm.color} />
+                <Ionicons name={tm.icon as keyof typeof Ionicons.glyphMap} size={18} color={tm.color} />
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={[styles.tableName, { color: colors.text }]}>{tm.label}</Text>
                 </View>
@@ -1087,7 +1092,7 @@ export default function AdminDatabaseScreen() {
     );
 
     return Platform.OS === "web" ? (
-      <View style={[styles.modalOverlay, { position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }]}>
+      <View style={[styles.modalOverlay, { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 } as ViewStyle]}>
         {pickerContent}
       </View>
     ) : (
