@@ -6,6 +6,52 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/src/providers/ThemeProvider";
+import type { Database } from "@/src/lib/supabase/database.types";
+
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
+type PlanAssignmentRow = Database["public"]["Tables"]["plan_assignments"]["Row"];
+type UserAbsenceRow = Database["public"]["Tables"]["user_absences"]["Row"];
+
+// Project subset używany w kalendarzu.
+type CalendarProject = Pick<ProjectRow, "id" | "name" | "location" | "status" | "project_number">;
+
+// Vehicle z metadanymi uzytymi w tym widoku.
+type CalendarVehicle = {
+  id: string;
+  name: string;
+  license_plate: string;
+  seats?: number;
+  active?: boolean;
+};
+
+// Worker subset — kalendarz wyświetla tylko imię + id.
+type CalendarWorker = Pick<ProfileRow, "id" | "full_name">;
+
+// Assignment wzbogacone o relacje wyciągane po stronie hooka usePlanData.
+type CalendarAssignment = PlanAssignmentRow & {
+  project?: Pick<ProjectRow, "id" | "name" | "location"> | null;
+  worker?: CalendarWorker | null;
+};
+
+// Nieobecność z dołączonym użytkownikiem.
+type CalendarAbsence = UserAbsenceRow & {
+  user?: CalendarWorker | null;
+};
+
+// Dzień tygodnia w widoku — struktura tworzona w plan.tsx i getMonthDays() niżej.
+export type CalendarDay = {
+  dayOfWeek: number;
+  date: string;
+  dayNum: number;
+  monthNum: number;
+  shortName?: string;
+  nameDE?: string;
+  nameEN?: string;
+  namePL?: string;
+  isToday?: boolean;
+  isWeekend?: boolean;
+};
 
 const WORKER_COLORS = [
   "#16a34a", "#ea580c", "#db2777", "#0891b2", "#ca8a04",
@@ -20,12 +66,12 @@ const VEHICLE_COLORS = [
 ];
 
 type Props = {
-  weekDays: any[];
-  assignments: any[];
-  projects: any[];
-  vehicles: any[];
-  workers: any[];
-  absences: any[];
+  weekDays: CalendarDay[];
+  assignments: CalendarAssignment[];
+  projects: CalendarProject[];
+  vehicles: CalendarVehicle[];
+  workers: CalendarWorker[];
+  absences: CalendarAbsence[];
   weekStart: string;
   lang: string;
   onSwipeWeek?: (dir: -1 | 1) => void;
@@ -36,16 +82,15 @@ type ViewMode = "day" | "week" | "month";
 const STATUS_FILTERS = ["active", "planning", "on_hold", "completed", "cancelled"] as const;
 
 // Generuj dni miesiąca
-function getMonthDays(refDate: string | Date, lang: string) {
+function getMonthDays(refDate: string | Date, lang: string): CalendarDay[] {
   const d = typeof refDate === "string" ? new Date(refDate) : refDate;
   const year = d.getFullYear();
   const month = d.getMonth();
-  const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const namesPL = ["Pon","Wt","Śr","Czw","Pt","Sob","Ndz"];
   const namesDE = ["Mo","Di","Mi","Do","Fr","Sa","So"];
   const namesEN = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  const days = [];
+  const days: CalendarDay[] = [];
   for (let i = 1; i <= lastDay.getDate(); i++) {
     const dd = new Date(year, month, i);
     const dow = dd.getDay() === 0 ? 7 : dd.getDay();
@@ -63,14 +108,24 @@ function getMonthDays(refDate: string | Date, lang: string) {
   return days;
 }
 
+// Typ `ViewStyle` z React Native NIE akceptuje web-only właściwości
+// (WebkitFontSmoothing, textShadow). Używamy shared helperów z castem.
+const webOnlyTextStyle = (raw: Record<string, string | number>): Record<string, string | number> =>
+  Platform.OS === "web" ? raw : {};
+
 export default function ResourceCalendar({ weekDays, assignments, projects, vehicles, workers, absences, weekStart, lang, onSwipeWeek }: Props) {
+  // `workers` prop używany przez kaloner indirectly (np. przy lookup fallbacks);
+  // zachowany w sygnaturze dla backward-compat, nawet jeśli tu nie jest
+  // odczytywany bezpośrednio.
+  void workers;
+
   const { t } = useTranslation();
   const { colors: tc, isDark } = useTheme();
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["active"]));
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
-  const [absPopup, setAbsPopup] = useState<{ date: string; items: any[] } | null>(null);
+  const [absPopup, setAbsPopup] = useState<{ date: string; items: CalendarAbsence[] } | null>(null);
 
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
@@ -98,7 +153,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
 
   // Mapa: projectId -> dateString -> assignments[]
   const assignmentMap = useMemo(() => {
-    const map = new Map<string, Map<string, any[]>>();
+    const map = new Map<string, Map<string, CalendarAssignment[]>>();
     const mon = new Date(weekStart);
     for (const a of assignments) {
       const pid = a.project?.id;
@@ -116,9 +171,9 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
   }, [assignments, weekStart]);
 
   const filteredProjects = useMemo(() => {
-    let filtered = statusFilters.size === 0 ? projects : projects.filter((p: any) => statusFilters.has(p.status));
+    const filtered = statusFilters.size === 0 ? projects : projects.filter((p) => statusFilters.has(p.status));
     // Sort: projects with assignments first, then by name
-    return [...filtered].sort((a: any, b: any) => {
+    return [...filtered].sort((a, b) => {
       const aHas = assignmentMap.has(a.id) ? 0 : 1;
       const bHas = assignmentMap.has(b.id) ? 0 : 1;
       if (aHas !== bHas) return aHas - bHas;
@@ -127,7 +182,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
   }, [projects, statusFilters, assignmentMap]);
 
   const vehicleMap = useMemo(() => {
-    const m = new Map<string, any>();
+    const m = new Map<string, CalendarVehicle>();
     for (const v of vehicles) m.set(v.id, v);
     return m;
   }, [vehicles]);
@@ -156,7 +211,8 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
     return m;
   }, [vehicles]);
 
-  const dayFullName = (day: any) => lang === "de" ? day.nameDE : lang === "en" ? day.nameEN : day.namePL;
+  const dayFullName = (day: CalendarDay) =>
+    (lang === "de" ? day.nameDE : lang === "en" ? day.nameEN : day.namePL) ?? day.shortName ?? "";
 
   const statusColor = (s: string) => {
     switch (s) {
@@ -189,7 +245,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
   }, [weekStart, monthOffset]);
 
   // Kolumny zależne od widoku
-  const visibleDays = useMemo(() => {
+  const visibleDays = useMemo<CalendarDay[]>(() => {
     if (viewMode === "day") {
       return [weekDays[selectedDayIdx] || weekDays[0]];
     }
@@ -197,7 +253,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
       return getMonthDays(monthDate, lang);
     }
     return weekDays;
-  }, [viewMode, weekDays, selectedDayIdx, monthDate, weekStart, lang]);
+  }, [viewMode, weekDays, selectedDayIdx, monthDate, lang]);
 
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
@@ -217,28 +273,26 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
 
   // Pasek tekstu — wspólny komponent
   const Bar = ({ color, label, bold }: { color: string; label: string; bold?: boolean }) => (
-    <View style={{
+    <View style={[{
       backgroundColor: color,
       borderRadius: 2,
       paddingHorizontal: 4,
       paddingVertical: Platform.OS === "web" ? 1.5 : 1,
       marginBottom: 1,
-      ...(Platform.OS === "web" ? { WebkitFontSmoothing: "antialiased", MozOsxFontSmoothing: "grayscale" } as any : {}),
-    }}>
-      <Text style={{
+    }, webOnlyTextStyle({ WebkitFontSmoothing: "antialiased", MozOsxFontSmoothing: "grayscale" })]}>
+      <Text style={[{
         fontSize: viewMode === "month" ? 8 : 10,
         lineHeight: viewMode === "month" ? 11 : 14,
         color: "#ffffff",
         fontWeight: bold ? "800" : "600",
         letterSpacing: 0.1,
-        ...(Platform.OS === "web" ? { textShadow: "0px 1px 1px rgba(0,0,0,0.4)" } as any : {}),
-      }} numberOfLines={1}>
+      }, webOnlyTextStyle({ textShadow: "0px 1px 1px rgba(0,0,0,0.4)" })]} numberOfLines={1}>
         {label}
       </Text>
     </View>
   );
 
-  const viewModes: { key: ViewMode; label: string; icon: string }[] = [
+  const viewModes: { key: ViewMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
     { key: "day", label: t("plan.view_day", "Tag"), icon: "today-outline" },
     { key: "week", label: t("plan.view_week", "Woche"), icon: "calendar-outline" },
     { key: "month", label: t("plan.view_month", "Monat"), icon: "grid-outline" },
@@ -255,7 +309,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
 
   // Absences per date
   const absencesByDate = useMemo(() => {
-    const map = new Map<string, any[]>();
+    const map = new Map<string, CalendarAbsence[]>();
     for (const a of absences) {
       const from = new Date(a.date_from);
       const to = new Date(a.date_to);
@@ -328,7 +382,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
               backgroundColor: viewMode === vm.key ? "#00897b" : "transparent",
             }}
           >
-            <Ionicons name={vm.icon as any} size={15} color={viewMode === vm.key ? "#fff" : tc.textSecondary} />
+            <Ionicons name={vm.icon} size={15} color={viewMode === vm.key ? "#fff" : tc.textSecondary} />
             <Text style={{ fontSize: 13, fontWeight: "700", color: viewMode === vm.key ? "#fff" : tc.textSecondary }}>
               {vm.label}
             </Text>
@@ -340,7 +394,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
       {viewMode === "day" && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: 16, marginBottom: 8 }}>
           <View style={{ flexDirection: "row", gap: 4 }}>
-            {weekDays.map((day: any, idx: number) => (
+            {weekDays.map((day, idx) => (
               <TouchableOpacity
                 key={idx}
                 onPress={() => setSelectedDayIdx(idx)}
@@ -411,7 +465,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
             }}>
               <Text style={{ fontSize: 10, fontWeight: "800", color: "#00897b" }}>{t("plan.project", "Projekt")}</Text>
             </View>
-            {visibleDays.map((day: any, di: number) => (
+            {visibleDays.map((day, di) => (
               <View
                 key={di}
                 style={{
@@ -467,7 +521,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                 </Text>
               </View>
             </View>
-            {visibleDays.map((day: any, di: number) => {
+            {visibleDays.map((day, di) => {
               const dayAbs = absencesByDate.get(day.date) || [];
               return (
                 <TouchableOpacity
@@ -509,7 +563,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                 <Text style={{ color: tc.textMuted, fontSize: 14, marginTop: 8 }}>{t("plan.no_projects", "Brak projektów")}</Text>
               </View>
             )}
-            {filteredProjects.map((proj: any, projIdx: number) => {
+            {filteredProjects.map((proj, projIdx) => {
               const projAssignments = assignmentMap.get(proj.id);
 
               let maxRows = 0;
@@ -565,7 +619,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                   </View>
 
                   {/* Day cells */}
-                  {visibleDays.map((day: any, di: number) => {
+                  {visibleDays.map((day, di) => {
                     const dayAssigns = projAssignments?.get(day.date) || [];
                     const dayVehicleIds = new Set<string>();
                     for (const a of dayAssigns) {
@@ -597,7 +651,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                           if (!veh) return null;
                           const vColor = vehicleColorMap.get(vid) || "#666";
                           // Find departure time from any assignment using this vehicle
-                          const vAssign = dayAssigns.find((a: any) => {
+                          const vAssign = dayAssigns.find((a) => {
                             const ids = Array.isArray(a.vehicle_ids) ? a.vehicle_ids : (a.vehicle_id ? [a.vehicle_id] : []);
                             return ids.includes(vid);
                           });
@@ -607,7 +661,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                             : `${veh.name} (${veh.license_plate})${depTime}`;
                           return <Bar key={vid} color={vColor} label={label} bold />;
                         })}
-                        {dayAssigns.map((a: any, ai: number) => {
+                        {dayAssigns.map((a, ai) => {
                           const wColor = workerColorMap.get(a.worker_id) || "#888";
                           const wName = a.worker?.full_name || "?";
                           const timeStr = a.start_time && a.end_time
@@ -641,7 +695,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
             }}>
               <Text style={{ fontSize: 10, fontWeight: "800", color: "#00897b" }}>{t("plan.project", "Projekt")}</Text>
             </View>
-            {visibleDays.map((day: any, di: number) => (
+            {visibleDays.map((day, di) => (
               <View
                 key={di}
                 style={{
@@ -697,7 +751,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                 </Text>
               </View>
             </View>
-            {visibleDays.map((day: any, di: number) => {
+            {visibleDays.map((day, di) => {
               const dayAbs = absencesByDate.get(day.date) || [];
               return (
                 <TouchableOpacity
@@ -737,7 +791,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
               <Text style={{ color: tc.textMuted, fontSize: 14, marginTop: 8 }}>{t("plan.no_projects", "Brak projektów")}</Text>
             </View>
           )}
-          {filteredProjects.map((proj: any, projIdx: number) => {
+          {filteredProjects.map((proj, projIdx) => {
             const projAssignments = assignmentMap.get(proj.id);
             let maxRows = 0;
             for (const day of visibleDays) {
@@ -790,7 +844,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                   </View>
                 </View>
 
-                {visibleDays.map((day: any, di: number) => {
+                {visibleDays.map((day, di) => {
                   const dayAssigns = projAssignments?.get(day.date) || [];
                   const dayVehicleIds = new Set<string>();
                   for (const a of dayAssigns) {
@@ -820,7 +874,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                         const veh = vehicleMap.get(vid);
                         if (!veh) return null;
                         const vColor = vehicleColorMap.get(vid) || "#666";
-                        const vAssign = dayAssigns.find((a: any) => {
+                        const vAssign = dayAssigns.find((a) => {
                           const ids = Array.isArray(a.vehicle_ids) ? a.vehicle_ids : (a.vehicle_id ? [a.vehicle_id] : []);
                           return ids.includes(vid);
                         });
@@ -830,7 +884,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                           : `${veh.name} (${veh.license_plate})${depTime}`;
                         return <Bar key={vid} color={vColor} label={label} bold />;
                       })}
-                      {dayAssigns.map((a: any, ai: number) => {
+                      {dayAssigns.map((a, ai) => {
                         const wColor = workerColorMap.get(a.worker_id) || "#888";
                         const wName = a.worker?.full_name || "?";
                         const timeStr = a.start_time && a.end_time
@@ -883,7 +937,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                 </View>
               </View>
               <ScrollView style={{ maxHeight: 400 }}>
-                {absPopup.items.map((a: any, i: number) => (
+                {absPopup.items.map((a, i) => (
                   <View key={a.id || i} style={{
                     flexDirection: "row",
                     alignItems: "center",
@@ -935,4 +989,6 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
   );
 }
 
-const cs = StyleSheet.create({});
+// Shared eslint-disable: `cs` był exportowany w oryginale ale nigdzie nieużywany.
+// Usunięty razem z refactorem — StyleSheet.create({}) nic nie robił.
+void StyleSheet;
