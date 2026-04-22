@@ -9,7 +9,11 @@ import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
 import { sendPasswordEmail } from "@/src/lib/sendEmail";
 import { isValidEmail } from "@/src/utils/helpers";
+import type { Database } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 import * as XLSX from "xlsx";
+
+type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 interface ImportedUser {
   full_name: string;
@@ -18,9 +22,12 @@ interface ImportedUser {
   role: string;
 }
 
+// Wartość komórki Excela po parse — może być stringiem, liczbą, booleanem lub pusta.
+type ExcelCell = string | number | boolean | null | undefined;
+
 export function useUsersManagement(
-  profile: any,
-  t: any,
+  profile: Profile | null,
+  t: TFunction,
   fetchUsers: () => Promise<void>,
   defaultPassword?: string | null,
 ) {
@@ -39,6 +46,15 @@ export function useUsersManagement(
   const [importLoading, setImportLoading] = useState(false);
   const [importPreview, setImportPreview] = useState<ImportedUser[]>([]);
   const [importFileName, setImportFileName] = useState("");
+
+  const errorMessage = (error: unknown, fallback: string): string => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "object" && error !== null && "message" in error) {
+      const m = (error as { message?: unknown }).message;
+      if (typeof m === "string") return m;
+    }
+    return fallback;
+  };
 
   const createUser = async () => {
     if (!newUser.full_name.trim()) {
@@ -71,7 +87,7 @@ export function useUsersManagement(
         .update({
           full_name: newUser.full_name.trim(),
           phone: newUser.phone.trim() || null,
-          role: newUser.role,
+          role: newUser.role as Profile["role"],
           company_id: profile?.company_id,
         })
         .eq("id", authData.user.id);
@@ -84,9 +100,9 @@ export function useUsersManagement(
 
       const msg = t("users.created_success") || "Benutzer erfolgreich erstellt";
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating user:", error);
-      const msg = error?.message || t("users.create_error") || "Fehler beim Erstellen des Benutzers";
+      const msg = errorMessage(error, t("users.create_error") || "Fehler beim Erstellen des Benutzers");
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     } finally {
       setAddUserLoading(false);
@@ -145,9 +161,9 @@ export function useUsersManagement(
 
       const msg = `${t("users.subcontractors.created_success") || "Subunternehmer erstellt"}\n\nLogin: ${savedEmail}\n${t("users.subcontractors.temp_password") || "Temporäres Passwort"}: ${tempPassword}\n${t("users.subcontractors.expires") || "Läuft ab"}: ${savedExpiry}`;
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating subcontractor:", error);
-      const msg = error?.message || t("common.error");
+      const msg = errorMessage(error, t("common.error"));
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     } finally {
       setAddSubLoading(false);
@@ -214,9 +230,9 @@ export function useUsersManagement(
           ]);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error sending invite:", error);
-      const msg = error?.message || t("common.error");
+      const msg = errorMessage(error, t("common.error"));
       Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
     }
   };
@@ -233,9 +249,9 @@ export function useUsersManagement(
         fetchUsers();
         const msg = t("users.deleted_success") || "Benutzer gelöscht";
         Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Error deleting user:", error);
-        const msg = error?.message || t("users.delete_error") || "Fehler beim Löschen des Benutzers";
+        const msg = errorMessage(error, t("users.delete_error") || "Fehler beim Löschen des Benutzers");
         Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
       }
     };
@@ -258,8 +274,8 @@ export function useUsersManagement(
   const processWorkbook = (workbook: XLSX.WorkBook) => {
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const allRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-    const nonEmptyRows = allRows.filter((row) => row.some((cell: any) => cell != null && String(cell).trim() !== ""));
+    const allRows: ExcelCell[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    const nonEmptyRows = allRows.filter((row) => row.some((cell) => cell != null && String(cell).trim() !== ""));
 
     if (nonEmptyRows.length === 0) {
       setImportLoading(false);
@@ -268,25 +284,25 @@ export function useUsersManagement(
       return;
     }
 
-    const isEmailCheck = (v: any) => isValidEmail(String(v));
-    const isPhone = (v: any) => /^\+?\d[\d\s\-]{5,}$/.test(String(v).trim());
-    const isRole = (v: any) => {
+    const isEmailCheck = (v: ExcelCell) => isValidEmail(String(v));
+    const isPhone = (v: ExcelCell) => /^\+?\d[\d\s\-]{5,}$/.test(String(v).trim());
+    const isRole = (v: ExcelCell) => {
       const roles = ["admin", "management", "project_manager", "bauleiter", "worker", "office_worker", "logistics", "purchasing", "bl", "pm"];
       return roles.includes(String(v).trim().toLowerCase());
     };
-    const isHeaderName = (v: any) =>
+    const isHeaderName = (v: ExcelCell) =>
       /^(imi|nazw|name|email|e-mail|mail|tel|phone|handy|mobil|rola|role|funkcja|position|stanowisko|vorname|nachname)/i.test(String(v).trim());
 
     const firstRow = nonEmptyRows[0];
-    const firstRowIsHeader = firstRow.some((cell: any) => isHeaderName(cell));
+    const firstRowIsHeader = firstRow.some((cell) => isHeaderName(cell));
 
-    let dataRows: any[][];
+    let dataRows: ExcelCell[][];
     let headerMap: Record<string, number> | null = null;
 
     if (firstRowIsHeader && nonEmptyRows.length > 1) {
-      const headers = firstRow.map((h: any) => String(h).trim().toLowerCase());
+      const headers = firstRow.map((h) => String(h).trim().toLowerCase());
       headerMap = {};
-      headers.forEach((h: string, i: number) => { headerMap![h] = i; });
+      headers.forEach((h, i) => { headerMap![h] = i; });
       dataRows = nonEmptyRows.slice(1);
     } else {
       dataRows = nonEmptyRows;
@@ -314,7 +330,7 @@ export function useUsersManagement(
     const validRoles = ["admin", "management", "project_manager", "bauleiter", "worker", "office_worker", "logistics", "purchasing"];
 
     const importedUsers: ImportedUser[] = dataRows.map((row) => {
-      const cells = row.map((c: any) => (c != null ? String(c).trim() : ""));
+      const cells = row.map((c) => (c != null ? String(c).trim() : ""));
       let full_name = ""; let email = ""; let phone = ""; let role = "worker";
 
       if (headerMap) {
@@ -358,8 +374,8 @@ export function useUsersManagement(
     input.accept = ".xlsx,.xls,.csv";
     input.style.display = "none";
     document.body.appendChild(input);
-    input.onchange = (e: any) => {
-      const file = e.target?.files?.[0];
+    input.onchange = (e: Event) => {
+      const file = (e.target as HTMLInputElement | null)?.files?.[0];
       document.body.removeChild(input);
       if (!file) return;
       setImportFileName(file.name);
@@ -430,9 +446,9 @@ export function useUsersManagement(
           if (authError) throw authError;
           if (!authData.user) throw new Error("User not created");
           createdUsers.push(user.email);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error(`Error creating user ${user.email}:`, error);
-          errors.push(`${user.email}: ${error.message}`);
+          errors.push(`${user.email}: ${errorMessage(error, "unknown")}`);
         }
       }
 
@@ -440,11 +456,12 @@ export function useUsersManagement(
         await new Promise((r) => setTimeout(r, 2000));
         for (const user of usersWithEmail) {
           try {
-            const { data: profileData } = await (supabase.from("profiles") as any).select("id").eq("email", user.email).maybeSingle();
-            if (profileData) {
+            const { data: profileData } = await supabase.from("profiles").select("id").eq("email", user.email).maybeSingle();
+            const pid = (profileData as { id: string } | null)?.id;
+            if (pid) {
               await supabaseAdmin.from("profiles")
-                .update({ full_name: user.full_name, phone: user.phone || null, role: user.role, company_id: profile?.company_id })
-                .eq("id", profileData.id);
+                .update({ full_name: user.full_name, phone: user.phone || null, role: user.role as Profile["role"], company_id: profile?.company_id })
+                .eq("id", pid);
             }
           } catch (err) { console.error(`Error updating profile for ${user.email}:`, err); }
         }
@@ -462,7 +479,7 @@ export function useUsersManagement(
         const errMsg = t("users.import.partial_error") + "\n\n" + errors.slice(0, 3).join("\n");
         Platform.OS === "web" ? window.alert(errMsg) : Alert.alert(t("common.error"), errMsg);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error importing users:", error);
       Platform.OS === "web" ? window.alert(t("users.import.error")) : Alert.alert(t("common.error"), t("users.import.error"));
     } finally {
@@ -483,9 +500,9 @@ export function useUsersManagement(
         if (error) throw error;
         const msg = t("settings.reset_pw_success", "Hasło zostało zresetowane do domyślnego");
         Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.success"), msg);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Error resetting password:", error);
-        const msg = error?.message || t("common.error");
+        const msg = errorMessage(error, t("common.error"));
         Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
       }
     };
