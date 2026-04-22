@@ -4,14 +4,12 @@
  */
 
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
-import type { DailyReport, DailyReportInsert, DailyReportUpdate } from "@/src/lib/supabase/database.types";
+import type { DailyReport, DailyReportInsert } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 import { useState, useCallback } from "react";
 import { Alert, Platform } from "react-native";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type TFunc = (...args: any[]) => any;
-
-export function useDailyReports(projectId: string | undefined, profileId: string | undefined, t: TFunc) {
+export function useDailyReports(projectId: string | undefined, profileId: string | undefined, t: TFunction) {
   const [reports, setReports] = useState<DailyReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -27,8 +25,8 @@ export function useDailyReports(projectId: string | undefined, profileId: string
         .order("report_date", { ascending: false });
 
       if (error) throw error;
-      setReports(data || []);
-    } catch (err: any) {
+      setReports((data ?? []) as DailyReport[]);
+    } catch (err: unknown) {
       console.error("fetchReports error:", err);
     } finally {
       setLoading(false);
@@ -48,7 +46,7 @@ export function useDailyReports(projectId: string | undefined, profileId: string
       if (error) throw error;
       await fetchReports();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("saveReport error:", err);
       const msg = t("dailyReport.saveError") || "Fehler beim Speichern";
       if (Platform.OS === "web") window.alert(msg);
@@ -70,7 +68,7 @@ export function useDailyReports(projectId: string | undefined, profileId: string
       if (error) throw error;
       await fetchReports();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("submitReport error:", err);
       return false;
     } finally {
@@ -94,7 +92,7 @@ export function useDailyReports(projectId: string | undefined, profileId: string
       if (error) throw error;
       await fetchReports();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("approveReport error:", err);
       return false;
     } finally {
@@ -112,7 +110,7 @@ export function useDailyReports(projectId: string | undefined, profileId: string
       if (error) throw error;
       await fetchReports();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("deleteReport error:", err);
       return false;
     }

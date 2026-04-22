@@ -63,7 +63,9 @@ export type PlanDay = {
   dayName?: string;
 };
 
-type NotificationData = Record<string, unknown>;
+// Musi pasowac do sendNotification z NotificationProvider (Json-compatible).
+import type { Json } from "@/src/lib/supabase/database.types";
+type NotificationData = Record<string, Json | undefined> | null;
 type SendNotificationFn = (
   userId: string,
   title: string,

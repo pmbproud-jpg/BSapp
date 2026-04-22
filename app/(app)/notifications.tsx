@@ -130,7 +130,7 @@ export default function NotificationsScreen() {
         <Text style={[styles.notifBody, { color: tc.textSecondary }]} numberOfLines={2}>
           {item.body}
         </Text>
-        <Text style={[styles.notifTime, { color: tc.textMuted }]}>{formatTime(item.created_at)}</Text>
+        <Text style={[styles.notifTime, { color: tc.textMuted }]}>{formatTime(item.created_at ?? "")}</Text>
       </View>
       {!item.read && <View style={[styles.unreadDot, { backgroundColor: tc.primary }]} />}
     </TouchableOpacity>

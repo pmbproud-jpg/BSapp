@@ -2,28 +2,18 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { useTranslation } from "react-i18next";
 import { adminApi as supabaseAdmin } from "../lib/supabase/adminApi";
 import { supabase } from "../lib/supabase/client";
+import type { Database, Json } from "../lib/supabase/database.types";
 import { useAuth } from "./AuthProvider";
 
-// Tabela "notifications" nie jest w wygenerowanych typach DB — helper unika rozrzuconego "as any"
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const notificationsTable = () => supabase.from("notifications" as any) as any;
+type NotificationDbRow = Database["public"]["Tables"]["notifications"]["Row"];
 
-export type NotificationRow = {
-  id: string;
-  user_id: string;
-  type: string;
-  title_de: string;
-  title_pl: string;
-  title_en: string;
-  message_de: string | null;
-  message_pl: string | null;
-  message_en: string | null;
-  data: any;
-  read_at: string | null;
-  sent_at: string | null;
-  created_at: string;
-};
+// Row w formie zwracanej z DB — dokładne mapowanie.
+export type NotificationRow = NotificationDbRow;
 
+// `data` payload z jsonb — wspólny typ dla aplikacji.
+export type NotificationData = Record<string, Json | undefined> | null;
+
+// Postać używana w UI (body+title per current language, read jako boolean).
 export type Notification = {
   id: string;
   user_id: string;
@@ -31,8 +21,8 @@ export type Notification = {
   body: string;
   type: string;
   read: boolean;
-  data: any;
-  created_at: string;
+  data: NotificationData;
+  created_at: string | null;
 };
 
 type NotificationContextType = {
@@ -42,7 +32,13 @@ type NotificationContextType = {
   fetchNotifications: () => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
-  sendNotification: (userId: string, title: string, body: string, type?: string, data?: any) => Promise<void>;
+  sendNotification: (
+    userId: string,
+    title: string,
+    body: string,
+    type?: string,
+    data?: NotificationData,
+  ) => Promise<void>;
   clearAll: () => Promise<void>;
 };
 
@@ -70,15 +66,24 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const lang = (i18n.language || "de").substring(0, 2) as "de" | "pl" | "en";
 
   const mapRow = useCallback((row: NotificationRow): Notification => {
-    const l = lang;
+    const titleByLang: Record<"de" | "pl" | "en", string> = {
+      de: row.title_de,
+      pl: row.title_pl,
+      en: row.title_en,
+    };
+    const bodyByLang: Record<"de" | "pl" | "en", string | null> = {
+      de: row.message_de,
+      pl: row.message_pl,
+      en: row.message_en,
+    };
     return {
       id: row.id,
       user_id: row.user_id,
-      title: row[`title_${l}`] || row.title_de || row.title_pl || row.title_en || "",
-      body: row[`message_${l}`] || row.message_de || row.message_pl || row.message_en || "",
+      title: titleByLang[lang] || row.title_de || row.title_pl || row.title_en || "",
+      body: bodyByLang[lang] || row.message_de || row.message_pl || row.message_en || "",
       type: row.type,
       read: !!row.read_at,
-      data: row.data,
+      data: row.data as NotificationData,
       created_at: row.created_at,
     };
   }, [lang]);
@@ -89,13 +94,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (!profile?.id) return;
     setLoading(true);
     try {
-      const { data, error } = await notificationsTable()
+      const { data, error } = await supabase
+        .from("notifications")
         .select("*")
         .eq("user_id", profile.id)
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      setNotifications((data || []).map(mapRow));
+      setNotifications(((data ?? []) as NotificationRow[]).map(mapRow));
     } catch (error) {
       console.error("Error fetching notifications:", error);
     } finally {
@@ -114,11 +120,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const markAsRead = async (id: string) => {
     try {
-      await notificationsTable()
+      await supabaseAdmin
+        .from("notifications")
         .update({ read_at: new Date().toISOString() })
         .eq("id", id);
       setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
       );
     } catch (error) {
       console.error("Error marking notification as read:", error);
@@ -128,7 +135,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const markAllAsRead = async () => {
     if (!profile?.id) return;
     try {
-      await notificationsTable()
+      await supabaseAdmin
+        .from("notifications")
         .update({ read_at: new Date().toISOString() })
         .eq("user_id", profile.id)
         .is("read_at", null);
@@ -149,10 +157,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     title: string,
     body: string,
     type: string = "custom",
-    data: any = null
+    data: NotificationData = null,
   ) => {
     try {
       const safeType = KNOWN_TYPES.has(type) ? type : "custom";
+      const mergedData: NotificationData = data
+        ? { ...data, original_type: type !== safeType ? type : undefined }
+        : type !== safeType ? { original_type: type } : null;
       const payload = {
         user_id: userId,
         type: safeType,
@@ -162,7 +173,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         message_de: body,
         message_pl: body,
         message_en: body,
-        data: { ...data, original_type: type !== safeType ? type : undefined },
+        body,
+        data: mergedData as Json | null,
       };
       const { error } = await supabaseAdmin.from("notifications").insert(payload).select();
       if (error) {
@@ -176,7 +188,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const clearAll = async () => {
     if (!profile?.id) return;
     try {
-      await notificationsTable()
+      await supabase
+        .from("notifications")
         .delete()
         .eq("user_id", profile.id);
       setNotifications([]);

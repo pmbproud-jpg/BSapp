@@ -329,6 +329,56 @@ export interface Database {
           assigned_at?: string | null
         }
       }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          title_de: string
+          title_pl: string
+          title_en: string
+          message_de: string | null
+          message_pl: string | null
+          message_en: string | null
+          body: string
+          data: Json | null
+          read_at: string | null
+          sent_at: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          title_de: string
+          title_pl: string
+          title_en: string
+          message_de?: string | null
+          message_pl?: string | null
+          message_en?: string | null
+          body?: string
+          data?: Json | null
+          read_at?: string | null
+          sent_at?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          title_de?: string
+          title_pl?: string
+          title_en?: string
+          message_de?: string | null
+          message_pl?: string | null
+          message_en?: string | null
+          body?: string
+          data?: Json | null
+          read_at?: string | null
+          sent_at?: string | null
+          created_at?: string | null
+        }
+      }
       attachment_folders: {
         Row: {
           id: string
@@ -373,38 +423,6 @@ export interface Database {
           user_id?: string
           role?: string
           joined_at?: string
-        }
-      }
-      notifications: {
-        Row: {
-          id: string
-          user_id: string
-          title: string
-          body: string
-          type: string
-          read: boolean
-          data: Json | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          title: string
-          body: string
-          type?: string
-          read?: boolean
-          data?: Json | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          title?: string
-          body?: string
-          type?: string
-          read?: boolean
-          data?: Json | null
-          created_at?: string
         }
       }
       automation_rules: {
