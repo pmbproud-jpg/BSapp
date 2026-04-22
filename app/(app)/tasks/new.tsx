@@ -41,7 +41,7 @@ export default function NewTaskScreen() {
 
   // Guard: redirect if user cannot create tasks
   if (!perms.canCreateTask) {
-    router.replace("/projects" as any);
+    router.replace("/projects");
     return null;
   }
   const [translating, setTranslating] = useState(false);
@@ -84,14 +84,14 @@ export default function NewTaskScreen() {
   const fetchProjectName = async () => {
     if (!project_id) return;
     try {
-      const { data, error } = await (supabase
-        .from("projects") as any)
+      const { data, error } = await supabase
+        .from("projects")
         .select("name")
         .eq("id", project_id)
         .single();
 
       if (error) throw error;
-      setProjectName((data as any)?.name || "");
+      setProjectName((data as { name: string | null } | null)?.name || "");
     } catch (error) {
       console.error("Error fetching project:", error);
     }
@@ -108,13 +108,13 @@ export default function NewTaskScreen() {
         .eq("project_id", project_id);
 
       if (planReqs && planReqs.length > 0) {
-        const reqIds = planReqs.map((r: any) => r.id);
+        const reqIds = (planReqs as { id: string }[]).map((r) => r.id);
         const { data: planAssign } = await supabaseAdmin.from("plan_assignments")
           .select("worker_id")
           .in("request_id", reqIds);
 
         if (planAssign && planAssign.length > 0) {
-          planWorkerIds = [...new Set(planAssign.map((a: any) => a.worker_id))] as string[];
+          planWorkerIds = [...new Set((planAssign as { worker_id: string }[]).map((a) => a.worker_id))];
           const { data: pw } = await supabaseAdmin.from("profiles")
             .select("*")
             .in("id", planWorkerIds)
@@ -129,7 +129,7 @@ export default function NewTaskScreen() {
         .eq("project_id", project_id);
 
       if (members && members.length > 0) {
-        const memberIds = members.map((m: any) => m.user_id).filter((mid: string) => !planWorkerIds.includes(mid));
+        const memberIds = (members as { user_id: string }[]).map((m) => m.user_id).filter((mid) => !planWorkerIds.includes(mid));
         if (memberIds.length > 0) {
           const { data: mp } = await supabaseAdmin.from("profiles")
             .select("*")
@@ -141,7 +141,7 @@ export default function NewTaskScreen() {
 
       // 3. Fallback: wszyscy (jeśli brak planu i członków)
       const allPlan = planWorkerIds.length > 0 ? planWorkerIds : [];
-      const allMembers = members ? members.map((m: any) => m.user_id) : [];
+      const allMembers = members ? (members as { user_id: string }[]).map((m) => m.user_id) : [];
       const combined = [...new Set([...allPlan, ...allMembers])];
       if (combined.length > 0) {
         const { data: cp } = await supabaseAdmin.from("profiles")
@@ -268,8 +268,8 @@ export default function NewTaskScreen() {
           if (uploadError) throw uploadError;
         } else {
           const fileInfo = await FileSystem.getInfoAsync(file.uri);
-          fileSize = fileInfo.exists ? (fileInfo as any).size || 0 : 0;
-          const base64Data = await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" as any });
+          fileSize = fileInfo.exists && "size" in fileInfo ? Number(fileInfo.size) || 0 : 0;
+          const base64Data = await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" as "base64" });
           const binaryStr = global.atob ? global.atob(base64Data) : base64Decode(base64Data);
           const bytes = new Uint8Array(binaryStr.length);
           for (let i = 0; i < binaryStr.length; i++) { bytes[i] = binaryStr.charCodeAt(i); }
@@ -298,7 +298,7 @@ export default function NewTaskScreen() {
     }
 
     setLoading(true);
-    const taskData: any = {
+    const taskData: Record<string, unknown> = {
       title: formData.title.trim(),
       description: formData.description.trim() || null,
       project_id: project_id,
@@ -319,8 +319,8 @@ export default function NewTaskScreen() {
 
     try {
 
-      let { data, error } = await (supabaseAdmin
-        .from("tasks") as any)
+      let { data, error } = await supabaseAdmin
+        .from("tasks")
         .insert(taskData)
         .select()
         .single();
@@ -371,11 +371,11 @@ export default function NewTaskScreen() {
         Alert.alert(t("common.success"), t("tasks.created_success"));
       }
       // Wróć do projektu, nie do dashboard
-      router.replace(`/projects/${project_id}` as any);
-    } catch (error: any) {
+      router.replace(`/projects/${project_id}`);
+    } catch (error: unknown) {
       console.error("Error creating task:", JSON.stringify(error, null, 2));
       console.error("Task data was:", JSON.stringify(taskData, null, 2));
-      const errMsg = error?.message || error?.details || t("tasks.create_error");
+      const errMsg = (error instanceof Error ? error.message : null) || t("tasks.create_error");
       if (Platform.OS === "web") {
         window.alert(errMsg);
       } else {
@@ -389,7 +389,7 @@ export default function NewTaskScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => project_id ? router.replace(`/projects/${project_id}` as any) : router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => project_id ? router.replace(`/projects/${project_id}`) : router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t("tasks.new")}{projectName ? ` — ${projectName}` : ""}</Text>
