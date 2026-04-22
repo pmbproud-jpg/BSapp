@@ -106,7 +106,7 @@ export default function UsersScreen() {
   const renderUser = ({ item }: { item: Profile }) => (
     <TouchableOpacity
       style={styles.userCard}
-      onPress={() => router.push(`/users/${item.id}` as any)}
+      onPress={() => router.push(`/users/${item.id}`)}
       activeOpacity={0.7}
     >
       <View style={styles.userHeader}>
@@ -243,7 +243,7 @@ export default function UsersScreen() {
     return (
       <TouchableOpacity
         style={[styles.userCard, expired && { borderColor: "#ef4444", borderWidth: 1.5 }]}
-        onPress={() => router.push(`/users/${item.id}` as any)}
+        onPress={() => router.push(`/users/${item.id}`)}
         activeOpacity={0.7}
       >
         <View style={styles.userHeader}>

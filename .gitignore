@@ -50,6 +50,9 @@ app-example
 # Netlify
 .netlify/
 
+# Supabase CLI cache (lokalnie generowane po `supabase link`)
+supabase/.temp/
+
 # IDE
 .idea/
 .vscode/*.log

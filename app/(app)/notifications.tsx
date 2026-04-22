@@ -68,9 +68,9 @@ export default function NotificationsScreen() {
       await markAsRead(notif.id);
     }
     if (notif.data?.task_id) {
-      router.push(`/tasks/${notif.data.task_id}` as any);
+      router.push(`/tasks/${notif.data.task_id}`);
     } else if (notif.data?.project_id) {
-      router.push(`/projects/${notif.data.project_id}` as any);
+      router.push(`/projects/${notif.data.project_id}`);
     }
   };
 

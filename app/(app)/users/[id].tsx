@@ -1,1288 +1,643 @@
-import { roleColors, roleIcons, projectStatusColors as statusColors } from "@/src/constants/colors";
-import { useUserAbsences } from "@/src/hooks/useUserAbsences";
-import { useUserGPS } from "@/src/hooks/useUserGPS";
-import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
+import { usePermissions } from "@/src/hooks/usePermissions";
+import { useUsersManagement } from "@/src/hooks/useUsersManagement";
 import { supabase } from "@/src/lib/supabase/client";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { useAuth } from "@/src/providers/AuthProvider";
-import { countWorkdays, openLink } from "@/src/utils/helpers";
+import { useCompany } from "@/src/providers/CompanyProvider";
+import { openLink } from "@/src/utils/helpers";
+import { getRoleColor, getRoleIcon } from "@/src/utils/roleHelpers";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { router } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
-    Alert,
-    Linking,
-    Modal,
+    FlatList,
     Platform,
+    RefreshControl,
     ScrollView,
     StyleSheet,
-    Switch,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 
-
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-type UserRole = Database["public"]["Tables"]["profiles"]["Row"]["role"];
 
-type ProjectInfo = {
-  id: string;
-  name: string;
-  status: string;
-  location: string | null;
-  role: string;
-  joined_at: string;
-};
-
-
-export default function UserProfileScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { t } = useTranslation();
-  const { profile: currentUser } = useAuth();
-
-  const [user, setUser] = useState<Profile | null>(null);
-  const [projects, setProjects] = useState<ProjectInfo[]>([]);
-  const [userItems, setUserItems] = useState<any[]>([]);
+export default function UsersScreen() {
+  const { t, i18n } = useTranslation();
+  const { profile } = useAuth();
+  const [users, setUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [hidePhone, setHidePhone] = useState(false);
-  const [hideEmail, setHideEmail] = useState(false);
-  const [editData, setEditData] = useState({
-    full_name: "",
-    phone: "",
-    role: "worker" as string,
-  });
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "role">("name");
+  const [sortAsc, setSortAsc] = useState(true);
+  const [activeTab, setActiveTab] = useState<"users" | "subcontractors">("users");
 
-  // ─── Hooks ───
-  const gps = useUserGPS(id, t);
-  const abs = useUserAbsences(id, currentUser?.id, t);
-
-  // Destructure for JSX compatibility
-  const {
-    gpsEnabled, setGpsEnabled,
-    gpsTogglingLoading,
-    lastLocation, setLastLocation,
-    locationHistory, showHistory, setShowHistory,
-    historyDate, setHistoryDate,
-    fetchLastLocation, fetchLocationHistory, toggleGPS, formatTime,
-  } = gps;
-
-  const {
-    absences, absCalMonth, setAbsCalMonth,
-    absShowForm, setAbsShowForm,
-    absType, setAbsType,
-    absDateFrom, setAbsDateFrom,
-    absDateTo, setAbsDateTo,
-    absShowFromPicker, setAbsShowFromPicker,
-    absShowToPicker, setAbsShowToPicker,
-    absNote, setAbsNote,
-    absSaving,
-    vacationDaysTotal, setVacationDaysTotal,
-    absenceTypes, absTypeColor, absTypeLabel,
-    statusLabel, statusColor,
-    usedVacationDays,
-    fetchAbsences, saveAbsence, approveAbsence, rejectAbsence, deleteAbsence,
-    getCalendarDays,
-  } = abs;
-
-  const canEdit =
-    currentUser?.role === "admin" ||
-    currentUser?.role === "management" ||
-    currentUser?.role === "project_manager";
-
-  const canManageVisibility =
-    currentUser?.role === "admin" || currentUser?.role === "management";
-
-  const canManageGPS =
-    currentUser?.role === "admin" || currentUser?.role === "management";
-
-  // GPS toggle wymaga hasła administratora
-  const [gpsPasswordModal, setGpsPasswordModal] = useState(false);
-  const [gpsPassword, setGpsPassword] = useState("");
-  const [gpsPasswordError, setGpsPasswordError] = useState("");
-  const [gpsTargetValue, setGpsTargetValue] = useState(false);
-
-  const handleGPSToggle = (value: boolean) => {
-    setGpsTargetValue(value);
-    setGpsPassword("");
-    setGpsPasswordError("");
-    setGpsPasswordModal(true);
-  };
-
-  const confirmGPSToggle = async () => {
-    if (!gpsPassword.trim()) {
-      setGpsPasswordError(t("users.gps_password_required", "Passwort erforderlich"));
-      return;
-    }
-    try {
-      // Weryfikuj hasło admina przez ponowne logowanie
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: currentUser?.email || "",
-        password: gpsPassword,
-      });
-      if (authError) {
-        setGpsPasswordError(t("users.gps_password_wrong", "Falsches Passwort"));
-        return;
-      }
-      setGpsPasswordModal(false);
-      setGpsPassword("");
-      toggleGPS(gpsTargetValue);
-    } catch (e) {
-      setGpsPasswordError(t("common.error"));
-    }
-  };
-
-  const canApproveAbsence =
-    currentUser?.role === "admin" || currentUser?.role === "management" || currentUser?.role === "logistics";
-
-  const isOwnProfile = id === currentUser?.id;
-
-  const fetchUser = useCallback(async () => {
-    if (!id) return;
-    try {
-      const { data, error } = await (supabase
-        .from("profiles") as any)
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (error) throw error;
-      setUser(data as Profile);
-      setEditData({
-        full_name: (data as any).full_name || "",
-        phone: (data as any).phone || "",
-        role: (data as any).role,
-      });
-      setHidePhone(!!(data as any).hide_phone);
-      setHideEmail(!!(data as any).hide_email);
-      setGpsEnabled(!!(data as any).gps_enabled);
-      setVacationDaysTotal((data as any).vacation_days_total ?? 26);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-    }
-  }, [id]);
-
-  const fetchProjects = useCallback(async () => {
-    if (!id) return;
-    try {
-      // Get projects where user is a member
-      const { data: memberData, error: memberError } = await (supabase
-        .from("project_members") as any)
-        .select("project_id, role, joined_at")
-        .eq("user_id", id);
-
-      if (memberError) throw memberError;
-
-      if (memberData && memberData.length > 0) {
-        const projectIds = memberData.map((m: any) => m.project_id);
-        const { data: projectData, error: projectError } = await (supabase
-          .from("projects") as any)
-          .select("id, name, status, location")
-          .in("id", projectIds);
-
-        if (projectError) throw projectError;
-
-        const combined: ProjectInfo[] = (projectData || []).map((p: any) => {
-          const member = memberData.find((m: any) => m.project_id === p.id);
-          return {
-            id: p.id,
-            name: p.name,
-            status: p.status,
-            location: p.location,
-            role: member?.role || "",
-            joined_at: member?.joined_at || "",
-          };
-        });
-        setProjects(combined);
-      } else {
-        // Also check if user is PM or BL on any project
-        const { data: pmData } = await (supabase
-          .from("projects") as any)
-          .select("id, name, status, location")
-          .or(`project_manager_id.eq.${id},bauleiter_id.eq.${id}`);
-
-        if (pmData && pmData.length > 0) {
-          setProjects(
-            pmData.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              status: p.status,
-              location: p.location,
-              role: "manager",
-              joined_at: "",
-            }))
-          );
-        } else {
-          setProjects([]);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching projects:", error);
-    }
-  }, [id]);
-
-  const fetchUserItems = useCallback(async () => {
-    if (!id) return;
-    try {
-      const { data, error } = await (supabase.from("warehouse_items") as any)
-        .select("id, iv_pds, beschreibung, serial_nummer, hersteller, menge, status, baustelle, kategorie, art_nr, assigned_to")
-        .eq("assigned_to", id)
-        .order("beschreibung", { ascending: true });
-      if (error) throw error;
-      setUserItems(data || []);
-    } catch (e) {
-      console.error("Error fetching user items:", e);
-      setUserItems([]);
-    }
-  }, [id]);
+  const perms = usePermissions();
+  const { defaultPassword } = useCompany();
+  const isAdmin = perms.isAdmin;
+  const isManagement = perms.isManagement;
+  const canViewUsers = perms.canViewUsers;
+  const canEditUsers = perms.canEditUser;
+  const canDeleteUser = perms.canDeleteUser;
+  const canManageSubs = perms.canManageSubcontractor;
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      await Promise.all([fetchUser(), fetchProjects(), fetchUserItems(), fetchLastLocation(), fetchAbsences()]);
-      setLoading(false);
-    };
-    load();
-  }, [fetchUser, fetchProjects, fetchUserItems, fetchLastLocation]);
+    if (!canViewUsers && !canManageSubs) {
+      router.replace("/dashboard");
+      return;
+    }
+    if (!canViewUsers && canManageSubs) {
+      setActiveTab("subcontractors");
+    }
+    fetchUsers();
+  }, []);
 
-  const saveProfile = async () => {
-    if (!id || !canEdit) return;
-    setSaving(true);
+  const fetchUsers = async () => {
     try {
-      const { error } = await supabaseAdmin.from("profiles")
-        .update({
-          full_name: editData.full_name.trim(),
-          phone: editData.phone.trim() || null,
-          role: editData.role,
-        })
-        .eq("id", id);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
-
-      setEditing(false);
-      fetchUser();
-      const msg = t("users.update_success") || "Profil aktualisiert";
-      if (Platform.OS === "web") window.alert(msg);
-      else Alert.alert(t("common.success"), msg);
+      setUsers(data || []);
     } catch (error) {
-      console.error("Error updating profile:", error);
-      const msg = t("users.update_error") || "Fehler beim Aktualisieren";
-      if (Platform.OS === "web") window.alert(msg);
-      else Alert.alert(t("common.error"), msg);
+      console.error("Error fetching users:", error);
     } finally {
-      setSaving(false);
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return "";
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchUsers();
   };
 
-  const toggleVisibility = async (field: "hide_phone" | "hide_email", value: boolean) => {
-    if (!id) return;
-    try {
-      const { error } = await supabaseAdmin.from("profiles")
-        .update({ [field]: value })
-        .eq("id", id);
-      if (error) throw error;
-      if (field === "hide_phone") setHidePhone(value);
-      else setHideEmail(value);
-      const msg = t("users.visibility_updated") || "Sichtbarkeit aktualisiert";
-      if (Platform.OS === "web") window.alert(msg);
-      else Alert.alert(t("common.success"), msg);
-    } catch (e) {
-      console.error("Error toggling visibility:", e);
-      const msg = t("common.error");
-      if (Platform.OS === "web") window.alert(msg);
-      else Alert.alert(t("common.error"), msg);
-    }
-  };
+  // ─── Hook: CRUD + Import ───
+  const {
+    showAddUser, setShowAddUser, addUserLoading, newUser, setNewUser, createUser,
+    showAddSubcontractor, setShowAddSubcontractor, addSubLoading, newSub, setNewSub,
+    createSubcontractor, renewAccess,
+    showImport, setShowImport, importLoading, importPreview, setImportPreview, importFileName, setImportFileName,
+    pickFileWeb, pickFileNative, importUsers,
+    sendInviteLink, deleteUser, resetUserPassword,
+  } = useUsersManagement(profile, t, fetchUsers, defaultPassword);
 
-  const roles: { key: string; label: string }[] = [
-    { key: "admin", label: "Admin" },
-    { key: "management", label: t("common.roles.management") || "Geschäftsleitung" },
-    { key: "project_manager", label: "PM" },
-    { key: "bauleiter", label: "BL" },
-    { key: "office_worker", label: t("common.roles.office_worker") || "Büroangestellter" },
-    { key: "logistics", label: t("common.roles.logistics") || "Logistik" },
-    { key: "purchasing", label: t("common.roles.purchasing") || "Einkauf" },
-    { key: "worker", label: t("common.roles.worker") || "Mitarbeiter" },
-    { key: "subcontractor", label: t("common.roles.subcontractor") || "Subunternehmer" },
-    { key: "warehouse_manager", label: t("common.roles.warehouse_manager") || "Lagerverwalter" },
+  // getRoleColor, getRoleIcon — imported from shared utility
+
+  // ---- ADD USER ----
+  const roleOptions = [
+    { value: "admin", label: "Admin", icon: "shield-checkmark" as keyof typeof Ionicons.glyphMap },
+    { value: "management", label: t("common.roles.management") || "Geschäftsleitung", icon: "business" as keyof typeof Ionicons.glyphMap },
+    { value: "project_manager", label: "PM", icon: "briefcase" as keyof typeof Ionicons.glyphMap },
+    { value: "bauleiter", label: "BL", icon: "construct" as keyof typeof Ionicons.glyphMap },
+    { value: "office_worker", label: t("common.roles.office_worker") || "Büroangestellter", icon: "desktop" as keyof typeof Ionicons.glyphMap },
+    { value: "logistics", label: t("common.roles.logistics") || "Logistik", icon: "cube" as keyof typeof Ionicons.glyphMap },
+    { value: "purchasing", label: t("common.roles.purchasing") || "Einkauf", icon: "cart" as keyof typeof Ionicons.glyphMap },
+    { value: "worker", label: t("common.roles.worker") || "Mitarbeiter", icon: "hammer" as keyof typeof Ionicons.glyphMap },
+    { value: "warehouse_manager", label: t("common.roles.warehouse_manager") || "Lagerverwalter", icon: "file-tray-stacked" as keyof typeof Ionicons.glyphMap },
   ];
+
+  const renderUser = ({ item }: { item: Profile }) => (
+    <TouchableOpacity
+      style={styles.userCard}
+      onPress={() => router.push(`/users/${item.id}`)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.userHeader}>
+        <View style={styles.userIcon}>
+          <Ionicons
+            name={getRoleIcon(item.role) as any}
+            size={24}
+            color={getRoleColor(item.role)}
+          />
+        </View>
+        <View style={styles.userInfo}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
+              {item.full_name || item.email}
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", marginLeft: 8, flexShrink: 0 }}>
+              <View
+                style={[
+                  styles.roleBadge,
+                  { backgroundColor: `${getRoleColor(item.role)}20` },
+                ]}
+              >
+                <Text style={[styles.roleText, { color: getRoleColor(item.role) }]}>
+                  {t(`common.roles.${item.role}`)}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94a3b8" style={{ marginLeft: 6 }} />
+            </View>
+          </View>
+          {(item as any).hide_email && !(isAdmin || isManagement) ? null : (
+            <TouchableOpacity onPress={(e) => { e.stopPropagation(); openLink(`mailto:${item.email}`); }} activeOpacity={0.6}>
+              <Text style={[styles.userEmail, { color: "#2563eb", textDecorationLine: "underline" }]} numberOfLines={1}>
+                {item.email}{(item as any).hide_email ? " 🔒" : ""}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {item.phone ? (
+            (item as any).hide_phone && !(isAdmin || isManagement) ? null : (
+              <TouchableOpacity style={styles.contactRow} onPress={(e) => { e.stopPropagation(); openLink(`tel:${item.phone}`); }} activeOpacity={0.6}>
+                <Ionicons name="call" size={14} color="#2563eb" />
+                <Text style={[styles.contactText, { color: "#2563eb", textDecorationLine: "underline" }]}>
+                  {item.phone}{(item as any).hide_phone ? " 🔒" : ""}
+                </Text>
+              </TouchableOpacity>
+            )
+          ) : null}
+        </View>
+      </View>
+
+      {canEditUsers && item.id !== profile?.id && (
+        <View style={styles.userActions}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }]}
+            onPress={(e) => { e.stopPropagation(); sendInviteLink(item.email, item.full_name || item.email); }}
+          >
+            <Ionicons name="mail-outline" size={18} color="#2563eb" />
+            <Text style={[styles.actionButtonText, { color: "#2563eb" }]}>
+              {t("users.send_invite") || "Link senden"}
+            </Text>
+          </TouchableOpacity>
+          {defaultPassword && item.role !== "admin" && (
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: "#fef3c7", borderColor: "#fde68a" }]}
+              onPress={(e) => { e.stopPropagation(); resetUserPassword(item.id); }}
+            >
+              <Ionicons name="refresh-outline" size={18} color="#92400e" />
+              <Text style={[styles.actionButtonText, { color: "#92400e" }]}>
+                {t("settings.reset_password", "Reset hasła")}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {canDeleteUser && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={(e) => { e.stopPropagation(); deleteUser(item.id); }}
+            >
+              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+              <Text style={[styles.actionButtonText, styles.deleteButtonText]}>
+                {t("common.delete")}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
+  const subcontractors = useMemo(() => users.filter((u) => u.role === "subcontractor"), [users]);
+
+  const filteredUsers = useMemo(() => {
+    return users
+      .filter((u) => u.role !== "subcontractor")
+      .filter((u) => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (u.full_name || "").toLowerCase().includes(q) ||
+          (u.email || "").toLowerCase().includes(q) ||
+          t(`common.roles.${u.role}`).toLowerCase().includes(q);
+      })
+      .sort((a, b) => {
+        // Zalogowany użytkownik zawsze pierwszy
+        if (a.id === profile?.id) return -1;
+        if (b.id === profile?.id) return 1;
+        let cmp = 0;
+        if (sortBy === "name") {
+          cmp = (a.full_name || "").localeCompare(b.full_name || "");
+        } else {
+          cmp = (a.role || "").localeCompare(b.role || "");
+        }
+        return sortAsc ? cmp : -cmp;
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, searchQuery, sortBy, sortAsc, i18n.language]);
+
+  if (!canViewUsers && !canManageSubs) {
+    return null;
+  }
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#2563eb" />
       </View>
     );
   }
 
-  if (!user) {
+  const isExpired = (expiresAt: string | null) => {
+    if (!expiresAt) return false;
+    return new Date(expiresAt) < new Date();
+  };
+
+  const renderSubcontractor = ({ item }: { item: Profile }) => {
+    const expired = isExpired((item as any).access_expires_at);
     return (
-      <View style={styles.center}>
-        <Ionicons name="person-outline" size={48} color="#94a3b8" />
-        <Text style={styles.emptyText}>{t("users.not_found") || "Benutzer nicht gefunden"}</Text>
-      </View>
+      <TouchableOpacity
+        style={[styles.userCard, expired && { borderColor: "#ef4444", borderWidth: 1.5 }]}
+        onPress={() => router.push(`/users/${item.id}`)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.userHeader}>
+          <View style={[styles.userIcon, { backgroundColor: expired ? "#fef2f2" : "#f5f3ff" }]}>
+            <Ionicons name="people" size={24} color={expired ? "#ef4444" : "#8b5cf6"} />
+          </View>
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{item.full_name || item.email}</Text>
+            <Text style={styles.userEmail}>{item.email}</Text>
+            {(item as any).access_expires_at ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                <Ionicons name={expired ? "alert-circle" : "time-outline"} size={14} color={expired ? "#ef4444" : "#8b5cf6"} />
+                <Text style={{ fontSize: 12, color: expired ? "#ef4444" : "#8b5cf6", fontWeight: "600" }}>
+                  {expired
+                    ? (t("users.subcontractors.expired") || "Abgelaufen")
+                    : `${t("users.subcontractors.expires") || "Läuft ab"}: ${new Date((item as any).access_expires_at).toLocaleDateString("de-DE")}`}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={[styles.roleBadge, { backgroundColor: expired ? "#fef2f220" : "#8b5cf620" }]}>
+            <Text style={[styles.roleText, { color: expired ? "#ef4444" : "#8b5cf6" }]}>
+              {expired ? (t("users.subcontractors.expired") || "Abgelaufen") : (t("common.roles.subcontractor") || "Subunternehmer")}
+            </Text>
+          </View>
+        </View>
+        {canManageSubs && expired && (
+          <TouchableOpacity
+            style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#8b5cf610", paddingVertical: 8, borderRadius: 8, marginTop: 8, gap: 6 }}
+            onPress={() => {
+              const newDate = new Date();
+              newDate.setMonth(newDate.getMonth() + 1);
+              const dateStr = newDate.toISOString().split("T")[0];
+              renewAccess(item.id, dateStr);
+            }}
+          >
+            <Ionicons name="refresh" size={16} color="#8b5cf6" />
+            <Text style={{ color: "#8b5cf6", fontWeight: "600", fontSize: 13 }}>{t("users.subcontractors.renew_30_days") || "30 Tage verlängern"}</Text>
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
     );
-  }
+  };
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => {
-          router.replace("/users" as any);
-        }} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#1e293b" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {t("users.profile") || "Benutzerprofil"}
-        </Text>
-        {canEdit && !editing && (
-          <TouchableOpacity
-            onPress={() => setEditing(true)}
-            style={styles.editBtn}
-          >
-            <Ionicons name="create-outline" size={20} color="#2563eb" />
-            <Text style={styles.editBtnText}>
-              {t("users.edit_profile") || "Bearbeiten"}
-            </Text>
-          </TouchableOpacity>
-        )}
-        {editing && (
-          <TouchableOpacity
-            onPress={() => {
-              setEditing(false);
-              setEditData({
-                full_name: user.full_name || "",
-                phone: user.phone || "",
-                role: user.role,
-              });
-            }}
-            style={styles.cancelBtn}
-          >
-            <Text style={styles.cancelBtnText}>{t("common.cancel")}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Avatar & Name */}
-      <View style={styles.avatarSection}>
-        <View
-          style={[
-            styles.avatar,
-            { backgroundColor: `${roleColors[user.role] || "#64748b"}20` },
-          ]}
-        >
-          <Ionicons
-            name={roleIcons[user.role] || "person"}
-            size={40}
-            color={roleColors[user.role] || "#64748b"}
-          />
-        </View>
-        <Text style={styles.userName}>
-          {user.full_name || user.email}
-        </Text>
-        <View
-          style={[
-            styles.roleBadge,
-            { backgroundColor: `${roleColors[user.role] || "#64748b"}20` },
-          ]}
-        >
-          <Text
-            style={[
-              styles.roleText,
-              { color: roleColors[user.role] || "#64748b" },
-            ]}
-          >
-            {t(`common.roles.${user.role}`) || user.role}
-          </Text>
-        </View>
-      </View>
-
-      {/* Personal Data Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {t("users.personal_data") || "Persönliche Daten"}
-        </Text>
-
-        {editing ? (
-          <View style={styles.editForm}>
-            <Text style={styles.fieldLabel}>
-              {t("users.full_name") || "Vollständiger Name"}
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={editData.full_name}
-              onChangeText={(v) =>
-                setEditData((prev) => ({ ...prev, full_name: v }))
-              }
-              placeholder={t("users.full_name") || "Vollständiger Name"}
-            />
-
-            <Text style={styles.fieldLabel}>
-              {t("users.phone") || "Telefon"}
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={editData.phone}
-              onChangeText={(v) =>
-                setEditData((prev) => ({ ...prev, phone: v }))
-              }
-              placeholder={t("users.phone") || "Telefon"}
-              keyboardType="phone-pad"
-            />
-
-            <Text style={styles.fieldLabel}>
-              {t("users.role") || "Funktion"}
-            </Text>
-            <View style={styles.roleSelector}>
-              {roles.map((r) => (
-                <TouchableOpacity
-                  key={r.key}
-                  style={[
-                    styles.roleOption,
-                    editData.role === r.key && {
-                      backgroundColor: roleColors[r.key] || "#64748b",
-                    },
-                  ]}
-                  onPress={() =>
-                    setEditData((prev) => ({ ...prev, role: r.key }))
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.roleOptionText,
-                      editData.role === r.key && { color: "#fff" },
-                    ]}
-                  >
-                    {r.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
+    <View style={styles.container}>
+      {/* Tab bar: Użytkownicy / Podwykonawcy */}
+      {!showAddUser && !showImport && !showAddSubcontractor && (
+        <View style={styles.tabBar}>
+          {canViewUsers && (
             <TouchableOpacity
-              style={[styles.saveBtn, saving && { opacity: 0.6 }]}
-              onPress={saveProfile}
-              disabled={saving}
+              style={[styles.tabBtn, activeTab === "users" && styles.tabBtnActive]}
+              onPress={() => setActiveTab("users")}
             >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.saveBtnText}>
-                  {t("users.save") || "Speichern"}
-                </Text>
-              )}
+              <Ionicons name="people" size={18} color={activeTab === "users" ? "#2563eb" : "#64748b"} />
+              <Text style={[styles.tabBtnText, activeTab === "users" && styles.tabBtnTextActive]}>
+                {t("users.title") || "Benutzer"} ({filteredUsers.length})
+              </Text>
             </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.dataCard}>
-            <View style={styles.dataRow}>
-              <Ionicons name="person-outline" size={18} color="#64748b" />
-              <Text style={styles.dataLabel}>
-                {t("users.full_name") || "Vollständiger Name"}
-              </Text>
-              <Text style={styles.dataValue}>
-                {user.full_name || "—"}
-              </Text>
-            </View>
-            <View style={styles.separator} />
-
-            {/* Email - ukryty jeśli hide_email i nie admin/zarząd */}
-            {(!hideEmail || canManageVisibility) && (
-              <>
-                <TouchableOpacity
-                  style={styles.dataRow}
-                  onPress={() => user.email && !hideEmail && openLink(`mailto:${user.email}`)}
-                  activeOpacity={user.email && !hideEmail ? 0.6 : 1}
-                  disabled={!user.email || (hideEmail && !canManageVisibility)}
-                >
-                  <Ionicons name="mail-outline" size={18} color="#64748b" />
-                  <Text style={styles.dataLabel}>Email</Text>
-                  {hideEmail ? (
-                    canManageVisibility ? (
-                      <>
-                        <Text style={[styles.dataValue, { color: "#94a3b8" }]}>
-                          {user.email}
-                        </Text>
-                        <Ionicons name="eye-off" size={14} color="#ef4444" style={{ marginLeft: 4 }} />
-                      </>
-                    ) : (
-                      <Text style={[styles.dataValue, { color: "#94a3b8" }]}>{t("users.hidden") || "Versteckt"}</Text>
-                    )
-                  ) : (
-                    <>
-                      <Text style={[styles.dataValue, user.email && styles.linkText]}>
-                        {user.email}
-                      </Text>
-                      {user.email ? <Ionicons name="open-outline" size={14} color="#2563eb" /> : null}
-                    </>
-                  )}
-                </TouchableOpacity>
-                {canManageVisibility && (
-                  <TouchableOpacity
-                    style={styles.visibilityRow}
-                    onPress={() => toggleVisibility("hide_email", !hideEmail)}
-                  >
-                    <Ionicons name={hideEmail ? "eye-off" : "eye"} size={16} color={hideEmail ? "#ef4444" : "#10b981"} />
-                    <Text style={[styles.visibilityText, { color: hideEmail ? "#ef4444" : "#10b981" }]}>
-                      {hideEmail ? (t("users.email_hidden") || "E-Mail versteckt") : (t("users.email_visible") || "E-Mail sichtbar")}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                <View style={styles.separator} />
-              </>
-            )}
-
-            {/* Telefon - ukryty jeśli hide_phone i nie admin/zarząd */}
-            {(!hidePhone || canManageVisibility) && (
-              <>
-                <TouchableOpacity
-                  style={styles.dataRow}
-                  onPress={() => user.phone && !hidePhone && openLink(`tel:${user.phone}`)}
-                  activeOpacity={user.phone && !hidePhone ? 0.6 : 1}
-                  disabled={!user.phone || (hidePhone && !canManageVisibility)}
-                >
-                  <Ionicons name="call-outline" size={18} color="#64748b" />
-                  <Text style={styles.dataLabel}>
-                    {t("users.phone") || "Telefon"}
-                  </Text>
-                  {hidePhone ? (
-                    canManageVisibility ? (
-                      <>
-                        <Text style={[styles.dataValue, { color: "#94a3b8" }]}>
-                          {user.phone || "—"}
-                        </Text>
-                        <Ionicons name="eye-off" size={14} color="#ef4444" style={{ marginLeft: 4 }} />
-                      </>
-                    ) : (
-                      <Text style={[styles.dataValue, { color: "#94a3b8" }]}>{t("users.hidden") || "Versteckt"}</Text>
-                    )
-                  ) : (
-                    <>
-                      <Text style={[styles.dataValue, user.phone && styles.linkText]}>
-                        {user.phone || "—"}
-                      </Text>
-                      {user.phone ? <Ionicons name="call" size={14} color="#2563eb" /> : null}
-                    </>
-                  )}
-                </TouchableOpacity>
-                {canManageVisibility && (
-                  <TouchableOpacity
-                    style={styles.visibilityRow}
-                    onPress={() => toggleVisibility("hide_phone", !hidePhone)}
-                  >
-                    <Ionicons name={hidePhone ? "eye-off" : "eye"} size={16} color={hidePhone ? "#ef4444" : "#10b981"} />
-                    <Text style={[styles.visibilityText, { color: hidePhone ? "#ef4444" : "#10b981" }]}>
-                      {hidePhone ? (t("users.phone_hidden") || "Telefon versteckt") : (t("users.phone_visible") || "Telefon sichtbar")}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                <View style={styles.separator} />
-              </>
-            )}
-
-            <View style={styles.dataRow}>
-              <Ionicons name="shield-outline" size={18} color="#64748b" />
-              <Text style={styles.dataLabel}>
-                {t("users.role") || "Funktion"}
-              </Text>
-              <Text
-                style={[
-                  styles.dataValue,
-                  { color: roleColors[user.role] || "#64748b", fontWeight: "600" },
-                ]}
-              >
-                {t(`common.roles.${user.role}`) || user.role}
-              </Text>
-            </View>
-            <View style={styles.separator} />
-
-            <View style={styles.dataRow}>
-              <Ionicons name="calendar-outline" size={18} color="#64748b" />
-              <Text style={styles.dataLabel}>
-                {t("users.member_since") || "Mitglied seit"}
-              </Text>
-              <Text style={styles.dataValue}>
-                {formatDate(user.created_at)}
-              </Text>
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Assigned Projects Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {t("users.assigned_projects") || "Zugewiesene Baustellen"}
-        </Text>
-
-        {projects.length === 0 ? (
-          <View style={styles.emptyProjects}>
-            <Ionicons name="business-outline" size={32} color="#cbd5e1" />
-            <Text style={styles.emptyProjectsText}>
-              {t("users.no_projects") || "Keine zugewiesenen Baustellen"}
-            </Text>
-          </View>
-        ) : (
-          projects.map((project) => (
+          )}
+          {canManageSubs && (
             <TouchableOpacity
-              key={project.id}
-              style={styles.projectCard}
-              onPress={() => router.push(`/projects/${project.id}` as any)}
+              style={[styles.tabBtn, activeTab === "subcontractors" && styles.tabBtnActive]}
+              onPress={() => setActiveTab("subcontractors")}
             >
-              <View style={styles.projectHeader}>
-                <Ionicons
-                  name="business"
-                  size={20}
-                  color={statusColors[project.status] || "#64748b"}
-                />
-                <Text style={styles.projectName}>{project.name}</Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor: `${statusColors[project.status] || "#64748b"}20`,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusText,
-                      {
-                        color: statusColors[project.status] || "#64748b",
-                      },
-                    ]}
-                  >
-                    {t(`projects.status.${project.status}`) || project.status}
-                  </Text>
-                </View>
-              </View>
-              {project.location ? (
-                <View style={styles.projectLocation}>
-                  <Ionicons name="location-outline" size={14} color="#94a3b8" />
-                  <Text style={styles.locationText}>{project.location}</Text>
-                </View>
-              ) : null}
-              {project.joined_at ? (
-                <Text style={styles.joinedText}>
-                  {t("users.member_since") || "Seit"}: {formatDate(project.joined_at)}
-                </Text>
-              ) : null}
-            </TouchableOpacity>
-          ))
-        )}
-      </View>
-
-      {/* Warehouse items on hand */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {t("users.items_on_hand") || "Auf Lager (Werkzeuge)"}
-        </Text>
-
-        {userItems.length === 0 ? (
-          <View style={styles.emptyProjects}>
-            <Ionicons name="construct-outline" size={32} color="#cbd5e1" />
-            <Text style={styles.emptyProjectsText}>
-              {t("users.no_items") || "Keine Werkzeuge auf Lager"}
-            </Text>
-          </View>
-        ) : (
-          userItems.map((item: any) => (
-            <View key={item.id} style={styles.projectCard}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name="construct" size={18} color="#dc2626" />
-                <Text style={{ fontSize: 14, fontWeight: "600", color: "#1e293b", flex: 1 }} numberOfLines={1}>
-                  {item.beschreibung || "—"}
-                </Text>
-                {item.menge && (
-                  <View style={{ backgroundColor: "#dc262620", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#dc2626" }}>{item.menge}</Text>
-                  </View>
-                )}
-              </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 4 }}>
-                {item.iv_pds && <Text style={{ fontSize: 11, color: "#64748b" }}>IV: {item.iv_pds}</Text>}
-                {item.serial_nummer && <Text style={{ fontSize: 11, color: "#64748b" }}>SN: {item.serial_nummer}</Text>}
-                {item.hersteller && <Text style={{ fontSize: 11, color: "#64748b" }}>{item.hersteller}</Text>}
-                {item.kategorie && <Text style={{ fontSize: 11, color: "#64748b" }}>{item.kategorie}</Text>}
-              </View>
-              {item.baustelle && (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
-                  <Ionicons name="location-outline" size={12} color="#94a3b8" />
-                  <Text style={{ fontSize: 11, color: "#94a3b8" }}>{item.baustelle}</Text>
-                </View>
-              )}
-            </View>
-          ))
-        )}
-      </View>
-
-      {/* Absences / Vacation Section */}
-      <View style={styles.section}>
-        <View style={{ marginBottom: 12 }}>
-          <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>
-            <Ionicons name="calendar" size={16} color="#ef4444" />{" "}
-            {t("users.abs_title") || "Abwesenheiten / Urlaub"}
-          </Text>
-          {(canEdit || canApproveAbsence || isOwnProfile) && !absShowForm && (
-            <TouchableOpacity
-              onPress={() => setAbsShowForm(true)}
-              style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#2563eb", paddingVertical: 12, borderRadius: 12, shadowColor: "#2563eb", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }}
-            >
-              <Ionicons name="add-circle-outline" size={20} color="#fff" />
-              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>{t("users.abs_add") || "Eintragen"}</Text>
+              <Ionicons name="people-circle" size={18} color={activeTab === "subcontractors" ? "#8b5cf6" : "#64748b"} />
+              <Text style={[styles.tabBtnText, activeTab === "subcontractors" && { color: "#8b5cf6" }]}>
+                {t("users.subcontractors.title") || "Subunternehmer"} ({subcontractors.length})
+              </Text>
             </TouchableOpacity>
           )}
         </View>
+      )}
 
-        {/* Vacation days counter */}
-        <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
-          <View style={{ flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#e2e8f0", alignItems: "center" }}>
-            <Text style={{ fontSize: 22, fontWeight: "700", color: "#10b981" }}>{vacationDaysTotal - usedVacationDays}</Text>
-            <Text style={{ fontSize: 11, color: "#64748b" }}>{t("users.abs_remaining") || "Resturlaub"}</Text>
-          </View>
-          <View style={{ flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#e2e8f0", alignItems: "center" }}>
-            <Text style={{ fontSize: 22, fontWeight: "700", color: "#ef4444" }}>{usedVacationDays}</Text>
-            <Text style={{ fontSize: 11, color: "#64748b" }}>{t("users.abs_used") || "Genommen"}</Text>
-          </View>
-          <View style={{ flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#e2e8f0", alignItems: "center" }}>
-            <Text style={{ fontSize: 22, fontWeight: "700", color: "#1e293b" }}>{vacationDaysTotal}</Text>
-            <Text style={{ fontSize: 11, color: "#64748b" }}>{t("users.abs_total") || "Gesamt"}</Text>
-          </View>
-        </View>
-
-        {/* Calendar */}
-        <View style={styles.dataCard}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <TouchableOpacity
-              onPress={() => {
-                const [y, m] = absCalMonth.split("-").map(Number);
-                const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
-                setAbsCalMonth(prev);
-              }}
-              style={{ padding: 6, backgroundColor: "#f1f5f9", borderRadius: 6 }}
-            >
-              <Ionicons name="chevron-back" size={16} color="#64748b" />
+      {/* ─── TAB: PODWYKONAWCY ─── */}
+      {activeTab === "subcontractors" && !showAddSubcontractor ? (
+        <>
+          {subcontractors.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-circle-outline" size={64} color="#cbd5e1" />
+              <Text style={styles.emptyText}>{t("users.subcontractors.empty") || "Keine Subunternehmer"}</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={subcontractors}
+              renderItem={renderSubcontractor}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContainer}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8b5cf6" />}
+            />
+          )}
+          {canManageSubs && (
+            <View style={styles.fabRow}>
+              <TouchableOpacity style={[styles.fab, { backgroundColor: "#8b5cf6" }]} onPress={() => setShowAddSubcontractor(true)}>
+                <Ionicons name="person-add" size={28} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
+      ) : activeTab === "subcontractors" && showAddSubcontractor ? (
+        <ScrollView style={styles.importContent}>
+          <View style={styles.importHeader}>
+            <TouchableOpacity onPress={() => { setShowAddSubcontractor(false); setNewSub({ full_name: "", email: "", phone: "", access_expires_at: "" }); }}>
+              <Ionicons name="arrow-back" size={24} color="#1e293b" />
             </TouchableOpacity>
-            <Text style={{ fontSize: 15, fontWeight: "700", color: "#1e293b" }}>
-              {new Date(absCalMonth + "-01").toLocaleDateString("de-DE", { month: "long", year: "numeric" })}
-            </Text>
-            <TouchableOpacity
-              onPress={() => {
-                const [y, m] = absCalMonth.split("-").map(Number);
-                const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
-                setAbsCalMonth(next);
-              }}
-              style={{ padding: 6, backgroundColor: "#f1f5f9", borderRadius: 6 }}
-            >
-              <Ionicons name="chevron-forward" size={16} color="#64748b" />
-            </TouchableOpacity>
+            <Text style={styles.importTitle}>{t("users.subcontractors.add") || "Subunternehmer hinzufügen"}</Text>
           </View>
-          {/* Day headers */}
-          <View style={{ flexDirection: "row", marginBottom: 4 }}>
-            {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((d) => (
-              <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: "600", color: "#94a3b8" }}>{d}</Text>
-            ))}
-          </View>
-          {/* Day grid */}
-          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-            {getCalendarDays(absCalMonth).map((cell, idx) => {
-              const isToday = cell.date === new Date().toISOString().split("T")[0];
-              const hasAbs = cell.absences.length > 0;
-              const topAbs = cell.absences[0];
-              const dow = (idx % 7);
-              const isWeekend = dow === 5 || dow === 6;
-              return (
-                <View
-                  key={idx}
-                  style={{
-                    width: "14.28%",
-                    height: 36,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    borderRadius: 6,
-                    backgroundColor: hasAbs ? (absTypeColor(topAbs.type) + "20") : isToday ? "#eff6ff" : "transparent",
-                    borderWidth: isToday ? 2 : 0,
-                    borderColor: isToday ? "#2563eb" : "transparent",
-                  }}
-                >
-                  {cell.day > 0 && (
-                    <>
-                      <Text style={{ fontSize: 13, fontWeight: isToday ? "700" : "500", color: hasAbs ? absTypeColor(topAbs.type) : isWeekend ? "#94a3b8" : "#1e293b" }}>
-                        {cell.day}
-                      </Text>
-                      {hasAbs && (
-                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: absTypeColor(topAbs.type), marginTop: 1 }} />
-                      )}
-                    </>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-          {/* Legend */}
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#f1f5f9" }}>
-            {absenceTypes.map((at) => (
-              <View key={at.key} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: at.color }} />
-                <Text style={{ fontSize: 10, color: "#64748b" }}>{at.label}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
 
-        {/* Add absence form */}
-        {absShowForm && (
-          <View style={[styles.dataCard, { marginTop: 12, borderColor: "#2563eb", borderWidth: 2 }]}>
-            <Text style={{ fontSize: 15, fontWeight: "700", color: "#1e293b", marginBottom: 10 }}>
-              {t("users.abs_new") || "Neue Abwesenheit"}
-            </Text>
-            {/* Type selector */}
-            <Text style={{ fontSize: 12, fontWeight: "600", color: "#64748b", marginBottom: 6 }}>{t("users.abs_type") || "Typ"}</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-              {absenceTypes
-                .filter((at) => (canEdit || canApproveAbsence) ? true : at.key !== "unexcused")
-                .map((at) => (
+          <View style={styles.addUserField}>
+            <Text style={styles.addUserLabel}>{t("users.full_name") || "Vollständiger Name"} *</Text>
+            <TextInput style={styles.addUserInput} value={newSub.full_name} onChangeText={(v) => setNewSub({ ...newSub, full_name: v })} placeholder="Max Mustermann" placeholderTextColor="#94a3b8" />
+          </View>
+          <View style={styles.addUserField}>
+            <Text style={styles.addUserLabel}>Email *</Text>
+            <TextInput style={styles.addUserInput} value={newSub.email} onChangeText={(v) => setNewSub({ ...newSub, email: v })} placeholder="jan@example.com" placeholderTextColor="#94a3b8" keyboardType="email-address" autoCapitalize="none" />
+          </View>
+          <View style={styles.addUserField}>
+            <Text style={styles.addUserLabel}>{t("users.phone") || "Telefon"}</Text>
+            <TextInput style={styles.addUserInput} value={newSub.phone} onChangeText={(v) => setNewSub({ ...newSub, phone: v })} placeholder="+48 123 456 789" placeholderTextColor="#94a3b8" keyboardType="phone-pad" />
+          </View>
+          <View style={styles.addUserField}>
+            <Text style={styles.addUserLabel}>{t("users.subcontractors.access_until") || "Zugang bis"} *</Text>
+            <TextInput style={styles.addUserInput} value={newSub.access_expires_at} onChangeText={(v) => setNewSub({ ...newSub, access_expires_at: v })} placeholder="YYYY-MM-DD" placeholderTextColor="#94a3b8" />
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              {[30, 60, 90].map((days) => (
                 <TouchableOpacity
-                  key={at.key}
-                  onPress={() => setAbsType(at.key)}
-                  style={{
-                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
-                    backgroundColor: absType === at.key ? at.color : "#f8fafc",
-                    borderWidth: 1, borderColor: absType === at.key ? at.color : "#e2e8f0",
+                  key={days}
+                  style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#8b5cf610", borderWidth: 1, borderColor: "#8b5cf6" }}
+                  onPress={() => {
+                    const d = new Date(); d.setDate(d.getDate() + days);
+                    setNewSub({ ...newSub, access_expires_at: d.toISOString().split("T")[0] });
                   }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: absType === at.key ? "#fff" : "#64748b" }}>{at.label}</Text>
+                  <Text style={{ color: "#8b5cf6", fontWeight: "600", fontSize: 12 }}>{days} {t("users.subcontractors.days") || "Tage"}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            {/* Date inputs */}
-            <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: "#64748b", marginBottom: 4 }}>{t("users.abs_from") || "Von"}</Text>
-                {Platform.OS === "web" ? (
-                  <input
-                    type="date"
-                    value={absDateFrom}
-                    onChange={(e: any) => setAbsDateFrom(e.target.value)}
-                    style={{ padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 14, backgroundColor: "#f8fafc", color: "#1e293b", width: "100%", boxSizing: "border-box" as any }}
-                  />
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      onPress={() => setAbsShowFromPicker(true)}
-                      style={[styles.input, { justifyContent: "center", flexDirection: "row", alignItems: "center", gap: 6 }]}
-                    >
-                      <Ionicons name="calendar-outline" size={16} color="#2563eb" />
-                      <Text style={{ color: absDateFrom ? "#1e293b" : "#94a3b8", fontSize: 14, flex: 1 }}>
-                        {absDateFrom ? new Date(absDateFrom).toLocaleDateString("de-DE") : t("common.select_date") || "Datum wählen"}
-                      </Text>
-                    </TouchableOpacity>
-                    {absShowFromPicker && (
-                      <DateTimePicker
-                        value={absDateFrom ? new Date(absDateFrom) : new Date()}
-                        mode="date"
-                        display="default"
-                        onChange={(_: any, date?: Date) => {
-                          setAbsShowFromPicker(false);
-                          if (date) setAbsDateFrom(date.toISOString().split("T")[0]);
-                        }}
-                      />
-                    )}
-                  </>
-                )}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: "#64748b", marginBottom: 4 }}>{t("users.abs_to") || "Bis"}</Text>
-                {Platform.OS === "web" ? (
-                  <input
-                    type="date"
-                    value={absDateTo}
-                    onChange={(e: any) => setAbsDateTo(e.target.value)}
-                    style={{ padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 14, backgroundColor: "#f8fafc", color: "#1e293b", width: "100%", boxSizing: "border-box" as any }}
-                  />
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      onPress={() => setAbsShowToPicker(true)}
-                      style={[styles.input, { justifyContent: "center", flexDirection: "row", alignItems: "center", gap: 6 }]}
-                    >
-                      <Ionicons name="calendar-outline" size={16} color="#2563eb" />
-                      <Text style={{ color: absDateTo ? "#1e293b" : "#94a3b8", fontSize: 14, flex: 1 }}>
-                        {absDateTo ? new Date(absDateTo).toLocaleDateString("de-DE") : t("common.select_date") || "Datum wählen"}
-                      </Text>
-                    </TouchableOpacity>
-                    {absShowToPicker && (
-                      <DateTimePicker
-                        value={absDateTo ? new Date(absDateTo) : new Date()}
-                        mode="date"
-                        display="default"
-                        onChange={(_: any, date?: Date) => {
-                          setAbsShowToPicker(false);
-                          if (date) setAbsDateTo(date.toISOString().split("T")[0]);
-                        }}
-                      />
-                    )}
-                  </>
-                )}
-              </View>
-            </View>
-            {absDateFrom && absDateTo && absDateFrom <= absDateTo && (
-              <Text style={{ fontSize: 12, color: "#2563eb", fontWeight: "600", marginBottom: 8 }}>
-                = {countWorkdays(absDateFrom, absDateTo)} {t("users.abs_workdays") || "Arbeitstage"}
-              </Text>
-            )}
-            {/* Note */}
-            <Text style={{ fontSize: 12, fontWeight: "600", color: "#64748b", marginBottom: 4 }}>{t("users.abs_note") || "Notiz"}</Text>
-            <TextInput
-              style={[styles.input, { minHeight: 40, textAlignVertical: "top" }]}
-              value={absNote}
-              onChangeText={setAbsNote}
-              placeholder={t("users.abs_note_placeholder") || "Optional..."}
-              placeholderTextColor="#94a3b8"
-              multiline
-            />
-            {/* Buttons */}
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
-              <TouchableOpacity
-                onPress={() => { setAbsShowForm(false); setAbsDateFrom(""); setAbsDateTo(""); setAbsNote(""); }}
-                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: "#e2e8f0", alignItems: "center" }}
-              >
-                <Text style={{ color: "#64748b", fontWeight: "600" }}>{t("common.cancel")}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={saveAbsence}
-                disabled={absSaving}
-                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "#2563eb", alignItems: "center", opacity: absSaving ? 0.6 : 1 }}
-              >
-                {absSaving ? <ActivityIndicator size="small" color="#fff" /> : (
-                  <Text style={{ color: "#fff", fontWeight: "600" }}>{t("common.save")}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
           </View>
-        )}
 
-        {/* Absence list */}
-        {absences.length > 0 && (
-          <View style={{ marginTop: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: "600", color: "#64748b", marginBottom: 8 }}>
-              {t("users.abs_list") || "Einträge"} ({absences.length})
+          <View style={{ backgroundColor: "#f5f3ff", borderRadius: 12, padding: 14, marginHorizontal: 16, marginTop: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Ionicons name="information-circle" size={20} color="#8b5cf6" />
+              <Text style={{ fontSize: 13, color: "#6d28d9", fontWeight: "600" }}>{t("users.subcontractors.info_title") || "Information"}</Text>
+            </View>
+            <Text style={{ fontSize: 12, color: "#7c3aed", marginTop: 4 }}>
+              {t("users.subcontractors.info_desc") || "Der Subunternehmer erhält Login und temporäres Passwort. Nach Ablauf des Zugangsdatums kann er sich nicht mehr anmelden. Der Zugang kann jederzeit erneuert werden."}
             </Text>
-            {absences.map((a: any) => (
-              <View key={a.id} style={{ backgroundColor: "#fff", borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: a.status === "pending" ? "#f59e0b" : "#e2e8f0", borderLeftWidth: 4, borderLeftColor: absTypeColor(a.type) }}>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <Text style={{ fontSize: 14, fontWeight: "700", color: absTypeColor(a.type) }}>{absTypeLabel(a.type)}</Text>
-                    <View style={{ backgroundColor: statusColor(a.status) + "20", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
-                      <Text style={{ fontSize: 10, fontWeight: "700", color: statusColor(a.status) }}>{statusLabel(a.status)}</Text>
-                    </View>
-                  </View>
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#1e293b" }}>{a.days} {t("users.abs_days") || "Tage"}</Text>
-                </View>
-                <Text style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-                  {new Date(a.date_from).toLocaleDateString("de-DE")} — {new Date(a.date_to).toLocaleDateString("de-DE")}
-                </Text>
-                {a.note && <Text style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", marginTop: 4 }}>{a.note}</Text>}
-                {a.approver?.full_name && a.status !== "pending" && (
-                  <Text style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>
-                    {a.status === "approved" ? "✓" : "✗"} {a.approver.full_name} · {a.approved_at ? new Date(a.approved_at).toLocaleDateString("de-DE") : ""}
-                  </Text>
-                )}
-                {/* Actions */}
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                  {canApproveAbsence && a.status === "pending" && (
-                    <>
-                      <TouchableOpacity
-                        onPress={() => approveAbsence(a.id)}
-                        style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#ecfdf5", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}
-                      >
-                        <Ionicons name="checkmark-circle" size={14} color="#10b981" />
-                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#10b981" }}>{t("users.abs_approve") || "Genehmigen"}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => rejectAbsence(a.id)}
-                        style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#fef2f2", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}
-                      >
-                        <Ionicons name="close-circle" size={14} color="#ef4444" />
-                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#ef4444" }}>{t("users.abs_reject") || "Ablehnen"}</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                  {(canEdit || canApproveAbsence || (isOwnProfile && a.status === "pending")) && (
-                    <TouchableOpacity
-                      onPress={() => deleteAbsence(a.id)}
-                      style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 6 }}
-                    >
-                      <Ionicons name="trash-outline" size={14} color="#94a3b8" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            ))}
           </View>
-        )}
-      </View>
 
-      {/* GPS Tracking Section */}
-      {canManageGPS && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            <Ionicons name="navigate" size={16} color="#2563eb" />{" "}
-            {t("users.gps_tracking") || "GPS-Tracking"}
-          </Text>
+          <TouchableOpacity
+            style={[styles.createButton, addSubLoading && { opacity: 0.6 }, { backgroundColor: "#8b5cf6", marginHorizontal: 16, marginTop: 16 }]}
+            onPress={createSubcontractor}
+            disabled={addSubLoading}
+          >
+            {addSubLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.importButtonText}>{t("users.subcontractors.create") || "Subunternehmer erstellen"}</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      ) : showAddUser ? (
+        <ScrollView style={styles.importContent}>
+          <View style={styles.importHeader}>
+            <TouchableOpacity onPress={() => { setShowAddUser(false); setNewUser({ full_name: "", email: "", phone: "", role: "worker" }); }}>
+              <Ionicons name="arrow-back" size={24} color="#1e293b" />
+            </TouchableOpacity>
+            <Text style={styles.importTitle}>{t("users.add_user") || "Benutzer hinzufügen"}</Text>
+          </View>
 
-          <View style={styles.dataCard}>
-            {/* Toggle GPS */}
-            <View style={[styles.dataRow, { justifyContent: "space-between" }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-                <Ionicons name="location" size={18} color={gpsEnabled ? "#10b981" : "#94a3b8"} />
-                <Text style={[styles.dataLabel, { flex: 0, marginRight: 8 }]}>
-                  {t("users.gps_tracking_label") || "GPS-Tracking"}
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={{ fontSize: 12, color: gpsEnabled ? "#10b981" : "#ef4444", fontWeight: "600" }}>
-                  {gpsEnabled ? (t("users.gps_on") || "Aktiv") : (t("users.gps_off") || "Inaktiv")}
-                </Text>
-                {gpsTogglingLoading ? (
-                  <ActivityIndicator size="small" color="#2563eb" />
-                ) : (
-                  <Switch
-                    value={gpsEnabled}
-                    onValueChange={handleGPSToggle}
-                    trackColor={{ false: "#e2e8f0", true: "#86efac" }}
-                    thumbColor={gpsEnabled ? "#10b981" : "#94a3b8"}
-                  />
-                )}
+          <View style={styles.addUserForm}>
+            <View style={styles.addUserField}>
+              <Text style={styles.addUserLabel}>{t("users.full_name") || "Vollständiger Name"} *</Text>
+              <TextInput
+                style={styles.addUserInput}
+                value={newUser.full_name}
+                onChangeText={(text) => setNewUser({ ...newUser, full_name: text })}
+                placeholder="Max Mustermann"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+
+            <View style={styles.addUserField}>
+              <Text style={styles.addUserLabel}>Email *</Text>
+              <TextInput
+                style={styles.addUserInput}
+                value={newUser.email}
+                onChangeText={(text) => setNewUser({ ...newUser, email: text })}
+                placeholder="max@example.com"
+                placeholderTextColor="#94a3b8"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.addUserField}>
+              <Text style={styles.addUserLabel}>{t("users.phone") || "Telefon"}</Text>
+              <TextInput
+                style={styles.addUserInput}
+                value={newUser.phone}
+                onChangeText={(text) => setNewUser({ ...newUser, phone: text })}
+                placeholder="+49 123 456 789"
+                placeholderTextColor="#94a3b8"
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.addUserField}>
+              <Text style={styles.addUserLabel}>{t("users.role") || "Funktion"} *</Text>
+              <View style={styles.roleGrid}>
+                {roleOptions.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.roleOption,
+                      newUser.role === opt.value && styles.roleOptionActive,
+                      newUser.role === opt.value && { borderColor: getRoleColor(opt.value) },
+                    ]}
+                    onPress={() => setNewUser({ ...newUser, role: opt.value })}
+                  >
+                    <Ionicons
+                      name={opt.icon}
+                      size={20}
+                      color={newUser.role === opt.value ? getRoleColor(opt.value) : "#94a3b8"}
+                    />
+                    <Text
+                      style={[
+                        styles.roleOptionText,
+                        newUser.role === opt.value && { color: getRoleColor(opt.value), fontWeight: "700" },
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
 
-            {gpsEnabled && (
-              <>
-                <View style={styles.separator} />
+            <TouchableOpacity
+              style={[styles.importButton, addUserLoading && { opacity: 0.6 }]}
+              onPress={createUser}
+              disabled={addUserLoading}
+            >
+              {addUserLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.importButtonText}>{t("users.create") || "Benutzer erstellen"}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      ) : showImport ? (
+        <ScrollView style={styles.importContent}>
+          <View style={styles.importHeader}>
+            <TouchableOpacity onPress={() => { setShowImport(false); setImportPreview([]); setImportFileName(""); }}>
+              <Ionicons name="arrow-back" size={24} color="#1e293b" />
+            </TouchableOpacity>
+            <Text style={styles.importTitle}>{t("users.import.title")}</Text>
+          </View>
 
-                {/* Current location */}
-                {lastLocation ? (
-                  <View style={{ paddingVertical: 10 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-                      <Ionicons name="pin" size={16} color="#2563eb" />
-                      <Text style={{ marginLeft: 6, fontSize: 13, fontWeight: "600", color: "#1e293b" }}>
-                        {t("users.last_location") || "Letzte Position"}
-                      </Text>
-                      <Text style={{ marginLeft: "auto", fontSize: 11, color: "#64748b" }}>
-                        {formatTime(lastLocation.recorded_at)} · {formatDate(lastLocation.recorded_at)}
+          <View style={styles.instructions}>
+            <Ionicons name="information-circle" size={24} color="#2563eb" />
+            <View style={styles.instructionsText}>
+              <Text style={styles.instructionsTitle}>{t("users.import.instructions_title")}</Text>
+              <Text style={styles.instructionsBody}>{t("users.import.instructions_body")}</Text>
+              <Text style={styles.instructionsExample}>
+                Name | Email | Telefon | Funktion{"\n"}
+                Max Mustermann | max@example.com | +49 123 456 789 | bauleiter
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.uploadButton}
+            onPress={Platform.OS === "web" ? pickFileWeb : pickFileNative}
+            disabled={importLoading}
+          >
+            <Ionicons name="cloud-upload-outline" size={32} color="#2563eb" />
+            <Text style={styles.uploadButtonText}>
+              {importFileName || t("users.import.select_file")}
+            </Text>
+            <Text style={styles.uploadButtonHint}>{t("users.import.supported_formats")}</Text>
+          </TouchableOpacity>
+
+          {importLoading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#2563eb" />
+              <Text style={styles.loadingText}>{t("common.loading")}</Text>
+            </View>
+          )}
+
+          {importPreview.length > 0 && (
+            <View style={styles.previewSection}>
+              <Text style={styles.previewTitle}>
+                {t("users.import.preview")} ({importPreview.length})
+              </Text>
+              {importPreview.map((user, index) => (
+                <View key={index} style={styles.previewCard}>
+                  <View style={styles.previewRow}>
+                    <Ionicons name="person-circle" size={24} color="#2563eb" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.previewName}>{user.full_name}</Text>
+                      {user.email ? <Text style={styles.previewEmail}>{user.email}</Text> : null}
+                      {user.phone ? <Text style={styles.previewPhone}>{user.phone}</Text> : null}
+                    </View>
+                    <View style={[styles.roleBadge, { backgroundColor: `${getRoleColor(user.role)}20` }]}>
+                      <Text style={[styles.roleText, { color: getRoleColor(user.role) }]}>
+                        {t(`common.roles.${user.role}`)}
                       </Text>
                     </View>
-                    <Text style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
-                      {lastLocation.latitude.toFixed(6)}, {lastLocation.longitude.toFixed(6)}
-                      {lastLocation.accuracy ? ` (±${Math.round(lastLocation.accuracy)}m)` : ""}
-                    </Text>
-                    {Platform.OS === "web" && (
-                      <View style={{ borderRadius: 10, overflow: "hidden", height: 220, borderWidth: 1, borderColor: "#e2e8f0" }}>
-                        <iframe
-                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${lastLocation.longitude - 0.005},${lastLocation.latitude - 0.003},${lastLocation.longitude + 0.005},${lastLocation.latitude + 0.003}&layer=mapnik&marker=${lastLocation.latitude},${lastLocation.longitude}`}
-                          style={{ width: "100%", height: "100%", border: "none" } as any}
-                        />
-                      </View>
-                    )}
-                    {Platform.OS !== "web" && (
-                      <TouchableOpacity
-                        style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#eff6ff", padding: 10, borderRadius: 8 }}
-                        onPress={() => Linking.openURL(`https://www.google.com/maps?q=${lastLocation.latitude},${lastLocation.longitude}`)}
-                      >
-                        <Ionicons name="map" size={16} color="#2563eb" />
-                        <Text style={{ color: "#2563eb", fontWeight: "600", fontSize: 13 }}>
-                          {t("users.open_in_maps") || "In Google Maps öffnen"}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
                   </View>
-                ) : (
-                  <View style={{ paddingVertical: 16, alignItems: "center" }}>
-                    <Ionicons name="location-outline" size={32} color="#cbd5e1" />
-                    <Text style={{ fontSize: 13, color: "#94a3b8", marginTop: 6 }}>
-                      {t("users.no_location") || "Keine Position verfügbar"}
-                    </Text>
-                  </View>
+                </View>
+              ))}
+              <TouchableOpacity style={styles.importButton} onPress={importUsers} disabled={importLoading}>
+                <Text style={styles.importButtonText}>{t("users.import.import_all")}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+      ) : (
+        <>
+          {filteredUsers.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-outline" size={64} color="#cbd5e1" />
+              <Text style={styles.emptyText}>{t("users.empty")}</Text>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+            <View style={styles.searchSortBar}>
+              <View style={styles.searchBox}>
+                <Ionicons name="search" size={18} color="#94a3b8" />
+                <TextInput
+                  style={styles.searchInput}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder={t("users.search_placeholder") || "Nach Name oder E-Mail suchen..."}
+                  placeholderTextColor="#94a3b8"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")}>
+                    <Ionicons name="close-circle" size={18} color="#94a3b8" />
+                  </TouchableOpacity>
                 )}
-
-                <View style={styles.separator} />
-
-                {/* History toggle */}
+              </View>
+              <View style={styles.sortRow}>
                 <TouchableOpacity
-                  style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 8 }}
-                  onPress={() => {
-                    if (!showHistory) {
-                      setShowHistory(true);
-                      fetchLocationHistory(historyDate);
-                    } else {
-                      setShowHistory(false);
-                    }
-                  }}
+                  style={[styles.sortBtn, sortBy === "name" && styles.sortBtnActive]}
+                  onPress={() => { if (sortBy === "name") setSortAsc(!sortAsc); else { setSortBy("name"); setSortAsc(true); } }}
                 >
-                  <Ionicons name="time" size={18} color="#f59e0b" />
-                  <Text style={{ flex: 1, fontSize: 14, fontWeight: "600", color: "#1e293b" }}>
-                    {t("users.location_history") || "Standortverlauf"}
-                  </Text>
-                  <Ionicons name={showHistory ? "chevron-up" : "chevron-down"} size={18} color="#64748b" />
+                  <Ionicons name="text" size={14} color={sortBy === "name" ? "#2563eb" : "#64748b"} />
+                  <Text style={[styles.sortBtnText, sortBy === "name" && styles.sortBtnTextActive]}>{t("users.full_name")}</Text>
+                  {sortBy === "name" && <Ionicons name={sortAsc ? "arrow-up" : "arrow-down"} size={12} color="#2563eb" />}
                 </TouchableOpacity>
-
-                {showHistory && (
-                  <View style={{ paddingBottom: 10 }}>
-                    {/* Date picker */}
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                      <TouchableOpacity
-                        onPress={() => {
-                          const d = new Date(historyDate);
-                          d.setDate(d.getDate() - 1);
-                          const newDate = d.toISOString().split("T")[0];
-                          setHistoryDate(newDate);
-                          fetchLocationHistory(newDate);
-                        }}
-                        style={{ padding: 6, backgroundColor: "#f1f5f9", borderRadius: 6 }}
-                      >
-                        <Ionicons name="chevron-back" size={16} color="#64748b" />
-                      </TouchableOpacity>
-                      <Text style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: "600", color: "#1e293b" }}>
-                        {new Date(historyDate).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => {
-                          const d = new Date(historyDate);
-                          d.setDate(d.getDate() + 1);
-                          const newDate = d.toISOString().split("T")[0];
-                          setHistoryDate(newDate);
-                          fetchLocationHistory(newDate);
-                        }}
-                        style={{ padding: 6, backgroundColor: "#f1f5f9", borderRadius: 6 }}
-                      >
-                        <Ionicons name="chevron-forward" size={16} color="#64748b" />
-                      </TouchableOpacity>
-                    </View>
-
-                    {locationHistory.length === 0 ? (
-                      <View style={{ alignItems: "center", paddingVertical: 12 }}>
-                        <Ionicons name="location-outline" size={24} color="#cbd5e1" />
-                        <Text style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
-                          {t("users.no_history") || "Keine Daten für diesen Tag"}
-                        </Text>
-                      </View>
-                    ) : (
-                      <>
-                        <Text style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>
-                          {locationHistory.length} {t("users.entries") || "Einträge"}
-                        </Text>
-                        <ScrollView nestedScrollEnabled style={{ maxHeight: 250 }}>
-                          {locationHistory.map((loc: any, idx: number) => (
-                            <View
-                              key={loc.id || idx}
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                paddingVertical: 6,
-                                paddingHorizontal: 8,
-                                borderBottomWidth: 1,
-                                borderBottomColor: "#f1f5f9",
-                                gap: 8,
-                              }}
-                            >
-                              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#2563eb" }} />
-                              <Text style={{ fontSize: 12, fontWeight: "600", color: "#1e293b", width: 65 }}>
-                                {formatTime(loc.recorded_at)}
-                              </Text>
-                              <Text style={{ fontSize: 11, color: "#64748b", flex: 1 }}>
-                                {loc.latitude.toFixed(5)}, {loc.longitude.toFixed(5)}
-                              </Text>
-                              {loc.speed != null && loc.speed > 0 && (
-                                <Text style={{ fontSize: 10, color: "#f59e0b" }}>
-                                  {(loc.speed * 3.6).toFixed(0)} km/h
-                                </Text>
-                              )}
-                              {Platform.OS === "web" && (
-                                <TouchableOpacity
-                                  onPress={() => window.open(`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`, "_blank")}
-                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                >
-                                  <Ionicons name="open-outline" size={14} color="#2563eb" />
-                                </TouchableOpacity>
-                              )}
-                            </View>
-                          ))}
-                        </ScrollView>
-                      </>
-                    )}
-                  </View>
-                )}
-              </>
-            )}
-          </View>
-        </View>
-      )}
-
-      <View style={{ height: 40 }} />
-
-      {/* GPS Password Modal */}
-      <Modal visible={gpsPasswordModal} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" }}>
-          <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 24, width: 320, maxWidth: "90%" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
-              <Ionicons name="lock-closed" size={22} color="#2563eb" />
-              <Text style={{ fontSize: 18, fontWeight: "700", color: "#1e293b", marginLeft: 8 }}>
-                {t("users.gps_admin_password", "Administrator-Passwort")}
-              </Text>
+                <TouchableOpacity
+                  style={[styles.sortBtn, sortBy === "role" && styles.sortBtnActive]}
+                  onPress={() => { if (sortBy === "role") setSortAsc(!sortAsc); else { setSortBy("role"); setSortAsc(true); } }}
+                >
+                  <Ionicons name="shield" size={14} color={sortBy === "role" ? "#2563eb" : "#64748b"} />
+                  <Text style={[styles.sortBtnText, sortBy === "role" && styles.sortBtnTextActive]}>{t("users.role")}</Text>
+                  {sortBy === "role" && <Ionicons name={sortAsc ? "arrow-up" : "arrow-down"} size={12} color="#2563eb" />}
+                </TouchableOpacity>
+              </View>
             </View>
-            <Text style={{ fontSize: 14, color: "#64748b", marginBottom: 16 }}>
-              {t("users.gps_password_desc", "Geben Sie Ihr Administrator-Passwort ein, um GPS-Tracking zu ändern.")}
-            </Text>
-            <TextInput
-              style={{
-                borderWidth: 1, borderColor: gpsPasswordError ? "#ef4444" : "#e2e8f0",
-                borderRadius: 10, padding: 12, fontSize: 16, marginBottom: 4,
-              }}
-              placeholder={t("users.gps_password_placeholder", "Passwort")}
-              secureTextEntry
-              value={gpsPassword}
-              onChangeText={(v) => { setGpsPassword(v); setGpsPasswordError(""); }}
-              autoFocus
+            <FlatList
+              data={filteredUsers}
+              renderItem={renderUser}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContainer}
+              keyboardShouldPersistTaps="handled"
+              removeClippedSubviews={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#2563eb"
+                />
+              }
             />
-            {!!gpsPasswordError && (
-              <Text style={{ color: "#ef4444", fontSize: 13, marginBottom: 8 }}>{gpsPasswordError}</Text>
-            )}
-            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 12, marginTop: 16 }}>
-              <TouchableOpacity
-                onPress={() => { setGpsPasswordModal(false); setGpsPassword(""); }}
-                style={{ paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10, backgroundColor: "#f1f5f9" }}
-              >
-                <Text style={{ color: "#64748b", fontWeight: "600" }}>{t("common.cancel")}</Text>
+            </View>
+          )}
+
+          {canEditUsers && (
+            <View style={styles.fabRow}>
+              <TouchableOpacity style={[styles.fab, styles.fabSecondary]} onPress={() => setShowImport(true)}>
+                <Ionicons name="cloud-upload-outline" size={24} color="#2563eb" />
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={confirmGPSToggle}
-                style={{ paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10, backgroundColor: "#2563eb" }}
-              >
-                <Text style={{ color: "#fff", fontWeight: "700" }}>{t("common.confirm", "Bestätigen")}</Text>
+              <TouchableOpacity style={styles.fab} onPress={() => setShowAddUser(true)}>
+                <Ionicons name="person-add" size={28} color="#ffffff" />
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
-    </ScrollView>
+          )}
+        </>
+      )}
+    </View>
   );
 }
 
@@ -1291,254 +646,389 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8fafc",
   },
-  center: {
+  centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f8fafc",
   },
-  emptyText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#94a3b8",
+  listContainer: {
+    padding: 16,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  backBtn: {
-    padding: 4,
-    marginRight: 12,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1e293b",
-  },
-  editBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: "#eff6ff",
-    borderRadius: 8,
-  },
-  editBtnText: {
-    marginLeft: 4,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#2563eb",
-  },
-  cancelBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  cancelBtnText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#ef4444",
-  },
-  avatarSection: {
-    alignItems: "center",
-    paddingVertical: 24,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: "center",
-    alignItems: "center",
+  userCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  userHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginBottom: 12,
+  },
+  userIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#f8fafc",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  userInfo: {
+    flex: 1,
+    marginLeft: 12,
+    minWidth: 120,
   },
   userName: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1e293b",
-    marginBottom: 8,
-  },
-  roleBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  roleText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  section: {
-    marginTop: 16,
-    marginHorizontal: 16,
-  },
-  sectionTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#1e293b",
-    marginBottom: 12,
+    marginBottom: 2,
+    flexShrink: 1,
   },
-  dataCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
+  userEmail: {
+    fontSize: 13,
+    color: "#64748b",
+    marginBottom: 4,
   },
-  dataRow: {
+  contactRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
+    gap: 4,
+    marginTop: 2,
   },
-  dataLabel: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 14,
+  contactText: {
+    fontSize: 13,
     color: "#64748b",
   },
-  dataValue: {
-    fontSize: 14,
-    color: "#1e293b",
-    fontWeight: "500",
-    maxWidth: "50%",
-    textAlign: "right",
-  },
-  linkText: {
-    color: "#2563eb",
-    textDecorationLine: "underline",
-  },
-  separator: {
-    height: 1,
-    backgroundColor: "#f1f5f9",
-  },
-  editForm: {
-    backgroundColor: "#fff",
+  roleBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
   },
-  fieldLabel: {
+  roleText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  userActions: {
+    flexDirection: "row",
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "#f8fafc",
+    gap: 6,
+  },
+  actionButtonText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#64748b",
-    marginBottom: 6,
+    color: "#2563eb",
+  },
+  deleteButton: {
+    backgroundColor: "#fef2f2",
+  },
+  deleteButtonText: {
+    color: "#ef4444",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#475569",
+    marginTop: 16,
+    textAlign: "center",
+  },
+  fabRow: {
+    position: "absolute",
+    right: 16,
+    bottom: 16,
+    flexDirection: "column",
+    gap: 12,
+    alignItems: "center",
+  },
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#2563eb",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fabSecondary: {
+    backgroundColor: "#ffffff",
+    borderWidth: 2,
+    borderColor: "#2563eb",
+  },
+  importContent: {
+    flex: 1,
+    padding: 16,
+  },
+  importHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+  },
+  importTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  instructions: {
+    flexDirection: "row",
+    backgroundColor: "#dbeafe",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
+  },
+  instructionsText: {
+    flex: 1,
+  },
+  instructionsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e40af",
+    marginBottom: 8,
+  },
+  instructionsBody: {
+    fontSize: 14,
+    color: "#1e40af",
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  instructionsExample: {
+    fontSize: 11,
+    color: "#3b82f6",
+    backgroundColor: "#eff6ff",
+    padding: 8,
+    borderRadius: 4,
+  },
+  uploadButton: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#e2e8f0",
+    borderStyle: "dashed",
+    padding: 32,
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  uploadButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
     marginTop: 12,
   },
-  input: {
-    backgroundColor: "#f8fafc",
+  uploadButtonHint: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 4,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    paddingVertical: 32,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#64748b",
+    marginTop: 12,
+  },
+  previewSection: {
+    marginTop: 8,
+  },
+  previewTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 16,
+  },
+  previewCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  },
+  previewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  previewName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 2,
+  },
+  previewEmail: {
+    fontSize: 13,
+    color: "#64748b",
+    marginBottom: 2,
+  },
+  previewPhone: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  importButton: {
+    backgroundColor: "#2563eb",
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 32,
+  },
+  importButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#ffffff",
+  },
+  addUserForm: {
+    gap: 20,
+  },
+  addUserField: {
+    gap: 8,
+  },
+  addUserLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#334155",
+  },
+  addUserInput: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 15,
     color: "#1e293b",
   },
-  roleSelector: {
+  roleGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    marginTop: 4,
+    gap: 10,
   },
   roleOption: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 2,
     borderColor: "#e2e8f0",
+    backgroundColor: "#ffffff",
+  },
+  roleOptionActive: {
     backgroundColor: "#f8fafc",
   },
   roleOptionText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#64748b",
+  },
+  searchSortBar: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#1e293b",
+    paddingVertical: 0,
+    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
+  },
+  sortRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  sortBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+  },
+  sortBtnActive: {
+    backgroundColor: "#dbeafe",
+  },
+  sortBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  sortBtnTextActive: {
+    color: "#2563eb",
+  },
+  tabBar: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    overflow: "hidden",
+    backgroundColor: "#f8fafc",
+  },
+  tabBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    gap: 6,
+  },
+  tabBtnActive: {
+    backgroundColor: "#ffffff",
+    borderBottomWidth: 2,
+    borderBottomColor: "#2563eb",
+  },
+  tabBtnText: {
     fontSize: 13,
     fontWeight: "600",
     color: "#64748b",
   },
-  saveBtn: {
-    backgroundColor: "#2563eb",
-    borderRadius: 10,
+  tabBtnTextActive: {
+    color: "#2563eb",
+  },
+  createButton: {
     paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  saveBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  emptyProjects: {
-    backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 32,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  emptyProjectsText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: "#94a3b8",
-  },
-  projectCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  projectHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  projectName: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1e293b",
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  projectLocation: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 6,
-    marginLeft: 28,
-  },
-  locationText: {
-    marginLeft: 4,
-    fontSize: 13,
-    color: "#94a3b8",
-  },
-  joinedText: {
-    marginTop: 4,
-    marginLeft: 28,
-    fontSize: 12,
-    color: "#94a3b8",
-  },
-  visibilityRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 28,
-  },
-  visibilityText: {
-    fontSize: 12,
-    fontWeight: "600",
+    justifyContent: "center",
   },
 });
