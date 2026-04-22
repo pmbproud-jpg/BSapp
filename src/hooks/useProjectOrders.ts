@@ -5,19 +5,25 @@
 
 import { adminApi } from "@/src/lib/supabase/adminApi";
 import { fetchProfileMap } from "@/src/services/profileService";
+import type { TFunction } from "i18next";
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
 
 const supabaseAdmin = adminApi;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type TFunc = (...args: any[]) => any;
+// Luzne typy dla magazynu/zamowien — istniejace hooki uzywaja shapes
+// zalezne od wybranego SELECT-a. Dokladniejsze typowanie wymagalo by
+// aktualnych migracji warehouse_materials/warehouse_items (Faza dalej).
+type MaterialRow = Record<string, unknown> & { id: string; nazwa?: string | null };
+type ToolRow = Record<string, unknown> & { id: string; beschreibung?: string | null };
+type MaterialOrder = Record<string, unknown> & { id: string; ordered_by?: string | null };
+type ToolOrder = Record<string, unknown> & { id: string; ordered_by?: string | null };
 
-export function useProjectOrders(projectId: string | undefined, userId: string | undefined, t: TFunc) {
+export function useProjectOrders(projectId: string | undefined, userId: string | undefined, t: TFunction) {
 
   // Material orders state
-  const [materialsList, setMaterialsList] = useState<any[]>([]);
-  const [projectOrders, setProjectOrders] = useState<any[]>([]);
+  const [materialsList, setMaterialsList] = useState<MaterialRow[]>([]);
+  const [projectOrders, setProjectOrders] = useState<MaterialOrder[]>([]);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [orderForm, setOrderForm] = useState({ material_id: "", ilosc: "", uwagi: "" });
   const [orderSaving, setOrderSaving] = useState(false);
@@ -26,8 +32,8 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
 
   // Tool orders state
   const [orderSubTab, setOrderSubTab] = useState<"materials" | "tools">("materials");
-  const [toolsList, setToolsList] = useState<any[]>([]);
-  const [projectToolOrders, setProjectToolOrders] = useState<any[]>([]);
+  const [toolsList, setToolsList] = useState<ToolRow[]>([]);
+  const [projectToolOrders, setProjectToolOrders] = useState<ToolOrder[]>([]);
   const [showToolOrderModal, setShowToolOrderModal] = useState(false);
   const [toolOrderSaving, setToolOrderSaving] = useState(false);
   const [toolOrderSearch, setToolOrderSearch] = useState("");
@@ -43,11 +49,12 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
         .eq("project_id", projectId)
         .order("created_at", { ascending: false });
       if (ordErr) { console.error("Orders fetch error:", ordErr); setProjectOrders([]); return; }
-      const userIds = [...new Set((ords || []).map((o: any) => o.ordered_by).filter(Boolean))] as string[];
+      const ordsTyped = (ords ?? []) as MaterialOrder[];
+      const userIds = [...new Set(ordsTyped.map((o) => o.ordered_by).filter((id): id is string => Boolean(id)))];
       const profileMap = await fetchProfileMap(userIds);
-      const enriched = (ords || []).map((o: any) => ({
+      const enriched = ordsTyped.map((o) => ({
         ...o,
-        ordered_by_profile: { full_name: profileMap[o.ordered_by] || null },
+        ordered_by_profile: { full_name: o.ordered_by ? profileMap[o.ordered_by] ?? null : null },
       }));
       setProjectOrders(enriched);
     } catch (e) {
@@ -132,11 +139,12 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
         .eq("project_id", projectId)
         .order("created_at", { ascending: false });
       if (ordErr) { console.error("Tool orders fetch error:", ordErr); setProjectToolOrders([]); return; }
-      const userIds = [...new Set((ords || []).map((o: any) => o.ordered_by).filter(Boolean))] as string[];
+      const ordsTyped = (ords ?? []) as MaterialOrder[];
+      const userIds = [...new Set(ordsTyped.map((o) => o.ordered_by).filter((id): id is string => Boolean(id)))];
       const profileMap = await fetchProfileMap(userIds);
-      const enriched = (ords || []).map((o: any) => ({
+      const enriched = ordsTyped.map((o) => ({
         ...o,
-        ordered_by_profile: { full_name: profileMap[o.ordered_by] || null },
+        ordered_by_profile: { full_name: o.ordered_by ? profileMap[o.ordered_by] ?? null : null },
       }));
       setProjectToolOrders(enriched);
     } catch (e) {

@@ -63,8 +63,8 @@ export function useAutoReport() {
 
         setReport(result as GeneratedReport);
         return result as GeneratedReport;
-      } catch (err: any) {
-        const msg = err.message || "Report generation failed";
+      } catch (err: unknown) {
+        const msg = (err instanceof Error ? err.message : null) || "Report generation failed";
         setError(msg);
         return null;
       } finally {

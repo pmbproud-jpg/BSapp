@@ -24,7 +24,7 @@ export function useProjectChecklist(projectId: string | undefined, profileId: st
 
       if (error && error.code !== "PGRST116") throw error; // PGRST116 = no rows
       setChecklist(data || null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("fetchChecklist error:", err);
     } finally {
       setLoading(false);
@@ -48,7 +48,7 @@ export function useProjectChecklist(projectId: string | undefined, profileId: st
       if (error) throw error;
       await fetchChecklist();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("saveChecklist error:", err);
       return false;
     } finally {

@@ -4,13 +4,11 @@
 
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import type { ProjectObstruction, ProjectObstructionInsert } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 import { useState, useCallback } from "react";
 import { Alert, Platform } from "react-native";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type TFunc = (...args: any[]) => any;
-
-export function useProjectObstructions(projectId: string | undefined, profileId: string | undefined, t: TFunc) {
+export function useProjectObstructions(projectId: string | undefined, profileId: string | undefined, t: TFunction) {
   const [obstructions, setObstructions] = useState<ProjectObstruction[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -27,7 +25,7 @@ export function useProjectObstructions(projectId: string | undefined, profileId:
 
       if (error) throw error;
       setObstructions(data || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("fetchObstructions error:", err);
     } finally {
       setLoading(false);
@@ -48,7 +46,7 @@ export function useProjectObstructions(projectId: string | undefined, profileId:
       if (error) throw error;
       await fetchObstructions();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("createObstruction error:", err);
       const msg = t("obstructions.saveError") || "Fehler beim Speichern";
       if (Platform.OS === "web") window.alert(msg);
@@ -75,7 +73,7 @@ export function useProjectObstructions(projectId: string | undefined, profileId:
       if (error) throw error;
       await fetchObstructions();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("resolveObstruction error:", err);
       return false;
     } finally {
@@ -94,7 +92,7 @@ export function useProjectObstructions(projectId: string | undefined, profileId:
       if (error) throw error;
       await fetchObstructions();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("escalateObstruction error:", err);
       return false;
     } finally {
@@ -112,7 +110,7 @@ export function useProjectObstructions(projectId: string | undefined, profileId:
       if (error) throw error;
       await fetchObstructions();
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("deleteObstruction error:", err);
       return false;
     }

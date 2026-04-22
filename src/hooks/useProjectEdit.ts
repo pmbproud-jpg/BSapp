@@ -7,16 +7,20 @@ import { useState } from "react";
 import { Alert } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import type { Database } from "@/src/lib/supabase/database.types";
+import type { TFunction } from "i18next";
 import { isValidDate } from "@/src/utils/helpers";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
+type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+type ProjectMember = Database["public"]["Tables"]["project_members"]["Row"];
+type ProfileLite = Pick<Profile, "id" | "full_name" | "email" | "role">;
 
 export function useProjectEdit(
   projectId: string | undefined,
-  profile: any,
+  profile: Profile | null,
   project: Project | null,
-  members: any[],
-  t: any,
+  members: ProjectMember[],
+  t: TFunction,
   fetchAll: () => Promise<void>,
 ) {
   const [showEditModal, setShowEditModal] = useState(false);
@@ -26,7 +30,7 @@ export function useProjectEdit(
     project_manager_id: "", bauleiter_id: "",
   });
   const [editSaving, setEditSaving] = useState(false);
-  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<ProfileLite[]>([]);
   const [showPMPicker, setShowPMPicker] = useState(false);
   const [showBLPicker, setShowBLPicker] = useState(false);
 
@@ -39,13 +43,12 @@ export function useProjectEdit(
         query = query.eq("company_id", profile.company_id);
       }
       const { data } = await query;
-      setAllUsers(data || []);
+      setAllUsers(((data ?? []) as ProfileLite[]));
     } catch (e) { console.error("Error fetching all users:", e); }
   };
 
   const openEditProject = async () => {
     if (!project) return;
-    const proj: any = project;
     setEditForm({
       name: project.name || "",
       description: project.description || "",
@@ -54,15 +57,15 @@ export function useProjectEdit(
       budget: project.budget ? String(project.budget) : "",
       start_date: project.start_date || "",
       end_date: project.end_date || "",
-      project_manager_id: proj.project_manager_id || "",
-      bauleiter_id: proj.bauleiter_id || "",
+      project_manager_id: project.project_manager_id || "",
+      bauleiter_id: project.bauleiter_id || "",
     });
     try {
       const { data } = await supabaseAdmin.from("profiles")
         .select("id, full_name, email, role")
-        .eq("company_id", profile?.company_id)
+        .eq("company_id", profile?.company_id ?? "")
         .order("full_name");
-      setAllUsers(data || []);
+      setAllUsers(((data ?? []) as ProfileLite[]));
     } catch (e) { console.error(e); }
     setShowEditModal(true);
   };
@@ -78,21 +81,21 @@ export function useProjectEdit(
 
       // Jeśli PM jest ustawiony a BL nie — szukaj BL automatycznie w zespole
       if (editForm.project_manager_id && !blId) {
-        const memberIds = members.map((m: any) => m.user_id);
+        const memberIds = members.map((m) => m.user_id);
         if (memberIds.length > 0) {
           const { data: memberProfiles } = await supabaseAdmin.from("profiles")
             .select("id, role")
             .in("id", memberIds);
-          const blUser = (memberProfiles || []).find((p: any) => p.role === "bauleiter");
+          const blUser = ((memberProfiles ?? []) as Pick<Profile, "id" | "role">[]).find((p) => p.role === "bauleiter");
           if (blUser) blId = blUser.id;
         }
       }
 
-      const updateData: any = {
+      const updateData: Database["public"]["Tables"]["projects"]["Update"] = {
         name: editForm.name.trim(),
         description: editForm.description.trim() || null,
         location: editForm.location.trim() || null,
-        status: editForm.status,
+        status: editForm.status as Project["status"],
         project_manager_id: editForm.project_manager_id || null,
         bauleiter_id: blId,
         start_date: editForm.start_date && isValidDate(editForm.start_date) ? editForm.start_date : null,
@@ -107,7 +110,7 @@ export function useProjectEdit(
 
       // Jeśli PM jest ustawiony, dodaj go do zespołu jeśli jeszcze nie jest
       if (editForm.project_manager_id) {
-        const pmInTeam = members.some((m: any) => m.user_id === editForm.project_manager_id);
+        const pmInTeam = members.some((m) => m.user_id === editForm.project_manager_id);
         if (!pmInTeam) {
           await supabaseAdmin.from("project_members")
             .upsert({ project_id: projectId!, user_id: editForm.project_manager_id, role: "member" }, { onConflict: "project_id,user_id" });
@@ -115,7 +118,7 @@ export function useProjectEdit(
       }
       // Jeśli BL jest ustawiony, dodaj go do zespołu jeśli jeszcze nie jest
       if (blId) {
-        const blInTeam = members.some((m: any) => m.user_id === blId);
+        const blInTeam = members.some((m) => m.user_id === blId);
         if (!blInTeam) {
           await supabaseAdmin.from("project_members")
             .upsert({ project_id: projectId!, user_id: blId, role: "member" }, { onConflict: "project_id,user_id" });

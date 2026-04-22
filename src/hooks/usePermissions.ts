@@ -110,7 +110,7 @@ export function usePermissions() {
 
   // Indywidualne nadpisania z profilu Supabase (kolumna custom_permissions jsonb)
   const overrides: Record<string, boolean> | null =
-    (profile as any)?.custom_permissions ?? null;
+    (profile?.custom_permissions as Record<string, boolean> | null | undefined) ?? null;
 
   // Funkcja pomocnicza: zwraca indywidualną wartość jeśli istnieje, inaczej domyślną z macierzy
   const perm = (key: string, roleDefault: boolean): boolean => {
