@@ -1,13 +1,24 @@
 /**
  * Hook zarządzający zamówieniami materiałów i narzędzi w projekcie.
  * Wydzielony z projects/[id].tsx dla redukcji rozmiaru god component.
+ *
+ * Faza 3: migracja na TanStack Query v5.
+ * - 4 useQuery: materialsList (global warehouse), toolsList (global warehouse),
+ *   projectMaterialOrders (per project), projectToolOrders (per project)
+ * - 3 useMutation: submitOrder (single material), submitCartOrders (batch materials),
+ *   submitToolCartOrders (batch tools)
+ *
+ * Sygnatura zewnetrzna zachowana, fetchMaterialsAndOrders/fetchToolsAndOrders
+ * jako wrappery na .refetch() (uzywane przez fetchAll() w projects/[id].tsx).
  */
 
 import { adminApi } from "@/src/lib/supabase/adminApi";
 import { fetchProfileMap } from "@/src/services/profileService";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
+import { projectKeys } from "./useProjectData";
 
 const supabaseAdmin = adminApi;
 
@@ -67,91 +78,131 @@ type ToolOrder = {
   [key: string]: unknown;
 };
 
-export function useProjectOrders(projectId: string | undefined, userId: string | undefined, t: TFunction) {
+// ── Cache keys ──
+export const warehouseKeys = {
+  materials: () => ["warehouse", "materials"] as const,
+  tools: () => ["warehouse", "tools"] as const,
+};
+export const projectOrdersKeys = {
+  materialOrders: (projectId: string) => [...projectKeys.all(projectId), "materialOrders"] as const,
+  toolOrders: (projectId: string) => [...projectKeys.all(projectId), "toolOrders"] as const,
+};
 
-  // Material orders state
-  const [materialsList, setMaterialsList] = useState<MaterialRow[]>([]);
-  const [projectOrders, setProjectOrders] = useState<MaterialOrder[]>([]);
+// ── Pure fetchers ──
+async function fetchAllMaterials(): Promise<MaterialRow[]> {
+  const { data, error } = await supabaseAdmin.from("warehouse_materials").select("*").order("nazwa");
+  if (error) throw error;
+  return (data ?? []) as MaterialRow[];
+}
+
+async function fetchAllTools(): Promise<ToolRow[]> {
+  const { data, error } = await supabaseAdmin.from("warehouse_items").select("*").order("beschreibung");
+  if (error) throw error;
+  return (data ?? []) as ToolRow[];
+}
+
+async function fetchProjectMaterialOrders(projectId: string): Promise<MaterialOrder[]> {
+  const { data, error } = await supabaseAdmin.from("project_material_orders")
+    .select("*, material:warehouse_materials(nazwa, art_nr, dlugosc, szerokosc, wysokosc, waga)")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  const ordsTyped = (data ?? []) as MaterialOrder[];
+  const userIds = [...new Set(ordsTyped.map((o) => o.ordered_by).filter((id): id is string => Boolean(id)))];
+  const profileMap = await fetchProfileMap(userIds);
+  return ordsTyped.map((o) => ({
+    ...o,
+    ordered_by_profile: { full_name: o.ordered_by ? profileMap[o.ordered_by] ?? null : null },
+  }));
+}
+
+async function fetchProjectToolOrders(projectId: string): Promise<ToolOrder[]> {
+  const { data, error } = await supabaseAdmin.from("project_tool_orders")
+    .select("*, tool:warehouse_items(beschreibung, art_nr, hersteller, kategorie, serial_nummer)")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  const ordsTyped = (data ?? []) as ToolOrder[];
+  const userIds = [...new Set(ordsTyped.map((o) => o.ordered_by).filter((id): id is string => Boolean(id)))];
+  const profileMap = await fetchProfileMap(userIds);
+  return ordsTyped.map((o) => ({
+    ...o,
+    ordered_by_profile: { full_name: o.ordered_by ? profileMap[o.ordered_by] ?? null : null },
+  }));
+}
+
+export function useProjectOrders(projectId: string | undefined, userId: string | undefined, t: TFunction) {
+  const qc = useQueryClient();
+  const enabled = !!projectId;
+  const safeId = projectId ?? "";
+
+  // ── Queries ──
+  const materialsQuery = useQuery({
+    queryKey: warehouseKeys.materials(),
+    queryFn: fetchAllMaterials,
+    enabled,
+  });
+  const toolsQuery = useQuery({
+    queryKey: warehouseKeys.tools(),
+    queryFn: fetchAllTools,
+    enabled,
+  });
+  const materialOrdersQuery = useQuery({
+    queryKey: projectOrdersKeys.materialOrders(safeId),
+    queryFn: () => fetchProjectMaterialOrders(safeId),
+    enabled,
+  });
+  const toolOrdersQuery = useQuery({
+    queryKey: projectOrdersKeys.toolOrders(safeId),
+    queryFn: () => fetchProjectToolOrders(safeId),
+    enabled,
+  });
+
+  // ── Local UI state (form, modals, search, cart) ──
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [orderForm, setOrderForm] = useState({ material_id: "", ilosc: "", uwagi: "" });
-  const [orderSaving, setOrderSaving] = useState(false);
   const [orderMatSearch, setOrderMatSearch] = useState("");
   const [orderCart, setOrderCart] = useState<Record<string, string>>({});
-
-  // Tool orders state
   const [orderSubTab, setOrderSubTab] = useState<"materials" | "tools">("materials");
-  const [toolsList, setToolsList] = useState<ToolRow[]>([]);
-  const [projectToolOrders, setProjectToolOrders] = useState<ToolOrder[]>([]);
   const [showToolOrderModal, setShowToolOrderModal] = useState(false);
-  const [toolOrderSaving, setToolOrderSaving] = useState(false);
   const [toolOrderSearch, setToolOrderSearch] = useState("");
   const [toolOrderCart, setToolOrderCart] = useState<Record<string, string>>({});
 
-  const fetchMaterialsAndOrders = async () => {
-    if (!projectId) return;
-    try {
-      const { data: mats } = await supabaseAdmin.from("warehouse_materials").select("*").order("nazwa");
-      setMaterialsList(mats || []);
-      const { data: ords, error: ordErr } = await supabaseAdmin.from("project_material_orders")
-        .select("*, material:warehouse_materials(nazwa, art_nr, dlugosc, szerokosc, wysokosc, waga)")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false });
-      if (ordErr) { console.error("Orders fetch error:", ordErr); setProjectOrders([]); return; }
-      const ordsTyped = (ords ?? []) as MaterialOrder[];
-      const userIds = [...new Set(ordsTyped.map((o) => o.ordered_by).filter((id): id is string => Boolean(id)))];
-      const profileMap = await fetchProfileMap(userIds);
-      const enriched = ordsTyped.map((o) => ({
-        ...o,
-        ordered_by_profile: { full_name: o.ordered_by ? profileMap[o.ordered_by] ?? null : null },
-      }));
-      setProjectOrders(enriched);
-    } catch (e) {
-      console.error("Error fetching materials/orders:", e);
-    }
-  };
+  // ── Mutations ──
 
-  const submitOrder = async () => {
-    if (!projectId || !orderForm.material_id || !orderForm.ilosc) return;
-    setOrderSaving(true);
-    try {
+  const submitOrderMutation = useMutation({
+    mutationFn: async (form: { material_id: string; ilosc: string; uwagi: string }) => {
       const { error } = await supabaseAdmin.from("project_material_orders").insert({
-        project_id: projectId,
-        material_id: orderForm.material_id,
-        ilosc: parseFloat(orderForm.ilosc),
-        uwagi: orderForm.uwagi.trim() || null,
+        project_id: safeId,
+        material_id: form.material_id,
+        ilosc: parseFloat(form.ilosc),
+        uwagi: form.uwagi.trim() || null,
         ordered_by: userId,
         status: "pending",
       });
       if (error) throw error;
+    },
+    onSuccess: () => {
       setShowOrderModal(false);
       setOrderForm({ material_id: "", ilosc: "", uwagi: "" });
       setOrderCart({});
-      fetchMaterialsAndOrders();
+      qc.invalidateQueries({ queryKey: projectOrdersKeys.materialOrders(safeId) });
       const msg = t("projects.order_created", "Bestellung erstellt");
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.success"), msg);
-    } catch (e) {
+    },
+    onError: (e) => {
       console.error("Error creating order:", e);
       const msg = t("common.error");
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(msg);
-    } finally {
-      setOrderSaving(false);
-    }
-  };
+    },
+  });
 
-  const submitCartOrders = async () => {
-    if (!projectId) return;
-    const entries = Object.entries(orderCart).filter(([_, qty]) => parseFloat(qty) > 0);
-    if (entries.length === 0) {
-      const msg = "Bitte mindestens ein Material mit Menge auswählen";
-      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
-      return;
-    }
-    setOrderSaving(true);
-    try {
+  const submitCartOrdersMutation = useMutation({
+    mutationFn: async (entries: [string, string][]) => {
       const rows = entries.map(([matId, qty]) => ({
-        project_id: projectId,
+        project_id: safeId,
         material_id: matId,
         ilosc: parseFloat(qty),
         uwagi: null,
@@ -160,58 +211,29 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
       }));
       const { error } = await supabaseAdmin.from("project_material_orders").insert(rows);
       if (error) throw error;
+      return entries.length;
+    },
+    onSuccess: (count) => {
       setShowOrderModal(false);
       setOrderCart({});
       setOrderMatSearch("");
-      fetchMaterialsAndOrders();
-      const msg = `${entries.length} Bestellung(en) erstellt`;
+      qc.invalidateQueries({ queryKey: projectOrdersKeys.materialOrders(safeId) });
+      const msg = `${count} Bestellung(en) erstellt`;
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.success"), msg);
-    } catch (e) {
+    },
+    onError: (e) => {
       console.error("Error creating orders:", e);
       const msg = t("common.error");
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(msg);
-    } finally {
-      setOrderSaving(false);
-    }
-  };
+    },
+  });
 
-  const fetchToolsAndOrders = async () => {
-    if (!projectId) return;
-    try {
-      const { data: tools } = await supabaseAdmin.from("warehouse_items").select("*").order("beschreibung");
-      setToolsList(tools || []);
-      const { data: ords, error: ordErr } = await supabaseAdmin.from("project_tool_orders")
-        .select("*, tool:warehouse_items(beschreibung, art_nr, hersteller, kategorie, serial_nummer)")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false });
-      if (ordErr) { console.error("Tool orders fetch error:", ordErr); setProjectToolOrders([]); return; }
-      const ordsTyped = (ords ?? []) as MaterialOrder[];
-      const userIds = [...new Set(ordsTyped.map((o) => o.ordered_by).filter((id): id is string => Boolean(id)))];
-      const profileMap = await fetchProfileMap(userIds);
-      const enriched = ordsTyped.map((o) => ({
-        ...o,
-        ordered_by_profile: { full_name: o.ordered_by ? profileMap[o.ordered_by] ?? null : null },
-      }));
-      setProjectToolOrders(enriched);
-    } catch (e) {
-      console.error("Error fetching tools/orders:", e);
-    }
-  };
-
-  const submitToolCartOrders = async () => {
-    if (!projectId) return;
-    const entries = Object.entries(toolOrderCart).filter(([_, qty]) => parseFloat(qty) > 0);
-    if (entries.length === 0) {
-      const msg = "Bitte mindestens ein Werkzeug mit Menge auswählen";
-      Platform.OS === "web" ? window.alert(msg) : Alert.alert(t("common.error"), msg);
-      return;
-    }
-    setToolOrderSaving(true);
-    try {
+  const submitToolCartOrdersMutation = useMutation({
+    mutationFn: async (entries: [string, string][]) => {
       const rows = entries.map(([toolId, qty]) => ({
-        project_id: projectId,
+        project_id: safeId,
         tool_id: toolId,
         ilosc: parseFloat(qty),
         uwagi: null,
@@ -220,42 +242,82 @@ export function useProjectOrders(projectId: string | undefined, userId: string |
       }));
       const { error } = await supabaseAdmin.from("project_tool_orders").insert(rows);
       if (error) throw error;
+      return entries.length;
+    },
+    onSuccess: (count) => {
       setShowToolOrderModal(false);
       setToolOrderCart({});
       setToolOrderSearch("");
-      fetchToolsAndOrders();
-      const msg = `${entries.length} Werkzeugbestellung(en) erstellt`;
+      qc.invalidateQueries({ queryKey: projectOrdersKeys.toolOrders(safeId) });
+      const msg = `${count} Werkzeugbestellung(en) erstellt`;
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.success"), msg);
-    } catch (e) {
+    },
+    onError: (e) => {
       console.error("Error creating tool orders:", e);
       const msg = t("common.error");
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(msg);
-    } finally {
-      setToolOrderSaving(false);
+    },
+  });
+
+  // ── Action wrappers (zachowuje API hooka) ──
+
+  const fetchMaterialsAndOrders = async () => {
+    await Promise.all([materialsQuery.refetch(), materialOrdersQuery.refetch()]);
+  };
+  const fetchToolsAndOrders = async () => {
+    await Promise.all([toolsQuery.refetch(), toolOrdersQuery.refetch()]);
+  };
+
+  const submitOrder = () => {
+    if (!safeId || !orderForm.material_id || !orderForm.ilosc) return;
+    submitOrderMutation.mutate(orderForm);
+  };
+
+  const submitCartOrders = () => {
+    if (!safeId) return;
+    const entries = Object.entries(orderCart).filter(([_, qty]) => parseFloat(qty) > 0) as [string, string][];
+    if (entries.length === 0) {
+      const msg = "Bitte mindestens ein Material mit Menge auswählen";
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert(t("common.error"), msg);
+      return;
     }
+    submitCartOrdersMutation.mutate(entries);
+  };
+
+  const submitToolCartOrders = () => {
+    if (!safeId) return;
+    const entries = Object.entries(toolOrderCart).filter(([_, qty]) => parseFloat(qty) > 0) as [string, string][];
+    if (entries.length === 0) {
+      const msg = "Bitte mindestens ein Werkzeug mit Menge auswählen";
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert(t("common.error"), msg);
+      return;
+    }
+    submitToolCartOrdersMutation.mutate(entries);
   };
 
   return {
-    // Material orders
-    materialsList,
-    projectOrders,
+    // ── Material orders ──
+    materialsList: materialsQuery.data ?? [],
+    projectOrders: materialOrdersQuery.data ?? [],
     showOrderModal, setShowOrderModal,
     orderForm, setOrderForm,
-    orderSaving,
+    orderSaving: submitOrderMutation.isPending || submitCartOrdersMutation.isPending,
     orderMatSearch, setOrderMatSearch,
     orderCart, setOrderCart,
     fetchMaterialsAndOrders,
     submitOrder,
     submitCartOrders,
 
-    // Tool orders
+    // ── Tool orders ──
     orderSubTab, setOrderSubTab,
-    toolsList,
-    projectToolOrders,
+    toolsList: toolsQuery.data ?? [],
+    projectToolOrders: toolOrdersQuery.data ?? [],
     showToolOrderModal, setShowToolOrderModal,
-    toolOrderSaving,
+    toolOrderSaving: submitToolCartOrdersMutation.isPending,
     toolOrderSearch, setToolOrderSearch,
     toolOrderCart, setToolOrderCart,
     fetchToolsAndOrders,
