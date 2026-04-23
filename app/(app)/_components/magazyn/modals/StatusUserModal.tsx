@@ -3,8 +3,9 @@
  * Wydzielony z magazyn.tsx (Faza 2 step 5).
  */
 import { Ionicons } from "@expo/vector-icons";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { FlatList, Modal, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { useWarehouseTools } from "@/src/hooks/useWarehouseTools";
 import { useTheme } from "@/src/providers/ThemeProvider";
@@ -27,6 +28,11 @@ export function StatusUserModal({ tools, allUsers }: Props) {
     assignStatusToUser,
     showModal, form,
   } = tools;
+
+  const filteredUsers = useMemo(
+    () => allUsers.filter((u) => !statusUserSearch.trim() || u.full_name.toLowerCase().includes(statusUserSearch.toLowerCase())),
+    [allUsers, statusUserSearch],
+  );
 
   return (
     <Modal visible={showStatusUserModal} transparent animationType="fade" onRequestClose={() => setShowStatusUserModal(false)}>
@@ -51,30 +57,34 @@ export function StatusUserModal({ tools, allUsers }: Props) {
               onChangeText={setStatusUserSearch}
             />
           </View>
-          <ScrollView style={{ maxHeight: 350 }}>
-            <TouchableOpacity
-              style={{ flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: 1, borderBottomColor: tc.border || "#e2e8f0", gap: 10 }}
-              onPress={() => assignStatusToUser(null)}
-            >
-              <Ionicons name="close-circle-outline" size={22} color="#ef4444" />
-              <Text style={{ fontSize: 14, color: "#ef4444", fontWeight: "600" }}>{t("magazyn.no_assignment")}</Text>
-            </TouchableOpacity>
-            {allUsers
-              .filter((u) => !statusUserSearch.trim() || u.full_name.toLowerCase().includes(statusUserSearch.toLowerCase()))
-              .map((u) => {
-                const isSelected = showModal ? form.assigned_to === u.id : statusUserItem?.assigned_to === u.id;
-                return (
-                  <TouchableOpacity
-                    key={u.id}
-                    style={{ flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: 1, borderBottomColor: tc.border || "#e2e8f0", gap: 10, backgroundColor: isSelected ? "#2563eb10" : "transparent" }}
-                    onPress={() => assignStatusToUser(u.id)}
-                  >
-                    <Ionicons name={isSelected ? "checkmark-circle" : "person-outline"} size={22} color={isSelected ? "#2563eb" : tc.textSecondary} />
-                    <Text style={{ fontSize: 14, color: isSelected ? "#2563eb" : tc.text, fontWeight: isSelected ? "700" : "400" }}>{u.full_name}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-          </ScrollView>
+          <FlatList
+            style={{ maxHeight: 350 }}
+            data={filteredUsers}
+            keyExtractor={(u) => u.id}
+            initialNumToRender={20}
+            removeClippedSubviews
+            ListHeaderComponent={
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: 1, borderBottomColor: tc.border || "#e2e8f0", gap: 10 }}
+                onPress={() => assignStatusToUser(null)}
+              >
+                <Ionicons name="close-circle-outline" size={22} color="#ef4444" />
+                <Text style={{ fontSize: 14, color: "#ef4444", fontWeight: "600" }}>{t("magazyn.no_assignment")}</Text>
+              </TouchableOpacity>
+            }
+            renderItem={({ item: u }) => {
+              const isSelected = showModal ? form.assigned_to === u.id : statusUserItem?.assigned_to === u.id;
+              return (
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: 1, borderBottomColor: tc.border || "#e2e8f0", gap: 10, backgroundColor: isSelected ? "#2563eb10" : "transparent" }}
+                  onPress={() => assignStatusToUser(u.id)}
+                >
+                  <Ionicons name={isSelected ? "checkmark-circle" : "person-outline"} size={22} color={isSelected ? "#2563eb" : tc.textSecondary} />
+                  <Text style={{ fontSize: 14, color: isSelected ? "#2563eb" : tc.text, fontWeight: isSelected ? "700" : "400" }}>{u.full_name}</Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
         </View>
       </View>
     </Modal>

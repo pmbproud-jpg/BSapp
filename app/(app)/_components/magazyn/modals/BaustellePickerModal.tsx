@@ -3,8 +3,9 @@
  * Wydzielony z magazyn.tsx (Faza 2 step 5).
  */
 import { Ionicons } from "@expo/vector-icons";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { FlatList, Modal, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import type { useWarehouseTools } from "@/src/hooks/useWarehouseTools";
 import { useTheme } from "@/src/providers/ThemeProvider";
@@ -28,6 +29,14 @@ export function BaustellePickerModal({ tools, allProjects }: Props) {
     baustelleSearch, setBaustelleSearch,
     form, setForm,
   } = tools;
+
+  const filteredProjects = useMemo(
+    () => allProjects.filter((p) => !baustelleSearch.trim()
+      || p.name.toLowerCase().includes(baustelleSearch.toLowerCase())
+      || (p.project_number || "").toLowerCase().includes(baustelleSearch.toLowerCase())
+      || (p.location || "").toLowerCase().includes(baustelleSearch.toLowerCase())),
+    [allProjects, baustelleSearch],
+  );
 
   return (
     <Modal visible={showBaustellePicker} transparent animationType="fade" onRequestClose={() => setShowBaustellePicker(false)}>
@@ -54,30 +63,32 @@ export function BaustellePickerModal({ tools, allProjects }: Props) {
               </TouchableOpacity>
             )}
           </View>
-          <ScrollView style={{ flex: 1 }}>
-            {allProjects
-              .filter((p) => !baustelleSearch.trim() || p.name.toLowerCase().includes(baustelleSearch.toLowerCase()) || (p.project_number || "").toLowerCase().includes(baustelleSearch.toLowerCase()) || (p.location || "").toLowerCase().includes(baustelleSearch.toLowerCase()))
-              .map((p) => {
-                const label = p.project_number ? `${p.project_number} – ${p.name}` : p.name;
-                const isSelected = form.baustelle === label || form.baustelle === p.name;
-                return (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={{ flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: 1, borderBottomColor: tc.border || "#e2e8f0", gap: 10, backgroundColor: isSelected ? "#10b98110" : "transparent" }}
-                    onPress={() => { setForm((prev) => ({ ...prev, baustelle: label })); setShowBaustellePicker(false); }}
-                  >
-                    <Ionicons name={isSelected ? "checkmark-circle" : "business-outline"} size={22} color={isSelected ? "#10b981" : tc.textSecondary} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, color: isSelected ? "#10b981" : tc.text, fontWeight: isSelected ? "700" : "500" }}>{label}</Text>
-                      {p.location ? <Text style={{ fontSize: 11, color: tc.textMuted, marginTop: 2 }}>{p.location}</Text> : null}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            {allProjects.length === 0 && (
+          <FlatList
+            style={{ flex: 1 }}
+            data={filteredProjects}
+            keyExtractor={(p) => p.id}
+            initialNumToRender={20}
+            removeClippedSubviews
+            ListEmptyComponent={
               <Text style={{ textAlign: "center", color: tc.textMuted, paddingVertical: 20 }}>{t("magazyn.no_sites")}</Text>
-            )}
-          </ScrollView>
+            }
+            renderItem={({ item: p }) => {
+              const label = p.project_number ? `${p.project_number} – ${p.name}` : p.name;
+              const isSelected = form.baustelle === label || form.baustelle === p.name;
+              return (
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: 1, borderBottomColor: tc.border || "#e2e8f0", gap: 10, backgroundColor: isSelected ? "#10b98110" : "transparent" }}
+                  onPress={() => { setForm((prev) => ({ ...prev, baustelle: label })); setShowBaustellePicker(false); }}
+                >
+                  <Ionicons name={isSelected ? "checkmark-circle" : "business-outline"} size={22} color={isSelected ? "#10b981" : tc.textSecondary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, color: isSelected ? "#10b981" : tc.text, fontWeight: isSelected ? "700" : "500" }}>{label}</Text>
+                    {p.location ? <Text style={{ fontSize: 11, color: tc.textMuted, marginTop: 2 }}>{p.location}</Text> : null}
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+          />
         </View>
       </View>
     </Modal>
