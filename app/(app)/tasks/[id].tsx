@@ -23,6 +23,7 @@ import {
 
 import { EditTaskModal } from "../_components/tasks/EditTaskModal";
 import { styles } from "../_components/tasks/styles";
+import { TaskCommentsSection } from "../_components/tasks/TaskCommentsSection";
 
 // Task enriched in fetchTask() z profili (created_by_user, edited_by_user,
 // assigned_by_user) oraz listą imion all_assignees.
@@ -90,11 +91,6 @@ export default function TaskDetailsScreen() {
   const [translatedTitle, setTranslatedTitle] = useState("");
   const [translatedDesc, setTranslatedDesc] = useState("");
   const [translateDir, setTranslateDir] = useState<"pl|de" | "de|pl">("pl|de");
-
-  // Translation state (comments)
-  const [commentTranslations, setCommentTranslations] = useState<Record<string, string>>({});
-  const [commentTranslatingId, setCommentTranslatingId] = useState<string | null>(null);
-  const [commentTranslateDir, setCommentTranslateDir] = useState<"pl|de" | "de|pl">("pl|de");
 
   // Pin link state
   const [linkedPin, setLinkedPin] = useState<PlanPinLite | null>(null);
@@ -853,99 +849,14 @@ export default function TaskDetailsScreen() {
         </View>
 
         {/* Comments Section */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>{t("tasks.comments")}</Text>
-
-          {comments.length > 0 && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <Ionicons name="language" size={16} color="#64748b" />
-              <TouchableOpacity
-                style={{ backgroundColor: commentTranslateDir === "pl|de" ? "#2563eb" : "#f1f5f9", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 }}
-                onPress={() => { setCommentTranslateDir("pl|de"); setCommentTranslations({}); }}
-              >
-                <Text style={{ fontSize: 11, fontWeight: "600", color: commentTranslateDir === "pl|de" ? "#fff" : "#64748b" }}>PL → DE</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ backgroundColor: commentTranslateDir === "de|pl" ? "#2563eb" : "#f1f5f9", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 }}
-                onPress={() => { setCommentTranslateDir("de|pl"); setCommentTranslations({}); }}
-              >
-                <Text style={{ fontSize: 11, fontWeight: "600", color: commentTranslateDir === "de|pl" ? "#fff" : "#64748b" }}>DE → PL</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {comments.length === 0 ? (
-            <Text style={styles.emptyText}>{t("tasks.no_comments")}</Text>
-          ) : (
-            comments.map((comment) => (
-              <View key={comment.id} style={styles.comment}>
-                <View style={styles.commentHeader}>
-                  <Text style={styles.commentAuthor}>
-                    {comment.profiles?.full_name || "Unknown"}
-                  </Text>
-                  <Text style={styles.commentDate}>
-                    {new Date(comment.created_at).toLocaleDateString()}
-                  </Text>
-                </View>
-                <Text style={styles.commentText}>{comment.comment}</Text>
-                {commentTranslations[comment.id] ? (
-                  <View style={{ backgroundColor: "#f0fdf4", borderRadius: 6, padding: 8, marginTop: 6, borderWidth: 1, borderColor: "#bbf7d0" }}>
-                    <Text style={{ fontSize: 10, fontWeight: "700", color: "#166534", marginBottom: 2 }}>
-                      {commentTranslateDir === "pl|de" ? "DE:" : "PL:"}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: "#166534" }}>{commentTranslations[comment.id]}</Text>
-                  </View>
-                ) : null}
-                <TouchableOpacity
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4, alignSelf: "flex-start" }}
-                  disabled={commentTranslatingId === comment.id}
-                  onPress={async () => {
-                    setCommentTranslatingId(comment.id);
-                    try {
-                      const result = await translateText(comment.comment, commentTranslateDir);
-                      setCommentTranslations((prev) => ({ ...prev, [comment.id]: result }));
-                    } catch (e) { console.error("Comment translation error:", e); }
-                    finally { setCommentTranslatingId(null); }
-                  }}
-                >
-                  {commentTranslatingId === comment.id ? (
-                    <ActivityIndicator size="small" color="#2563eb" />
-                  ) : (
-                    <Ionicons name="swap-horizontal" size={14} color="#2563eb" />
-                  )}
-                  <Text style={{ fontSize: 11, color: "#2563eb", fontWeight: "500" }}>
-                    {commentTranslations[comment.id] ? "↻" : "Übersetzen"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ))
-          )}
-
-          {canComment && (
-            <View style={styles.addComment}>
-              <TextInput
-                style={styles.commentInput}
-                value={newComment}
-                onChangeText={setNewComment}
-                placeholder={t("tasks.add_comment")}
-                placeholderTextColor="#94a3b8"
-                multiline
-                maxLength={2000}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.commentButton,
-                  (!newComment.trim() || submittingComment) &&
-                    styles.commentButtonDisabled,
-                ]}
-                onPress={addComment}
-                disabled={!newComment.trim() || submittingComment}
-              >
-                <Ionicons name="send" size={20} color="#ffffff" />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        <TaskCommentsSection
+          comments={comments}
+          newComment={newComment}
+          setNewComment={setNewComment}
+          submittingComment={submittingComment}
+          canComment={canComment}
+          onAddComment={addComment}
+        />
 
         <View style={{ height: 40 }} />
       </ScrollView>
