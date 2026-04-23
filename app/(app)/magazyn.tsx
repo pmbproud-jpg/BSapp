@@ -11,6 +11,7 @@ import {
 import { usePermissions } from "@/src/hooks/usePermissions";
 import { useWarehouseMaterials } from "@/src/hooks/useWarehouseMaterials";
 import { useWarehouseOrders } from "@/src/hooks/useWarehouseOrders";
+import { useWarehouseRealtime } from "@/src/hooks/useWarehouseRealtime";
 import { useWarehouseTools } from "@/src/hooks/useWarehouseTools";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { supabase } from "@/src/lib/supabase/client";
@@ -51,6 +52,10 @@ export default function MagazynScreen() {
   const tools = useWarehouseTools(profile?.id ?? undefined, allUsers, t);
   const mats = useWarehouseMaterials(profile?.id ?? undefined, profile?.full_name ?? undefined, t);
   const orders = useWarehouseOrders(t);
+
+  // Realtime: invaliduj cache magazynowe gdy ktos inny zmieni warehouse_*
+  // lub project_*_orders. Wymaga publication enabled w bazie.
+  useWarehouseRealtime();
 
   // Z hookow uzywamy tylko: badge countery (items/materials/allOrders),
   // refresh + loadX, detail-view selection + edit/delete callbacks.

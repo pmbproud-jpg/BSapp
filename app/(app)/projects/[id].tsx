@@ -7,6 +7,7 @@ import { useProjectEdit } from "@/src/hooks/useProjectEdit";
 import { useProjectMembers } from "@/src/hooks/useProjectMembers";
 import { useProjectOrders } from "@/src/hooks/useProjectOrders";
 import { useProjectPlanWorkers } from "@/src/hooks/useProjectPlanWorkers";
+import { useProjectRealtime } from "@/src/hooks/useProjectRealtime";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { useNotifications } from "@/src/providers/NotificationProvider";
@@ -101,6 +102,11 @@ export default function ProjectDetailsScreen() {
     planWorkers,
     fetchPlanWorkers, openAddPlanWorkerModal,
   } = planWorkersHook;
+
+  // Realtime: invaliduj cache projektowe gdy ktos inny zrobi UPDATE/INSERT/DELETE
+  // w tabelach project_*. Dziala tylko gdy odpowiednie tabele sa w publication
+  // supabase_realtime (migracja 20260423_enable_realtime_publications.sql).
+  useProjectRealtime(id);
 
   // ─── Local UI state ───
   const [activeTab, setActiveTab] = useState<"tasks" | "members" | "history" | "orders" | "plans" | "diary" | "checklist" | "obstructions" | "deadlines">(
