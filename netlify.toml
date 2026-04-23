@@ -5,12 +5,14 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  EXPO_PUBLIC_SUPABASE_URL = "https://ocdcvjpmgwsymuhtnhqc.supabase.co"
-  EXPO_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_giNAWm5tIonGPbTPPATy_A_hhZweuxu"
-  EXPO_PUBLIC_SITE_URL = "https://bsapp-management.netlify.app"
-  # WAŻNE: SUPABASE_SERVICE_ROLE_KEY (bez prefiksu EXPO_PUBLIC_) musi być ustawiony
-  # w Netlify Dashboard → Site settings → Environment variables.
-  # NIE dodawać go tutaj — byłby wbudowany w bundle frontendowy!
+  # UWAGA: env vars dla SUPABASE wczytywane z Netlify Dashboard ->
+  # Site settings -> Environment variables. NIE hardcodowac tutaj
+  # bo: (a) klucz wpada do bundla po rotacji = uniewazniony klucz
+  # zostaje na produkcji, (b) toml jest commitowany do git -- secret leak.
+  # Konfigurowane w Dashboard: EXPO_PUBLIC_SUPABASE_URL,
+  # EXPO_PUBLIC_SUPABASE_ANON_KEY, EXPO_PUBLIC_SITE_URL,
+  # SUPABASE_SERVICE_ROLE_KEY (bez prefiksu EXPO_PUBLIC_),
+  # SUPABASE_URL i SUPABASE_ANON_KEY (dla Netlify Functions).
 
 [[redirects]]
   from = "/*"
