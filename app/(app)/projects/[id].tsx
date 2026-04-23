@@ -52,7 +52,7 @@ export default function ProjectDetailsScreen() {
   // ─── Hooks danych ───
   const projectData = useProjectData(id, profile?.id, t);
   const {
-    project, setProject, tasks, setTasks, attachments, history, loading,
+    project, tasks, attachments, history, loading,
     pmName, blName,
     folders, openFolderId, setOpenFolderId, folderAttachments,
     showNewFolderInput, setShowNewFolderInput, newFolderName, setNewFolderName,
