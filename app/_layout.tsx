@@ -2,11 +2,13 @@ import React, { useEffect, useState, Component } from "react";
 import { ActivityIndicator, View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Stack, useRouter, useSegments } from "expo-router";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "../src/providers/AuthProvider";
 import { ThemeProvider } from "../src/providers/ThemeProvider";
 import { NotificationProvider } from "../src/providers/NotificationProvider";
 import { CompanyProvider } from "../src/providers/CompanyProvider";
 import i18n, { initI18n } from "../src/i18n";
+import { queryClient } from "../src/lib/queryClient";
 import UpdateChecker from "../src/components/UpdateChecker";
 
 // ErrorBoundary — łapie błędy React i pokazuje ekran awaryjny zamiast crashu
@@ -102,17 +104,19 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <NotificationProvider>
-              <CompanyProvider>
-                <RootLayoutNav />
-              </CompanyProvider>
-            </NotificationProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <NotificationProvider>
+                <CompanyProvider>
+                  <RootLayoutNav />
+                </CompanyProvider>
+              </NotificationProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }
