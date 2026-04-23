@@ -26,6 +26,7 @@ import type { ThemeColors } from "@/src/providers/ThemeProvider";
 
 import { MobilePlanZoomView } from "../_components/projectPlans/MobilePlanZoomView";
 import { PdfRenderer } from "../_components/projectPlans/PdfRenderer";
+import { PlanListView } from "../_components/projectPlans/PlanListView";
 
 // ─── Types ───────────────────────────────────────────────────
 type Plan = {
@@ -416,97 +417,15 @@ export default function ProjectPlans({ projectId, workers, onTaskCreated, onBack
   // ─── RENDER: Plan List ──────────────────────────────────────
   if (showPlanList || !selectedPlan) {
     return (
-      <View style={{ flex: 1 }}>
-        {/* Header */}
-        <View style={{ marginBottom: 16 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
-            {onBack && (
-              <TouchableOpacity onPress={onBack} style={{ padding: 4 }}>
-                <Ionicons name="arrow-back" size={22} color={tc.text} />
-              </TouchableOpacity>
-            )}
-            <Text style={{ fontSize: 18, fontWeight: "700", color: tc.text }}>
-              <Ionicons name="map-outline" size={20} color={tc.primary} /> {t("plans.title", "Plany budowlane")}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: tc.primary, paddingVertical: 14, borderRadius: 12, shadowColor: tc.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }}
-            onPress={() => setShowUploadModal(true)}
-          >
-            <Ionicons name="cloud-upload-outline" size={22} color="#fff" />
-            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{t("plans.upload", "Dodaj plan")}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {loadingPlans ? (
-          <ActivityIndicator size="large" color={tc.primary} style={{ marginTop: 40 }} />
-        ) : plans.length === 0 ? (
-          <View style={{ alignItems: "center", paddingVertical: 40, paddingHorizontal: 24 }}>
-            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: tc.primary + "15", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
-              <Ionicons name="map-outline" size={40} color={tc.primary} />
-            </View>
-            <Text style={{ color: tc.text, fontSize: 18, fontWeight: "700", marginBottom: 6 }}>{t("plans.no_plans", "Brak planów")}</Text>
-            <Text style={{ color: tc.textMuted, fontSize: 14, textAlign: "center", marginBottom: 20 }}>{t("plans.upload_hint", "Dodaj plan PDF lub zdjęcie")}</Text>
-            <TouchableOpacity
-              style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: tc.primary, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14, shadowColor: tc.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 5 }}
-              onPress={() => setShowUploadModal(true)}
-            >
-              <Ionicons name="cloud-upload-outline" size={24} color="#fff" />
-              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 17 }}>{t("plans.upload", "Dodaj plan")}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          plans.map((plan) => (
-            <TouchableOpacity
-              key={plan.id}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: isDark ? tc.surface : "#fff",
-                borderRadius: 12,
-                padding: 14,
-                marginBottom: 10,
-                borderWidth: 1,
-                borderColor: tc.border,
-              }}
-              onPress={() => { setSelectedPlan(plan); setShowPlanList(false); }}
-            >
-              {plan.file_type === "image" ? (
-                <Image
-                  source={{ uri: plan.file_url }}
-                  style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: tc.surfaceVariant }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: "#fee2e2", alignItems: "center", justifyContent: "center" }}>
-                  <Ionicons name="document-text" size={28} color="#ef4444" />
-                  <Text style={{ fontSize: 9, color: "#ef4444", fontWeight: "700" }}>PDF</Text>
-                </View>
-              )}
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={{ fontSize: 15, fontWeight: "700", color: tc.text }}>{plan.name}</Text>
-                {plan.floor_level ? (
-                  <Text style={{ fontSize: 12, color: tc.textSecondary, marginTop: 2 }}>
-                    <Ionicons name="layers-outline" size={12} /> {plan.floor_level}
-                  </Text>
-                ) : null}
-                {plan.description ? (
-                  <Text style={{ fontSize: 12, color: tc.textMuted, marginTop: 2 }} numberOfLines={1}>{plan.description}</Text>
-                ) : null}
-                <Text style={{ fontSize: 11, color: tc.textMuted, marginTop: 4 }}>
-                  v{plan.version} · {new Date(plan.created_at).toLocaleDateString()}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => deletePlan(plan.id)} style={{ padding: 8 }}>
-                <Ionicons name="trash-outline" size={18} color="#ef4444" />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))
-        )}
-
-        {/* Upload Modal */}
-        {renderUploadModal()}
-      </View>
+      <PlanListView
+        plans={plans}
+        loadingPlans={loadingPlans}
+        onSelectPlan={(plan) => { setSelectedPlan(plan); setShowPlanList(false); }}
+        onDelete={deletePlan}
+        onUpload={() => setShowUploadModal(true)}
+        onBack={onBack}
+        uploadModal={renderUploadModal()}
+      />
     );
   }
 
