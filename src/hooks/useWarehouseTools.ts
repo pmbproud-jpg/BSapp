@@ -2,15 +2,29 @@
  * Hook zarządzający narzędziami magazynowymi (warehouse_items):
  * CRUD, import/export Excel, przypisanie statusu/użytkownika, notatki/uszkodzenia.
  * Wydzielony z magazyn.tsx.
+ *
+ * Faza 3: migracja na TanStack Query v5.
+ * - 1 useQuery: items (enriched z assigned_to_profile)
+ * - 5 useMutation: saveItem, deleteItem, importBatch, assignStatusToUser, saveNotes
+ *
+ * Klucz cache: warehouseToolsKey = ["warehouse", "items", "enriched"] (osobny
+ * od warehouseKeys.tools w useProjectOrders bo inny shape -- enriched profile).
+ * Mutations invalidate OBA klucze (modyfikuja ten sam table).
+ *
+ * Sygnatura zewnetrzna zachowana. loading/saving/importLoading/notesSaving
+ * teraz pochodza z useQuery.isPending / useMutation.isPending.
  */
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import { fetchProfileMap } from "@/src/services/profileService";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+// expo-file-system v19+ ma nowe File API; legacy daje stare readAsStringAsync/writeAsStringAsync/documentDirectory
+import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
+import { warehouseKeys } from "./useProjectOrders";
 
 type ExcelCell = string | number | boolean | null | undefined;
 
@@ -65,20 +79,48 @@ export const FIELDS: { key: keyof typeof EMPTY_FORM; label: string; labelDE: str
   { key: "wartungstermine", label: "Wartungstermine 2026", labelDE: "Wartungstermine 2026" },
 ];
 
+export const warehouseToolsKey = ["warehouse", "items", "enriched"] as const;
+
+async function fetchEnrichedTools(): Promise<WarehouseItem[]> {
+  const { data, error } = await supabaseAdmin.from("warehouse_items")
+    .select("*")
+    .order("iv_pds", { ascending: true });
+  if (error) throw error;
+  const rows = (data ?? []) as WarehouseItem[];
+  const assignedIds = [...new Set(rows.map((i) => i.assigned_to).filter((id): id is string => Boolean(id)))];
+  const profileMap = await fetchProfileMap(assignedIds);
+  return rows.map((i) => ({
+    ...i,
+    assigned_to_profile: i.assigned_to ? { full_name: profileMap[i.assigned_to] || null } : null,
+  }));
+}
+
 export function useWarehouseTools(
   profileId: string | undefined,
   allUsers: { id: string; full_name: string }[],
   t: TFunction,
 ) {
-  const [items, setItems] = useState<WarehouseItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+
+  // Helper -- invalidate obu kluczy (enriched + raw z useProjectOrders)
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: warehouseToolsKey });
+    qc.invalidateQueries({ queryKey: warehouseKeys.tools() });
+  };
+
+  // ── Query: enriched items ──
+  const itemsQuery = useQuery({
+    queryKey: warehouseToolsKey,
+    queryFn: fetchEnrichedTools,
+  });
+  const items = itemsQuery.data ?? [];
+
+  // ── Local UI state (modale, search, sort, filter) ──
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
-  const [importLoading, setImportLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<WarehouseItem | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [saving, setSaving] = useState(false);
   const [selectedItem, setSelectedItem] = useState<WarehouseItem | null>(null);
 
   // Sorting & filtering
@@ -101,37 +143,140 @@ export function useWarehouseTools(
   const [notesItem, setNotesItem] = useState<WarehouseItem | null>(null);
   const [notesText, setNotesText] = useState("");
   const [notesDamaged, setNotesDamaged] = useState(false);
-  const [notesSaving, setNotesSaving] = useState(false);
 
   // Baustelle picker
   const [showBaustellePicker, setShowBaustellePicker] = useState(false);
   const [baustelleSearch, setBaustelleSearch] = useState("");
 
-  // ── DATA ──
-  const loadData = async () => {
-    try {
-      const { data, error } = await supabaseAdmin.from("warehouse_items")
-        .select("*")
-        .order("iv_pds", { ascending: true });
+  // ── Mutations ──
+
+  const saveItemMutation = useMutation({
+    mutationFn: async ({ payload, editing }: { payload: Record<string, unknown>; editing: WarehouseItem | null }) => {
+      if (editing) {
+        const { error } = await supabaseAdmin.from("warehouse_items").update(payload).eq("id", editing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabaseAdmin.from("warehouse_items").insert({ ...payload, created_by: profileId || null });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      setShowModal(false);
+      invalidateAll();
+    },
+    onError: (e) => {
+      console.error("Error saving item:", e);
+      const msg = t("common.error");
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert(msg);
+    },
+  });
+
+  const deleteItemMutation = useMutation({
+    mutationFn: async (item: WarehouseItem) => {
+      const { error } = await supabaseAdmin.from("warehouse_items").delete().eq("id", item.id);
       if (error) throw error;
-      // Enrich with assigned_to profile names
-      const rows = (data ?? []) as WarehouseItem[];
-      const assignedIds = [...new Set(rows.map((i) => i.assigned_to).filter((id): id is string => Boolean(id)))];
-      const profileMap = await fetchProfileMap(assignedIds);
-      const enriched = rows.map((i) => ({
-        ...i,
-        assigned_to_profile: i.assigned_to ? { full_name: profileMap[i.assigned_to] || null } : null,
+    },
+    onSuccess: () => {
+      setSelectedItem(null);
+      invalidateAll();
+    },
+    onError: (e) => console.error("Error deleting item:", e),
+  });
+
+  const importBatchMutation = useMutation({
+    mutationFn: async (rows: ExcelCell[][]) => {
+      const dataRows = rows.slice(1).filter((r) => r.length > 0 && r.some((c) => c != null && c !== ""));
+      if (dataRows.length === 0) throw new Error("EMPTY");
+
+      const itemsToInsert = dataRows.map((row) => ({
+        iv_pds: row[0] != null ? String(row[0]) : null,
+        menge: row[1] != null ? String(row[1]) : null,
+        beschreibung: row[2] != null ? String(row[2]) : null,
+        serial_nummer: row[3] != null ? String(row[3]) : null,
+        akku_serial_nummer: row[4] != null ? String(row[4]) : null,
+        ladegeraet_sn: row[5] != null ? String(row[5]) : null,
+        status: row[6] != null ? String(row[6]) : null,
+        datum_abgeben: row[7] != null ? String(row[7]) : null,
+        baustelle: row[8] != null ? String(row[8]) : null,
+        hersteller: row[9] != null ? String(row[9]) : null,
+        inventar: row[10] != null ? String(row[10]) : null,
+        aufmerksamkeit: row[11] != null ? String(row[11]) : null,
+        art_nr: row[12] != null ? String(row[12]) : null,
+        datum_inventur: row[13] != null ? String(row[13]) : null,
+        kategorie: row[14] != null ? String(row[14]) : null,
+        wartungstermine: row[15] != null ? String(row[15]) : null,
+        created_by: profileId || null,
       }));
-      setItems(enriched);
-    } catch (error) {
-      console.error("Error loading magazyn data:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+
+      let inserted = 0;
+      for (let i = 0; i < itemsToInsert.length; i += 50) {
+        const batch = itemsToInsert.slice(i, i + 50);
+        const { error } = await supabaseAdmin.from("warehouse_items").insert(batch);
+        if (error) console.error("Batch insert error:", error);
+        else inserted += batch.length;
+      }
+      return { inserted, total: itemsToInsert.length };
+    },
+    onSuccess: ({ inserted, total }) => {
+      const msg = (t("magazyn.import_success") || "Importiert") + `: ${inserted} / ${total}`;
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert(t("common.success"), msg);
+      invalidateAll();
+    },
+    onError: (e) => {
+      if (e instanceof Error && e.message === "EMPTY") {
+        const msg = t("magazyn.import_empty") || "Datei enthält keine Daten";
+        if (Platform.OS === "web") window.alert(msg);
+        else Alert.alert(t("common.error"), msg);
+        return;
+      }
+      console.error("Import error:", e);
+    },
+  });
+
+  const assignStatusMutation = useMutation({
+    mutationFn: async ({ itemId, userId, userName }: { itemId: string; userId: string | null; userName: string }) => {
+      const { error } = await supabaseAdmin.from("warehouse_items")
+        .update({ assigned_to: userId, status: userId ? userName : null })
+        .eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setShowStatusUserModal(false);
+      setStatusUserItem(null);
+      invalidateAll();
+    },
+    onError: (e) => console.error("Error assigning status:", e),
+  });
+
+  const saveNotesMutation = useMutation({
+    mutationFn: async ({ itemId, notes, damaged }: { itemId: string; notes: string | null; damaged: boolean }) => {
+      const { error } = await supabaseAdmin.from("warehouse_items")
+        .update({ notes, is_damaged: damaged })
+        .eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setShowNotesModal(false);
+      setNotesItem(null);
+      invalidateAll();
+    },
+    onError: (e) => {
+      console.error("Error saving notes:", e);
+      const msg = t("common.error") || "Fehler";
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert(msg);
+    },
+  });
+
+  // ── Action wrappers ──
+
+  const loadData = async () => {
+    await itemsQuery.refetch();
+    setRefreshing(false);
   };
 
-  // ── CRUD ──
   const openAdd = () => {
     setEditingItem(null);
     setForm({ ...EMPTY_FORM });
@@ -162,61 +307,38 @@ export function useWarehouseTools(
     setShowModal(true);
   };
 
-  const saveItem = async () => {
+  const saveItem = () => {
     if (!form.beschreibung.trim()) {
       const msg = t("magazyn.description_required") || "Opis jest wymagany";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert(t("common.error"), msg);
       return;
     }
-    setSaving(true);
-    try {
-      const payload: Record<string, unknown> = {
-        iv_pds: form.iv_pds.trim() || null,
-        menge: form.menge.trim() || null,
-        beschreibung: form.beschreibung.trim(),
-        serial_nummer: form.serial_nummer.trim() || null,
-        akku_serial_nummer: form.akku_serial_nummer.trim() || null,
-        ladegeraet_sn: form.ladegeraet_sn.trim() || null,
-        status: form.status.trim() || null,
-        datum_abgeben: form.datum_abgeben.trim() || null,
-        baustelle: form.baustelle.trim() || null,
-        hersteller: form.hersteller.trim() || null,
-        inventar: form.inventar.trim() || null,
-        aufmerksamkeit: form.aufmerksamkeit.trim() || null,
-        art_nr: form.art_nr.trim() || null,
-        datum_inventur: form.datum_inventur.trim() || null,
-        kategorie: form.kategorie.trim() || null,
-        wartungstermine: form.wartungstermine.trim() || null,
-        assigned_to: form.assigned_to.trim() || null,
-      };
-      // Auto-set status to user name when assigned
-      if (payload.assigned_to) {
-        const assignedUser = allUsers.find(u => u.id === payload.assigned_to);
-        if (assignedUser) payload.status = assignedUser.full_name;
-      }
-
-      if (editingItem) {
-        const { error } = await supabaseAdmin.from("warehouse_items")
-          .update(payload)
-          .eq("id", editingItem.id);
-        if (error) throw error;
-      } else {
-        payload.created_by = profileId || null;
-        const { error } = await supabaseAdmin.from("warehouse_items")
-          .insert(payload);
-        if (error) throw error;
-      }
-      setShowModal(false);
-      loadData();
-    } catch (error) {
-      console.error("Error saving item:", error);
-      const msg = t("common.error");
-      if (Platform.OS === "web") window.alert(msg);
-      else Alert.alert(msg);
-    } finally {
-      setSaving(false);
+    const payload: Record<string, unknown> = {
+      iv_pds: form.iv_pds.trim() || null,
+      menge: form.menge.trim() || null,
+      beschreibung: form.beschreibung.trim(),
+      serial_nummer: form.serial_nummer.trim() || null,
+      akku_serial_nummer: form.akku_serial_nummer.trim() || null,
+      ladegeraet_sn: form.ladegeraet_sn.trim() || null,
+      status: form.status.trim() || null,
+      datum_abgeben: form.datum_abgeben.trim() || null,
+      baustelle: form.baustelle.trim() || null,
+      hersteller: form.hersteller.trim() || null,
+      inventar: form.inventar.trim() || null,
+      aufmerksamkeit: form.aufmerksamkeit.trim() || null,
+      art_nr: form.art_nr.trim() || null,
+      datum_inventur: form.datum_inventur.trim() || null,
+      kategorie: form.kategorie.trim() || null,
+      wartungstermine: form.wartungstermine.trim() || null,
+      assigned_to: form.assigned_to.trim() || null,
+    };
+    // Auto-set status to user name when assigned
+    if (payload.assigned_to) {
+      const assignedUser = allUsers.find((u) => u.id === payload.assigned_to);
+      if (assignedUser) payload.status = assignedUser.full_name;
     }
+    saveItemMutation.mutate({ payload, editing: editingItem });
   };
 
   const deleteItem = async (item: WarehouseItem) => {
@@ -230,16 +352,7 @@ export function useWarehouseTools(
           ]);
         });
     if (!confirmed) return;
-    try {
-      const { error } = await supabaseAdmin.from("warehouse_items")
-        .delete()
-        .eq("id", item.id);
-      if (error) throw error;
-      setSelectedItem(null);
-      loadData();
-    } catch (error) {
-      console.error("Error deleting item:", error);
-    }
+    deleteItemMutation.mutate(item);
   };
 
   // ── EXCEL IMPORT ──
@@ -253,8 +366,6 @@ export function useWarehouseTools(
         ],
       });
       if (result.canceled || !result.assets?.[0]) return;
-
-      setImportLoading(true);
       const file = result.assets[0];
 
       if (Platform.OS === "web") {
@@ -267,12 +378,10 @@ export function useWarehouseTools(
             const workbook = XLSX.read(data, { type: "array" });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rows: ExcelCell[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-            await processImportRows(rows);
+            importBatchMutation.mutate(rows);
           } catch (err) {
             console.error("Import error:", err);
             window.alert(t("magazyn.import_error") || "Importfehler");
-          } finally {
-            setImportLoading(false);
           }
         };
         reader.readAsArrayBuffer(blob);
@@ -283,65 +392,16 @@ export function useWarehouseTools(
           });
           const workbook = XLSX.read(fileContent, { type: "base64" });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-          await processImportRows(rows);
+          const rows: ExcelCell[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          importBatchMutation.mutate(rows);
         } catch (err) {
           console.error("Import error:", err);
           Alert.alert(t("common.error"), t("magazyn.import_error") || "Importfehler");
-        } finally {
-          setImportLoading(false);
         }
       }
     } catch (error) {
       console.error("Document picker error:", error);
-      setImportLoading(false);
     }
-  };
-
-  const processImportRows = async (rows: ExcelCell[][]) => {
-    const dataRows = rows.slice(1).filter((r) => r.length > 0 && r.some((c) => c != null && c !== ""));
-    if (dataRows.length === 0) {
-      const msg = t("magazyn.import_empty") || "Datei enthält keine Daten";
-      if (Platform.OS === "web") window.alert(msg);
-      else Alert.alert(t("common.error"), msg);
-      return;
-    }
-
-    const itemsToInsert = dataRows.map((row) => ({
-      iv_pds: row[0] != null ? String(row[0]) : null,
-      menge: row[1] != null ? String(row[1]) : null,
-      beschreibung: row[2] != null ? String(row[2]) : null,
-      serial_nummer: row[3] != null ? String(row[3]) : null,
-      akku_serial_nummer: row[4] != null ? String(row[4]) : null,
-      ladegeraet_sn: row[5] != null ? String(row[5]) : null,
-      status: row[6] != null ? String(row[6]) : null,
-      datum_abgeben: row[7] != null ? String(row[7]) : null,
-      baustelle: row[8] != null ? String(row[8]) : null,
-      hersteller: row[9] != null ? String(row[9]) : null,
-      inventar: row[10] != null ? String(row[10]) : null,
-      aufmerksamkeit: row[11] != null ? String(row[11]) : null,
-      art_nr: row[12] != null ? String(row[12]) : null,
-      datum_inventur: row[13] != null ? String(row[13]) : null,
-      kategorie: row[14] != null ? String(row[14]) : null,
-      wartungstermine: row[15] != null ? String(row[15]) : null,
-      created_by: profileId || null,
-    }));
-
-    let inserted = 0;
-    for (let i = 0; i < itemsToInsert.length; i += 50) {
-      const batch = itemsToInsert.slice(i, i + 50);
-      const { error } = await supabaseAdmin.from("warehouse_items").insert(batch);
-      if (error) {
-        console.error("Batch insert error:", error);
-      } else {
-        inserted += batch.length;
-      }
-    }
-
-    const msg = (t("magazyn.import_success") || "Importiert") + `: ${inserted} / ${itemsToInsert.length}`;
-    if (Platform.OS === "web") window.alert(msg);
-    else Alert.alert(t("common.success"), msg);
-    loadData();
   };
 
   // ── TOOLS EXPORT ──
@@ -358,34 +418,38 @@ export function useWarehouseTools(
         "Baustelle": item.baustelle || "",
         "Menge": item.menge || "",
         "Art-Nr": item.art_nr || "",
-        "Kategorie": item.kategorie || "",
         "Inventar": item.inventar || "",
-        "Datum Abgeben": item.datum_abgeben || "",
+        "Kategorie": item.kategorie || "",
         "Datum Inventur": item.datum_inventur || "",
-        "Wartungstermine": item.wartungstermine || "",
+        "Datum Abgeben": item.datum_abgeben || "",
         "Aufmerksamkeit": item.aufmerksamkeit || "",
-        "Zugewiesen an": item.assigned_to_profile?.full_name || allUsers.find(u => u.id === item.assigned_to)?.full_name || "",
+        "Wartungstermine": item.wartungstermine || "",
+        "Notizen": item.notes || "",
+        "Beschädigt": item.is_damaged ? "JA" : "",
       }));
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Werkzeuge");
       const wbout = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
+
       if (Platform.OS === "web") {
-        const blob = new Blob(
-          [Uint8Array.from(atob(wbout), (c) => c.charCodeAt(0))],
-          { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
-        );
+        const buf = Uint8Array.from(atob(wbout), (c) => c.charCodeAt(0));
+        const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `werkzeuge_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        a.download = `Werkzeuge_${new Date().toISOString().slice(0, 10)}.xlsx`;
         a.click();
         URL.revokeObjectURL(url);
       } else {
-        Alert.alert(t("common.success", "Erfolg"), t("export.success", "Daten wurden exportiert"));
+        const fileUri = `${FileSystem.documentDirectory}Werkzeuge_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        FileSystem.writeAsStringAsync(fileUri, wbout, { encoding: "base64" as "base64" }).then(() => {
+          Alert.alert(t("common.success"), `Datei gespeichert: ${fileUri}`);
+        });
       }
     } catch (error) {
       console.error("Export error:", error);
+      Alert.alert(t("common.error"), t("magazyn.export_error") || "Exportfehler");
     }
   };
 
@@ -396,9 +460,9 @@ export function useWarehouseTools(
     setShowStatusUserModal(true);
   };
 
-  const assignStatusToUser = async (userId: string | null) => {
-    const userName = userId ? (allUsers.find(u => u.id === userId)?.full_name || "") : "";
-    // If edit modal is open, update form state instead of saving directly
+  const assignStatusToUser = (userId: string | null) => {
+    const userName = userId ? (allUsers.find((u) => u.id === userId)?.full_name || "") : "";
+    // Jesli edit modal jest otwarty, tylko zaktualizuj form (bez DB call)
     if (showModal) {
       setForm((prev) => ({ ...prev, assigned_to: userId || "", status: userId ? userName : prev.status }));
       setShowStatusUserModal(false);
@@ -406,17 +470,7 @@ export function useWarehouseTools(
       return;
     }
     if (!statusUserItem) return;
-    try {
-      const { error } = await supabaseAdmin.from("warehouse_items")
-        .update({ assigned_to: userId, status: userId ? userName : null })
-        .eq("id", statusUserItem.id);
-      if (error) throw error;
-      setShowStatusUserModal(false);
-      setStatusUserItem(null);
-      loadData();
-    } catch (e) {
-      console.error("Error assigning status:", e);
-    }
+    assignStatusMutation.mutate({ itemId: statusUserItem.id, userId, userName });
   };
 
   // ── NOTES / DAMAGED ──
@@ -427,25 +481,13 @@ export function useWarehouseTools(
     setShowNotesModal(true);
   };
 
-  const saveNotes = async () => {
+  const saveNotes = () => {
     if (!notesItem) return;
-    setNotesSaving(true);
-    try {
-      const { error } = await supabaseAdmin.from("warehouse_items")
-        .update({ notes: notesText.trim() || null, is_damaged: notesDamaged })
-        .eq("id", notesItem.id);
-      if (error) throw error;
-      setShowNotesModal(false);
-      setNotesItem(null);
-      loadData();
-    } catch (e) {
-      console.error("Error saving notes:", e);
-      const msg = t("common.error") || "Fehler";
-      if (Platform.OS === "web") window.alert(msg);
-      else Alert.alert(msg);
-    } finally {
-      setNotesSaving(false);
-    }
+    saveNotesMutation.mutate({
+      itemId: notesItem.id,
+      notes: notesText.trim() || null,
+      damaged: notesDamaged,
+    });
   };
 
   // ── Sortable / filterable columns definition ──
@@ -462,12 +504,10 @@ export function useWarehouseTools(
     { key: "inventar", label: "Inventar" },
   ];
 
-  // Unique values for selected filter column
   const filterColumnValues = filterColumn
     ? [...new Set(items.map((i) => ((i as Record<string, unknown>)[filterColumn] || "").toString().trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"))
     : [];
 
-  // ── FILTER + SORT (tools) ──
   const filtered = items
     .filter((item) => {
       if (filterColumn && filterValue) {
@@ -503,13 +543,17 @@ export function useWarehouseTools(
 
   return {
     // Data
-    items, loading, refreshing, setRefreshing,
+    items,
+    loading: itemsQuery.isPending,
+    refreshing, setRefreshing,
     // Search
     search, setSearch,
     // Import/Export
-    importLoading, handleImport, handleToolsExport,
+    importLoading: importBatchMutation.isPending,
+    handleImport, handleToolsExport,
     // CRUD modal
-    showModal, setShowModal, editingItem, form, setForm, saving,
+    showModal, setShowModal, editingItem, form, setForm,
+    saving: saveItemMutation.isPending,
     selectedItem, setSelectedItem,
     openAdd, openEdit, saveItem, deleteItem,
     // Sorting & Filtering
@@ -526,7 +570,9 @@ export function useWarehouseTools(
     // Notes modal
     showNotesModal, setShowNotesModal,
     notesItem, notesText, setNotesText,
-    notesDamaged, setNotesDamaged, notesSaving, saveNotes, openNotesModal,
+    notesDamaged, setNotesDamaged,
+    notesSaving: saveNotesMutation.isPending,
+    saveNotes, openNotesModal,
     // Baustelle picker
     showBaustellePicker, setShowBaustellePicker,
     baustelleSearch, setBaustelleSearch,
