@@ -19,9 +19,7 @@ import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
     Alert,
-    FlatList,
     Linking,
-    Modal,
     Platform,
     ScrollView,
     Text,
@@ -35,6 +33,11 @@ import ProjectDeadlines from "@/components/ProjectDeadlines";
 import ProjectObstructions from "@/components/ProjectObstructions";
 import ProjectPlans from "../components/ProjectPlans";
 import { styles } from "../_components/projectDetail/styles";
+import { AddMemberModal } from "../_components/projectDetail/modals/AddMemberModal";
+import { AddPlanWorkerModal } from "../_components/projectDetail/modals/AddPlanWorkerModal";
+import { EditProjectModal } from "../_components/projectDetail/modals/EditProjectModal";
+import { MaterialOrderModal } from "../_components/projectDetail/modals/MaterialOrderModal";
+import { ToolOrderModal } from "../_components/projectDetail/modals/ToolOrderModal";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 
@@ -58,21 +61,16 @@ export default function ProjectDetailsScreen() {
     handleKanbanStatusChange, deleteTaskFromProject, deleteProject,
   } = projectData;
 
-  // Orders hook
+  // Orders hook -- z destructure tylko to co widoczne w tym pliku;
+  // modale (MaterialOrderModal/ToolOrderModal) dostaja caly ordersHook przez prop
+  const ordersHook = useProjectOrders(id, profile?.id, t);
   const {
-    materialsList, projectOrders,
-    showOrderModal, setShowOrderModal,
-    orderForm, setOrderForm,
-    orderSaving, orderMatSearch, setOrderMatSearch,
-    orderCart, setOrderCart,
-    fetchMaterialsAndOrders, submitOrder, submitCartOrders,
+    projectOrders, projectToolOrders,
+    setShowOrderModal, setShowToolOrderModal,
+    setOrderMatSearch,
+    fetchMaterialsAndOrders, fetchToolsAndOrders,
     orderSubTab, setOrderSubTab,
-    toolsList, projectToolOrders,
-    showToolOrderModal, setShowToolOrderModal,
-    toolOrderSaving, toolOrderSearch, setToolOrderSearch,
-    toolOrderCart, setToolOrderCart,
-    fetchToolsAndOrders, submitToolCartOrders,
-  } = useProjectOrders(id, profile?.id, t);
+  } = ordersHook;
 
   // fetchAll needs to be defined before hooks that depend on it
   const fetchAll = async () => {
@@ -88,31 +86,20 @@ export default function ProjectDetailsScreen() {
     ]);
   };
 
-  // Members hook
+  // Members hook -- z destructure tylko to co widoczne w tym pliku;
+  // modale dostaja caly memberHook przez prop
   const memberHook = useProjectMembers(id, profile, project, t, sendNotification, fetchAll);
-  const {
-    members, showAddMember, setShowAddMember,
-    availableUsers, usersLoading,
-    fetchMembers, addMember, removeMember, openAddMemberModal,
-  } = memberHook;
+  const { members, removeMember, openAddMemberModal } = memberHook;
 
-  // Edit hook
+  // Edit hook -- modal dostaje caly editHook przez prop
   const editHook = useProjectEdit(id, profile, project, members, t, fetchAll);
-  const {
-    showEditModal, setShowEditModal,
-    editForm, setEditForm, editSaving,
-    allUsers, showPMPicker, setShowPMPicker, showBLPicker, setShowBLPicker,
-    fetchAllUsers, openEditProject, saveEditProject,
-  } = editHook;
+  const { openEditProject } = editHook;
 
-  // Plan workers hook
+  // Plan workers hook -- modal dostaje caly planWorkersHook przez prop
   const planWorkersHook = useProjectPlanWorkers(id, profile);
   const {
     planWorkers,
-    showAddPlanWorker, setShowAddPlanWorker,
-    planWorkerCandidates, planWorkerSearch, setPlanWorkerSearch,
-    addingPlanWorker,
-    fetchPlanWorkers, openAddPlanWorkerModal, addPlanWorkerManually,
+    fetchPlanWorkers, openAddPlanWorkerModal,
   } = planWorkersHook;
 
   // ─── Local UI state ───
@@ -270,7 +257,7 @@ export default function ProjectDetailsScreen() {
 
       {activeTab === "plans" && (
         <View style={{ flex: 1 }}>
-          <ProjectPlans projectId={id || ""} workers={allUsers} onTaskCreated={fetchProjectTasks} onBack={() => setActiveTab("tasks")} initialPlanId={planId} initialPinId={pinId} />
+          <ProjectPlans projectId={id || ""} workers={editHook.allUsers} onTaskCreated={fetchProjectTasks} onBack={() => setActiveTab("tasks")} initialPlanId={planId} initialPinId={pinId} />
         </View>
       )}
       <ScrollView style={[styles.content, activeTab === "plans" && { flex: 0, maxHeight: 0 }]}>
@@ -823,7 +810,7 @@ export default function ProjectDetailsScreen() {
               {perms.canOrderMaterials && (
                 <TouchableOpacity
                   style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#2563eb", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, alignSelf: "flex-start", marginBottom: 12 }}
-                  onPress={() => { setToolOrderSearch(""); setShowToolOrderModal(true); }}
+                  onPress={() => { ordersHook.setToolOrderSearch(""); setShowToolOrderModal(true); }}
                 >
                   <Ionicons name="add" size={18} color="#fff" />
                   <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{t("projects.new_tool_order")}</Text>
@@ -992,507 +979,12 @@ export default function ProjectDetailsScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Modal ręcznego dodawania pracownika do planu dziennego */}
-      <Modal visible={showAddPlanWorker} transparent animationType="slide" onRequestClose={() => setShowAddPlanWorker(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>{t("projects.add_worker_to_plan")}</Text>
-                <Text style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                  {new Date(teamDate).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowAddPlanWorker(false)}>
-                <Ionicons name="close" size={24} color="#1e293b" />
-              </TouchableOpacity>
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10, gap: 6 }}>
-              <Ionicons name="search" size={16} color="#94a3b8" />
-              <TextInput
-                style={{ flex: 1, fontSize: 14, color: "#1e293b", padding: 0 }}
-                placeholder="Name suchen..."
-                placeholderTextColor="#94a3b8"
-                value={planWorkerSearch}
-                onChangeText={setPlanWorkerSearch}
-              />
-              {planWorkerSearch.length > 0 && (
-                <TouchableOpacity onPress={() => setPlanWorkerSearch("")}>
-                  <Ionicons name="close-circle" size={16} color="#94a3b8" />
-                </TouchableOpacity>
-              )}
-            </View>
-            {addingPlanWorker ? (
-              <ActivityIndicator size="large" color="#2563eb" style={{ marginVertical: 20 }} />
-            ) : (
-              <FlatList
-                data={planWorkerCandidates.filter((u) => {
-                  if (!planWorkerSearch.trim()) return true;
-                  const q = planWorkerSearch.toLowerCase();
-                  return (u.full_name || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q);
-                })}
-                keyExtractor={(item) => item.id}
-                style={{ maxHeight: 400 }}
-                ListEmptyComponent={<Text style={styles.emptyText}>{t("projects.no_available_workers")}</Text>}
-                renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.userPickerItem} onPress={() => addPlanWorkerManually(item.id, teamDate)}>
-                    <Ionicons name="person-circle-outline" size={28} color="#f59e0b" />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.userPickerName}>{item.full_name || item.email}</Text>
-                      <Text style={styles.userPickerEmail}>{item.role ? `${item.role}` : item.email}</Text>
-                    </View>
-                    <Ionicons name="add-circle-outline" size={22} color="#10b981" />
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal dodawania członka */}
-      <Modal visible={showAddMember} transparent animationType="slide" onRequestClose={() => setShowAddMember(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t("team.add_members")}</Text>
-              <TouchableOpacity onPress={() => setShowAddMember(false)}>
-                <Ionicons name="close" size={24} color="#1e293b" />
-              </TouchableOpacity>
-            </View>
-            {usersLoading ? (
-              <ActivityIndicator size="large" color="#2563eb" style={{ marginVertical: 20 }} />
-            ) : availableUsers.length === 0 ? (
-              <Text style={styles.emptyText}>{t("team.no_available_users")}</Text>
-            ) : (
-              <FlatList
-                data={availableUsers}
-                keyExtractor={(item) => item.id}
-                style={{ maxHeight: 400 }}
-                renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.userPickerItem} onPress={() => addMember(item.id)}>
-                    <Ionicons name="person-circle-outline" size={28} color="#3b82f6" />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.userPickerName}>{item.full_name || item.email}</Text>
-                      <Text style={styles.userPickerEmail}>{item.email}</Text>
-                    </View>
-                    <Ionicons name="add-circle-outline" size={22} color="#10b981" />
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Edit Project Modal */}
-      <Modal visible={showEditModal} transparent animationType="slide" onRequestClose={() => setShowEditModal(false)}>
-        <View style={styles.editModalOverlay}>
-          <View style={styles.editModalContent}>
-            <View style={styles.editModalHeader}>
-              <Text style={styles.editModalTitle}>{t("projects.edit")}</Text>
-              <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                <Ionicons name="close" size={24} color="#1e293b" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ maxHeight: 500 }}>
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>{t("projects.name")} *</Text>
-                <TextInput style={styles.editInput} value={editForm.name} onChangeText={(v) => setEditForm({ ...editForm, name: v })} placeholder={t("projects.name_placeholder")} placeholderTextColor="#94a3b8" maxLength={200} />
-              </View>
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>{t("projects.description")}</Text>
-                <TextInput style={[styles.editInput, { minHeight: 80, textAlignVertical: "top" }]} value={editForm.description} onChangeText={(v) => setEditForm({ ...editForm, description: v })} multiline placeholderTextColor="#94a3b8" maxLength={2000} />
-              </View>
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>{t("projects.location")}</Text>
-                <TextInput style={styles.editInput} value={editForm.location} onChangeText={(v) => setEditForm({ ...editForm, location: v })} placeholderTextColor="#94a3b8" maxLength={300} />
-              </View>
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>{t("projects.statusLabel")}</Text>
-                <View style={styles.editChips}>
-                  {["planning", "active", "on_hold", "completed", "cancelled"].map((s) => (
-                    <TouchableOpacity key={s} style={[styles.editChip, editForm.status === s && styles.editChipActive]} onPress={() => setEditForm({ ...editForm, status: s })}>
-                      <Text style={[styles.editChipText, editForm.status === s && styles.editChipTextActive]}>{t(`projects.status.${s}`)}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>{t("projects.budget")} (EUR)</Text>
-                <TextInput style={styles.editInput} value={editForm.budget} onChangeText={(v) => setEditForm({ ...editForm, budget: v })} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#94a3b8" maxLength={15} />
-              </View>
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>{t("projects.start_date")}</Text>
-                <TextInput style={styles.editInput} value={editForm.start_date} onChangeText={(v) => setEditForm({ ...editForm, start_date: v })} placeholder="YYYY-MM-DD" placeholderTextColor="#94a3b8" maxLength={10} />
-              </View>
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>{t("projects.end_date")}</Text>
-                <TextInput style={styles.editInput} value={editForm.end_date} onChangeText={(v) => setEditForm({ ...editForm, end_date: v })} placeholder="YYYY-MM-DD" placeholderTextColor="#94a3b8" maxLength={10} />
-              </View>
-              {/* PM */}
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>Project Manager</Text>
-                <TouchableOpacity style={styles.editPickerBtn} onPress={() => setShowPMPicker(!showPMPicker)}>
-                  <Text style={styles.editPickerBtnText}>
-                    {editForm.project_manager_id ? (allUsers.find((u) => u.id === editForm.project_manager_id)?.full_name || allUsers.find((u) => u.id === editForm.project_manager_id)?.email || "—") : "—"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={18} color="#64748b" />
-                </TouchableOpacity>
-                {showPMPicker && (
-                  <View style={styles.editPickerList}>
-                    <TouchableOpacity style={styles.editPickerItem} onPress={() => { setEditForm({ ...editForm, project_manager_id: "" }); setShowPMPicker(false); }}>
-                      <Text style={styles.editPickerItemText}>— {t("common.none")} —</Text>
-                    </TouchableOpacity>
-                    {allUsers.map((u) => (
-                      <TouchableOpacity key={u.id} style={[styles.editPickerItem, editForm.project_manager_id === u.id && { backgroundColor: "#eff6ff" }]} onPress={() => { setEditForm({ ...editForm, project_manager_id: u.id }); setShowPMPicker(false); }}>
-                        <Text style={styles.editPickerItemText}>{u.full_name || u.email}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-              {/* BL */}
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>Bauleiter</Text>
-                <TouchableOpacity style={styles.editPickerBtn} onPress={() => setShowBLPicker(!showBLPicker)}>
-                  <Text style={styles.editPickerBtnText}>
-                    {editForm.bauleiter_id ? (allUsers.find((u) => u.id === editForm.bauleiter_id)?.full_name || allUsers.find((u) => u.id === editForm.bauleiter_id)?.email || "—") : "—"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={18} color="#64748b" />
-                </TouchableOpacity>
-                {showBLPicker && (
-                  <View style={styles.editPickerList}>
-                    <TouchableOpacity style={styles.editPickerItem} onPress={() => { setEditForm({ ...editForm, bauleiter_id: "" }); setShowBLPicker(false); }}>
-                      <Text style={styles.editPickerItemText}>— {t("common.none")} —</Text>
-                    </TouchableOpacity>
-                    {allUsers.map((u) => (
-                      <TouchableOpacity key={u.id} style={[styles.editPickerItem, editForm.bauleiter_id === u.id && { backgroundColor: "#eff6ff" }]} onPress={() => { setEditForm({ ...editForm, bauleiter_id: u.id }); setShowBLPicker(false); }}>
-                        <Text style={styles.editPickerItemText}>{u.full_name || u.email}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            </ScrollView>
-            <TouchableOpacity style={[styles.editSaveBtn, editSaving && { opacity: 0.6 }]} onPress={saveEditProject} disabled={editSaving}>
-              <Text style={styles.editSaveBtnText}>{editSaving ? t("common.loading") : t("common.save")}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Material Order Modal — fullscreen, multi-select with qty column */}
-      <Modal visible={showOrderModal} transparent={false} animationType="slide" onRequestClose={() => setShowOrderModal(false)}>
-        <View style={{ flex: 1, backgroundColor: tc.background || "#f8fafc" }}>
-          {/* Header */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: tc.card, borderBottomWidth: 1, borderBottomColor: tc.border || "#e2e8f0" }}>
-            <TouchableOpacity onPress={() => setShowOrderModal(false)} style={{ padding: 4 }}>
-              <Ionicons name="close" size={24} color={tc.text} />
-            </TouchableOpacity>
-            <Text style={{ fontSize: 17, fontWeight: "700", color: tc.text, flex: 1, textAlign: "center" }}>Materialbestellung</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              {Object.values(orderCart).filter((q) => parseFloat(q) > 0).length > 0 && (
-                <View style={{ backgroundColor: "#2563eb", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 }}>
-                  <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{Object.values(orderCart).filter((q) => parseFloat(q) > 0).length}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Search */}
-          <View style={{ flexDirection: "row", alignItems: "center", marginHorizontal: 12, marginVertical: 8, borderWidth: 1, borderColor: tc.border || "#e2e8f0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, gap: 8, backgroundColor: tc.card }}>
-            <Ionicons name="search" size={18} color={tc.textSecondary} />
-            <TextInput
-              style={{ flex: 1, fontSize: 14, color: tc.text, padding: 0 }}
-              placeholder="Name, Art-Nr oder Position suchen..."
-              placeholderTextColor={tc.textSecondary}
-              value={orderMatSearch}
-              onChangeText={setOrderMatSearch}
-            />
-            {orderMatSearch.length > 0 && (
-              <TouchableOpacity onPress={() => setOrderMatSearch("")}>
-                <Ionicons name="close-circle" size={18} color={tc.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Table */}
-          <ScrollView style={{ flex: 1 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator>
-              <View>
-                {/* Table header */}
-                <View style={{ flexDirection: "row", backgroundColor: "#1e293b", paddingVertical: 8 }}>
-                  {[
-                    { label: "Bestellen", w: 70 },
-                    { label: "Pos.", w: 50 },
-                    { label: "Art-Nr", w: 80 },
-                    { label: "Name", w: 180 },
-                    { label: "Lager", w: 60 },
-                    { label: "Länge", w: 65 },
-                    { label: "Breite", w: 65 },
-                    { label: "Höhe", w: 65 },
-                    { label: "Gewicht", w: 65 },
-                  ].map((col, i) => (
-                    <Text key={i} style={{ width: col.w, color: "#fff", fontSize: 10, fontWeight: "700", paddingHorizontal: 4, textAlign: "center" }} numberOfLines={1}>{col.label}</Text>
-                  ))}
-                </View>
-                {/* Table rows */}
-                {materialsList.filter((mat) => {
-                  if (!orderMatSearch.trim()) return true;
-                  const q = orderMatSearch.toLowerCase();
-                  return (mat.nazwa || "").toLowerCase().includes(q) || (mat.art_nr || "").toLowerCase().includes(q) || (mat.pozycja || "").toLowerCase().includes(q);
-                }).map((mat, idx) => {
-                  const qty = orderCart[mat.id] || "";
-                  const hasQty = parseFloat(qty) > 0;
-                  return (
-                    <View
-                      key={mat.id}
-                      style={{
-                        flexDirection: "row", alignItems: "center",
-                        backgroundColor: hasQty ? "#eff6ff" : (idx % 2 === 0 ? tc.card : (tc.background || "#f8fafc")),
-                        borderBottomWidth: 1, borderBottomColor: hasQty ? "#93c5fd" : (tc.border || "#e2e8f0"),
-                        borderLeftWidth: hasQty ? 3 : 0, borderLeftColor: "#2563eb",
-                        paddingVertical: 4,
-                      }}
-                    >
-                      {/* Quantity input */}
-                      <View style={{ width: 70, paddingHorizontal: 4, alignItems: "center" }}>
-                        <TextInput
-                          style={{
-                            width: 56, height: 30, borderWidth: 1.5,
-                            borderColor: hasQty ? "#2563eb" : (tc.border || "#d1d5db"),
-                            borderRadius: 6, textAlign: "center", fontSize: 13, fontWeight: "700",
-                            color: hasQty ? "#2563eb" : tc.text,
-                            backgroundColor: hasQty ? "#dbeafe" : "#fff",
-                            padding: 0,
-                          }}
-                          value={qty}
-                          onChangeText={(v) => {
-                            const cleaned = v.replace(/[^0-9.,]/g, "");
-                            setOrderCart((prev) => {
-                              const next = { ...prev };
-                              if (!cleaned || cleaned === "0") delete next[mat.id];
-                              else next[mat.id] = cleaned;
-                              return next;
-                            });
-                          }}
-                          keyboardType="decimal-pad"
-                          placeholder="0"
-                          placeholderTextColor="#cbd5e1"
-                        />
-                      </View>
-                      <Text style={{ width: 50, fontSize: 11, color: tc.textSecondary, paddingHorizontal: 4 }} numberOfLines={1}>{mat.pozycja || "—"}</Text>
-                      <Text style={{ width: 80, fontSize: 11, color: tc.textSecondary, paddingHorizontal: 4 }} numberOfLines={1}>{mat.art_nr || "—"}</Text>
-                      <Text style={{ width: 180, fontSize: 11, color: tc.text, fontWeight: "600", paddingHorizontal: 4 }} numberOfLines={1}>{mat.nazwa || "—"}</Text>
-                      <Text style={{ width: 60, fontSize: 11, color: "#dc2626", fontWeight: "700", paddingHorizontal: 4, textAlign: "center" }}>{mat.ilosc ?? "—"}</Text>
-                      <Text style={{ width: 65, fontSize: 11, color: tc.textSecondary, paddingHorizontal: 4 }} numberOfLines={1}>{mat.dlugosc || "—"}</Text>
-                      <Text style={{ width: 65, fontSize: 11, color: tc.textSecondary, paddingHorizontal: 4 }} numberOfLines={1}>{mat.szerokosc || "—"}</Text>
-                      <Text style={{ width: 65, fontSize: 11, color: tc.textSecondary, paddingHorizontal: 4 }} numberOfLines={1}>{mat.wysokosc || "—"}</Text>
-                      <Text style={{ width: 65, fontSize: 11, color: tc.textSecondary, paddingHorizontal: 4 }} numberOfLines={1}>{mat.waga || "—"}</Text>
-                    </View>
-                  );
-                })}
-                {materialsList.length === 0 && (
-                  <Text style={{ color: tc.textMuted, textAlign: "center", paddingVertical: 20 }}>Keine Materialien</Text>
-                )}
-              </View>
-            </ScrollView>
-          </ScrollView>
-
-          {/* Bottom bar — cart summary + order button */}
-          <View style={{ backgroundColor: tc.card, borderTopWidth: 1, borderTopColor: tc.border || "#e2e8f0", paddingHorizontal: 16, paddingVertical: 12 }}>
-            {Object.values(orderCart).filter((q) => parseFloat(q) > 0).length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-                {Object.entries(orderCart).filter(([_, q]) => parseFloat(q) > 0).map(([matId, qty]) => {
-                  const mat = materialsList.find((m) => m.id === matId);
-                  return (
-                    <View key={matId} style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#dbeafe", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginRight: 6, gap: 4 }}>
-                      <Text style={{ fontSize: 11, color: "#1e40af", fontWeight: "600" }} numberOfLines={1}>{mat?.nazwa?.slice(0, 20) || "?"}</Text>
-                      <Text style={{ fontSize: 11, color: "#2563eb", fontWeight: "700" }}>×{qty}</Text>
-                      <TouchableOpacity onPress={() => setOrderCart((prev) => { const n = { ...prev }; delete n[matId]; return n; })}>
-                        <Ionicons name="close-circle" size={14} color="#3b82f6" />
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </ScrollView>
-            )}
-            <TouchableOpacity
-              style={{
-                backgroundColor: Object.values(orderCart).filter((q) => parseFloat(q) > 0).length > 0 ? "#2563eb" : "#94a3b8",
-                borderRadius: 10, paddingVertical: 14, alignItems: "center",
-              }}
-              onPress={submitCartOrders}
-              disabled={Object.values(orderCart).filter((q) => parseFloat(q) > 0).length === 0 || orderSaving}
-            >
-              {orderSaving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
-                  {Object.values(orderCart).filter((q) => parseFloat(q) > 0).length > 0
-                    ? `Bestellen (${Object.values(orderCart).filter((q) => parseFloat(q) > 0).length} Positionen)`
-                    : "Menge eingeben zum Bestellen"}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Tool Order Modal — fullscreen, multi-select with qty column */}
-      <Modal visible={showToolOrderModal} transparent={false} animationType="slide" onRequestClose={() => setShowToolOrderModal(false)}>
-        <View style={{ flex: 1, backgroundColor: tc.background || "#f8fafc" }}>
-          {/* Header */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: tc.card, borderBottomWidth: 1, borderBottomColor: tc.border || "#e2e8f0" }}>
-            <TouchableOpacity onPress={() => setShowToolOrderModal(false)} style={{ padding: 4 }}>
-              <Ionicons name="close" size={24} color={tc.text} />
-            </TouchableOpacity>
-            <Text style={{ fontSize: 17, fontWeight: "700", color: tc.text, flex: 1, textAlign: "center" }}>Werkzeugbestellung</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              {Object.values(toolOrderCart).filter((q) => parseFloat(q) > 0).length > 0 && (
-                <View style={{ backgroundColor: "#2563eb", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 }}>
-                  <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{Object.values(toolOrderCart).filter((q) => parseFloat(q) > 0).length}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Search */}
-          <View style={{ flexDirection: "row", alignItems: "center", marginHorizontal: 12, marginVertical: 8, borderWidth: 1, borderColor: tc.border || "#e2e8f0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, gap: 8, backgroundColor: tc.card }}>
-            <Ionicons name="search" size={18} color={tc.textSecondary} />
-            <TextInput
-              style={{ flex: 1, fontSize: 14, color: tc.text, padding: 0 }}
-              placeholder="Beschreibung, Art-Nr oder Hersteller suchen..."
-              placeholderTextColor={tc.textSecondary}
-              value={toolOrderSearch}
-              onChangeText={setToolOrderSearch}
-            />
-            {toolOrderSearch.length > 0 && (
-              <TouchableOpacity onPress={() => setToolOrderSearch("")}>
-                <Ionicons name="close-circle" size={18} color={tc.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Table */}
-          <ScrollView style={{ flex: 1 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator>
-              <View>
-                {/* Table header */}
-                <View style={{ flexDirection: "row", backgroundColor: "#1e293b", paddingVertical: 8 }}>
-                  {[
-                    { label: "Bestellen", w: 70 },
-                    { label: "Beschreibung", w: 200 },
-                    { label: "Art-Nr", w: 80 },
-                    { label: "Hersteller", w: 120 },
-                    { label: "Kategorie", w: 100 },
-                    { label: "S/N", w: 120 },
-                    { label: "Lager", w: 60 },
-                  ].map((col, i) => (
-                    <Text key={i} style={{ width: col.w, color: "#fff", fontSize: 10, fontWeight: "700", paddingHorizontal: 4, textAlign: "center" }} numberOfLines={1}>{col.label}</Text>
-                  ))}
-                </View>
-                {/* Table rows */}
-                {toolsList.filter((tool) => {
-                  if (!toolOrderSearch.trim()) return true;
-                  const q = toolOrderSearch.toLowerCase();
-                  return (tool.beschreibung || "").toLowerCase().includes(q) || (tool.art_nr || "").toLowerCase().includes(q) || (tool.hersteller || "").toLowerCase().includes(q) || (tool.kategorie || "").toLowerCase().includes(q);
-                }).map((tool, idx) => {
-                  const qty = toolOrderCart[tool.id] || "";
-                  const hasQty = parseFloat(qty) > 0;
-                  return (
-                    <View
-                      key={tool.id}
-                      style={{
-                        flexDirection: "row", alignItems: "center",
-                        backgroundColor: hasQty ? "#eff6ff" : (idx % 2 === 0 ? tc.card : (tc.background || "#f8fafc")),
-                        borderBottomWidth: 1, borderBottomColor: hasQty ? "#93c5fd" : (tc.border || "#e2e8f0"),
-                        borderLeftWidth: hasQty ? 3 : 0, borderLeftColor: "#2563eb",
-                        paddingVertical: 4,
-                      }}
-                    >
-                      {/* Quantity input */}
-                      <View style={{ width: 70, paddingHorizontal: 4, alignItems: "center" }}>
-                        <TextInput
-                          style={{
-                            width: 56, height: 30, borderWidth: 1.5,
-                            borderColor: hasQty ? "#2563eb" : (tc.border || "#d1d5db"),
-                            borderRadius: 6, textAlign: "center", fontSize: 13, fontWeight: "700",
-                            color: hasQty ? "#2563eb" : tc.text,
-                            backgroundColor: hasQty ? "#dbeafe" : "#fff",
-                            padding: 0,
-                          }}
-                          value={qty}
-                          onChangeText={(v) => {
-                            const cleaned = v.replace(/[^0-9.,]/g, "");
-                            setToolOrderCart((prev) => {
-                              const next = { ...prev };
-                              if (!cleaned || cleaned === "0") delete next[tool.id];
-                              else next[tool.id] = cleaned;
-                              return next;
-                            });
-                          }}
-                          keyboardType="decimal-pad"
-                          placeholder="0"
-                          placeholderTextColor="#cbd5e1"
-                        />
-                      </View>
-                      <Text style={{ width: 200, fontSize: 11, color: tc.text, fontWeight: "600", paddingHorizontal: 4 }} numberOfLines={1}>{tool.beschreibung || "—"}</Text>
-                      <Text style={{ width: 80, fontSize: 11, color: tc.textSecondary, paddingHorizontal: 4 }} numberOfLines={1}>{tool.art_nr || "—"}</Text>
-                      <Text style={{ width: 120, fontSize: 11, color: tc.textSecondary, paddingHorizontal: 4 }} numberOfLines={1}>{tool.hersteller || "—"}</Text>
-                      <Text style={{ width: 100, fontSize: 11, color: tc.textSecondary, paddingHorizontal: 4 }} numberOfLines={1}>{tool.kategorie || "—"}</Text>
-                      <Text style={{ width: 120, fontSize: 11, color: tc.textSecondary, paddingHorizontal: 4 }} numberOfLines={1}>{tool.serial_nummer || "—"}</Text>
-                      <Text style={{ width: 60, fontSize: 11, color: "#dc2626", fontWeight: "700", paddingHorizontal: 4, textAlign: "center" }}>{tool.menge ?? "—"}</Text>
-                    </View>
-                  );
-                })}
-                {toolsList.length === 0 && (
-                  <Text style={{ color: tc.textMuted, textAlign: "center", paddingVertical: 20 }}>Keine Werkzeuge</Text>
-                )}
-              </View>
-            </ScrollView>
-          </ScrollView>
-
-          {/* Bottom bar — cart summary + order button */}
-          <View style={{ backgroundColor: tc.card, borderTopWidth: 1, borderTopColor: tc.border || "#e2e8f0", paddingHorizontal: 16, paddingVertical: 12 }}>
-            {Object.values(toolOrderCart).filter((q) => parseFloat(q) > 0).length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-                {Object.entries(toolOrderCart).filter(([_, q]) => parseFloat(q) > 0).map(([toolId, qty]) => {
-                  const tool = toolsList.find((t) => t.id === toolId);
-                  return (
-                    <View key={toolId} style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#dbeafe", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginRight: 6, gap: 4 }}>
-                      <Text style={{ fontSize: 11, color: "#1e40af", fontWeight: "600" }} numberOfLines={1}>{tool?.beschreibung?.slice(0, 20) || "?"}</Text>
-                      <Text style={{ fontSize: 11, color: "#2563eb", fontWeight: "700" }}>x{qty}</Text>
-                      <TouchableOpacity onPress={() => setToolOrderCart((prev) => { const n = { ...prev }; delete n[toolId]; return n; })}>
-                        <Ionicons name="close-circle" size={14} color="#3b82f6" />
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </ScrollView>
-            )}
-            <TouchableOpacity
-              style={{
-                backgroundColor: Object.values(toolOrderCart).filter((q) => parseFloat(q) > 0).length > 0 ? "#2563eb" : "#94a3b8",
-                borderRadius: 10, paddingVertical: 14, alignItems: "center",
-              }}
-              onPress={submitToolCartOrders}
-              disabled={Object.values(toolOrderCart).filter((q) => parseFloat(q) > 0).length === 0 || toolOrderSaving}
-            >
-              {toolOrderSaving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
-                  {Object.values(toolOrderCart).filter((q) => parseFloat(q) > 0).length > 0
-                    ? `Bestellen (${Object.values(toolOrderCart).filter((q) => parseFloat(q) > 0).length} Positionen)`
-                    : "Menge eingeben zum Bestellen"}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {/* ═══ MODALS ═══ */}
+      <AddPlanWorkerModal planWorkers={planWorkersHook} teamDate={teamDate} />
+      <AddMemberModal members={memberHook} />
+      <EditProjectModal edit={editHook} />
+      <MaterialOrderModal orders={ordersHook} />
+      <ToolOrderModal orders={ordersHook} />
     </View>
   );
 }
