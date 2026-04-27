@@ -97,6 +97,17 @@ function AppHeader({ compact = false }: { compact?: boolean }) {
   );
 }
 
+// Helper: pelne ukrycie taba w Expo Router 6.0.23.
+// Sam `href: null` w nowszych wersjach przestal wystarczac (regression
+// objawia sie 17 pustymi tabami "co..." w pasku). Belt-and-suspenders:
+// href:null (zaslania nawigacje) + tabBarButton:()=>null (nie renderuje
+// przycisku) + tabBarItemStyle.display:none (zero miejsca w layoucie).
+const HIDDEN_TAB = {
+  href: null as null,
+  tabBarButton: () => null,
+  tabBarItemStyle: { display: "none" as const },
+};
+
 export default function AppLayout() {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -151,105 +162,42 @@ export default function AppLayout() {
       />
       <Tabs.Screen
         name="ai-chat"
-        options={{
+        options={perms.canUseAIChat ? {
           title: t("navigation.ai_chat"),
-          href: perms.canUseAIChat ? "/(app)/ai-chat" : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="sparkles" size={size} color={color} />
           ),
-        }}
+        } : HIDDEN_TAB}
       />
-      <Tabs.Screen
-        name="gps-analytics"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="reports"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="voice-report"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="predictions"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="smart-plan"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="plan"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="magazyn"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="tasks"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="absences"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="components/ProjectPlans"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="components/ResourceCalendar"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="gps-analytics" options={HIDDEN_TAB} />
+      <Tabs.Screen name="reports" options={HIDDEN_TAB} />
+      <Tabs.Screen name="voice-report" options={HIDDEN_TAB} />
+      <Tabs.Screen name="predictions" options={HIDDEN_TAB} />
+      <Tabs.Screen name="smart-plan" options={HIDDEN_TAB} />
+      <Tabs.Screen name="plan" options={HIDDEN_TAB} />
+      <Tabs.Screen name="magazyn" options={HIDDEN_TAB} />
+      <Tabs.Screen name="tasks" options={HIDDEN_TAB} />
+      <Tabs.Screen name="notifications" options={HIDDEN_TAB} />
+      <Tabs.Screen name="absences" options={HIDDEN_TAB} />
+      <Tabs.Screen name="components/ProjectPlans" options={HIDDEN_TAB} />
+      <Tabs.Screen name="components/ResourceCalendar" options={HIDDEN_TAB} />
       <Tabs.Screen
         name="users"
-        options={{
+        options={canViewUsers ? {
           title: t("navigation.users"),
-          href: canViewUsers ? "/(app)/users" : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people" size={size} color={color} />
           ),
-        }}
+        } : HIDDEN_TAB}
       />
       <Tabs.Screen
         name="admin"
-        options={{
+        options={(perms.isAdmin || perms.isManagement) ? {
           title: "Admin",
-          href: (perms.isAdmin || perms.isManagement) ? "/(app)/admin" : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="shield-checkmark" size={size} color={color} />
           ),
-        }}
+        } : HIDDEN_TAB}
       />
       <Tabs.Screen
         name="settings"
