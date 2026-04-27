@@ -97,13 +97,13 @@ function AppHeader({ compact = false }: { compact?: boolean }) {
   );
 }
 
-// Helper: pelne ukrycie taba w Expo Router 6.0.23.
-// Sam `href: null` w nowszych wersjach przestal wystarczac (regression
-// objawia sie 17 pustymi tabami "co..." w pasku). Belt-and-suspenders:
-// href:null (zaslania nawigacje) + tabBarButton:()=>null (nie renderuje
-// przycisku) + tabBarItemStyle.display:none (zero miejsca w layoucie).
+// Helper: ukrycie taba w Expo Router 6.0.23.
+// `href` i `tabBarButton` sa wzajemnie wykluczajace (Expo Router rzuca
+// "Cannot use `href` and `tabBarButton` together"). Wybieramy tabBarButton
+// + display:none -- ukrywaja tab z paska ale route zostaje navigowalna
+// przez router.push() (potrzebne np. dla notifications, magazyn ktore
+// otwierane sa z headera/quick actions).
 const HIDDEN_TAB = {
-  href: null as null,
   tabBarButton: () => null,
   tabBarItemStyle: { display: "none" as const },
 };
