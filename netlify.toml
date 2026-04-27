@@ -4,7 +4,9 @@
   functions = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "18"
+  # Node 20+ wymagane przez RN 0.81 / Expo SDK 54 / Metro 0.83 / @supabase/supabase-js@2.94
+  # (Array.prototype.toReversed to ES2023, dostepne od Node 20)
+  NODE_VERSION = "20"
   # UWAGA: env vars dla SUPABASE wczytywane z Netlify Dashboard ->
   # Site settings -> Environment variables. NIE hardcodowac tutaj
   # bo: (a) klucz wpada do bundla po rotacji = uniewazniony klucz
