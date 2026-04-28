@@ -21,9 +21,9 @@ import {
     View
 } from "react-native";
 
-import { EditTaskModal } from "../_components/tasks/EditTaskModal";
-import { styles } from "../_components/tasks/styles";
-import { TaskCommentsSection } from "../_components/tasks/TaskCommentsSection";
+import { EditTaskModal } from "@/src/screens/tasks/EditTaskModal";
+import { styles } from "@/src/screens/tasks/styles";
+import { TaskCommentsSection } from "@/src/screens/tasks/TaskCommentsSection";
 
 // Task enriched in fetchTask() z profili (created_by_user, edited_by_user,
 // assigned_by_user) oraz listą imion all_assignees.

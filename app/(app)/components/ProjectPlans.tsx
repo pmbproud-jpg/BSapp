@@ -24,9 +24,9 @@ import {
 } from "react-native";
 import type { ThemeColors } from "@/src/providers/ThemeProvider";
 
-import { MobilePlanZoomView } from "../_components/projectPlans/MobilePlanZoomView";
-import { PdfRenderer } from "../_components/projectPlans/PdfRenderer";
-import { PlanListView } from "../_components/projectPlans/PlanListView";
+import { MobilePlanZoomView } from "@/src/screens/projectPlans/MobilePlanZoomView";
+import { PdfRenderer } from "@/src/screens/projectPlans/PdfRenderer";
+import { PlanListView } from "@/src/screens/projectPlans/PlanListView";
 
 // ─── Types ───────────────────────────────────────────────────
 type Plan = {

@@ -21,18 +21,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
 
-import { MaterialDetailView } from "./_components/magazyn/MaterialDetailView";
-import { MaterialsTab } from "./_components/magazyn/MaterialsTab";
-import { BaustellePickerModal } from "./_components/magazyn/modals/BaustellePickerModal";
-import { MaterialEditModal } from "./_components/magazyn/modals/MaterialEditModal";
-import { NotesDamagedModal } from "./_components/magazyn/modals/NotesDamagedModal";
-import { OrderEditModal } from "./_components/magazyn/modals/OrderEditModal";
-import { StatusUserModal } from "./_components/magazyn/modals/StatusUserModal";
-import { ToolEditModal } from "./_components/magazyn/modals/ToolEditModal";
-import { OrdersTab } from "./_components/magazyn/OrdersTab";
-import { ToolDetailView } from "./_components/magazyn/ToolDetailView";
-import { ToolsTab } from "./_components/magazyn/ToolsTab";
-import { s } from "./_components/magazyn/styles";
+import { MaterialDetailView } from "@/src/screens/magazyn/MaterialDetailView";
+import { MaterialsTab } from "@/src/screens/magazyn/MaterialsTab";
+import { BaustellePickerModal } from "@/src/screens/magazyn/modals/BaustellePickerModal";
+import { MaterialEditModal } from "@/src/screens/magazyn/modals/MaterialEditModal";
+import { NotesDamagedModal } from "@/src/screens/magazyn/modals/NotesDamagedModal";
+import { OrderEditModal } from "@/src/screens/magazyn/modals/OrderEditModal";
+import { StatusUserModal } from "@/src/screens/magazyn/modals/StatusUserModal";
+import { ToolEditModal } from "@/src/screens/magazyn/modals/ToolEditModal";
+import { OrdersTab } from "@/src/screens/magazyn/OrdersTab";
+import { ToolDetailView } from "@/src/screens/magazyn/ToolDetailView";
+import { ToolsTab } from "@/src/screens/magazyn/ToolsTab";
+import { s } from "@/src/screens/magazyn/styles";
 
 export default function MagazynScreen() {
   const { t } = useTranslation();

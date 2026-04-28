@@ -33,12 +33,12 @@ import ProjectDailyReports from "@/components/ProjectDailyReports";
 import ProjectDeadlines from "@/components/ProjectDeadlines";
 import ProjectObstructions from "@/components/ProjectObstructions";
 import ProjectPlans from "../components/ProjectPlans";
-import { styles } from "../_components/projectDetail/styles";
-import { AddMemberModal } from "../_components/projectDetail/modals/AddMemberModal";
-import { AddPlanWorkerModal } from "../_components/projectDetail/modals/AddPlanWorkerModal";
-import { EditProjectModal } from "../_components/projectDetail/modals/EditProjectModal";
-import { MaterialOrderModal } from "../_components/projectDetail/modals/MaterialOrderModal";
-import { ToolOrderModal } from "../_components/projectDetail/modals/ToolOrderModal";
+import { styles } from "@/src/screens/projectDetail/styles";
+import { AddMemberModal } from "@/src/screens/projectDetail/modals/AddMemberModal";
+import { AddPlanWorkerModal } from "@/src/screens/projectDetail/modals/AddPlanWorkerModal";
+import { EditProjectModal } from "@/src/screens/projectDetail/modals/EditProjectModal";
+import { MaterialOrderModal } from "@/src/screens/projectDetail/modals/MaterialOrderModal";
+import { ToolOrderModal } from "@/src/screens/projectDetail/modals/ToolOrderModal";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 
