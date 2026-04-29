@@ -1,12 +1,21 @@
 /**
  * Hook zarządzający pracownikami z planu dziennego w projekcie.
  * Wydzielony z projects/[id].tsx.
+ *
+ * Faza 3 commit 8: migracja addPlanWorkerManually na useMutation.
+ * - 1 useMutation: addPlanWorkerManually (insert plan_request jeśli brak + plan_assignment)
+ * - fetchPlanWorkers + openAddPlanWorkerModal pozostaja imperative -- query zalezne
+ *   od teamDate (per dzień) byloby drogie do cache'owania (osobny klucz per data),
+ *   a caller juz ma useEffect z [teamDate] deps. Nie psujemy.
+ *
+ * onSuccess mutation: zamknij modal + refetch listy plan workers dla aktualnej daty.
  */
 
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import { adminApi as supabaseAdmin } from "@/src/lib/supabase/adminApi";
 import type { Database } from "@/src/lib/supabase/database.types";
+import { useMutation } from "@tanstack/react-query";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 type ProfileLite = Pick<Profile, "id" | "full_name" | "email" | "role">;
@@ -20,11 +29,12 @@ export function useProjectPlanWorkers(
   projectId: string | undefined,
   profile: Profile | null,
 ) {
+  const safeId = projectId ?? "";
+
   const [planWorkers, setPlanWorkers] = useState<PlanWorkerWithTime[]>([]);
   const [showAddPlanWorker, setShowAddPlanWorker] = useState(false);
   const [planWorkerCandidates, setPlanWorkerCandidates] = useState<ProfileLite[]>([]);
   const [planWorkerSearch, setPlanWorkerSearch] = useState("");
-  const [addingPlanWorker, setAddingPlanWorker] = useState(false);
 
   const fetchPlanWorkers = async (dateStr: string) => {
     try {
@@ -37,7 +47,7 @@ export function useProjectPlanWorkers(
 
       const { data: reqs } = await supabaseAdmin.from("plan_requests")
         .select("id")
-        .eq("project_id", projectId!)
+        .eq("project_id", safeId)
         .eq("week_start", weekStart);
       if (!reqs || reqs.length === 0) { setPlanWorkers([]); return; }
       const reqsTyped = reqs as { id: string }[];
@@ -94,9 +104,9 @@ export function useProjectPlanWorkers(
     }
   };
 
-  const addPlanWorkerManually = async (userId: string, teamDate: string) => {
-    setAddingPlanWorker(true);
-    try {
+  // ── Mutation: dodaj pracownika do planu dnia (z auto-create plan_request) ──
+  const addPlanWorkerMutation = useMutation({
+    mutationFn: async ({ userId, teamDate }: { userId: string; teamDate: string }) => {
       const d = new Date(teamDate);
       const dayJs = d.getDay();
       const dayOfWeek = dayJs === 0 ? 7 : dayJs;
@@ -104,9 +114,9 @@ export function useProjectPlanWorkers(
       monday.setDate(d.getDate() - (dayOfWeek - 1));
       const weekStart = monday.toISOString().split("T")[0];
 
-      let { data: reqs } = await supabaseAdmin.from("plan_requests")
+      const { data: reqs } = await supabaseAdmin.from("plan_requests")
         .select("id")
-        .eq("project_id", projectId!)
+        .eq("project_id", safeId)
         .eq("week_start", weekStart);
 
       let requestId: string;
@@ -114,7 +124,7 @@ export function useProjectPlanWorkers(
         requestId = reqs[0].id;
       } else {
         const { data: newReq, error: reqErr } = await supabaseAdmin.from("plan_requests")
-          .insert({ project_id: projectId!, week_start: weekStart, requested_by: profile?.id, status: "published" })
+          .insert({ project_id: safeId, week_start: weekStart, requested_by: profile?.id, status: "published" })
           .select("id")
           .single();
         if (reqErr) throw reqErr;
@@ -124,26 +134,31 @@ export function useProjectPlanWorkers(
       const { error: asgnErr } = await supabaseAdmin.from("plan_assignments")
         .insert({ request_id: requestId, worker_id: userId, day_of_week: dayOfWeek });
       if (asgnErr) throw asgnErr;
-
+    },
+    onSuccess: (_data, variables) => {
       setShowAddPlanWorker(false);
-      fetchPlanWorkers(teamDate);
-    } catch (e: unknown) {
+      // Refetch listy dla aktualnej daty (caller wywola useEffect ponownie nie zadziala
+      // bo teamDate sie nie zmienia -- musimy refetch manualnie).
+      fetchPlanWorkers(variables.teamDate);
+    },
+    onError: (e: unknown) => {
       console.error("Error adding plan worker:", e);
       const code = e && typeof e === "object" && "code" in e ? (e as { code?: string }).code : undefined;
       const msg = code === "23505" ? "Mitarbeiter bereits zugewiesen" : "Fehler beim Hinzufügen";
       if (Platform.OS === "web") window.alert(msg);
       else Alert.alert("Fehler", msg);
-    } finally {
-      setAddingPlanWorker(false);
-    }
-  };
+    },
+  });
+
+  const addPlanWorkerManually = (userId: string, teamDate: string) =>
+    addPlanWorkerMutation.mutate({ userId, teamDate });
 
   return {
     planWorkers,
     showAddPlanWorker, setShowAddPlanWorker,
     planWorkerCandidates,
     planWorkerSearch, setPlanWorkerSearch,
-    addingPlanWorker,
+    addingPlanWorker: addPlanWorkerMutation.isPending,
     fetchPlanWorkers,
     openAddPlanWorkerModal,
     addPlanWorkerManually,
