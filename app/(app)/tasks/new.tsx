@@ -38,12 +38,6 @@ export default function NewTaskScreen() {
   const { sendNotification } = useNotifications();
   const { project_id } = useLocalSearchParams<{ project_id: string }>();
   const [loading, setLoading] = useState(false);
-
-  // Guard: redirect if user cannot create tasks
-  if (!perms.canCreateTask) {
-    router.replace("/projects");
-    return null;
-  }
   const [translating, setTranslating] = useState(false);
   const [translatedTitle, setTranslatedTitle] = useState("");
   const [translatedDesc, setTranslatedDesc] = useState("");
@@ -71,7 +65,17 @@ export default function NewTaskScreen() {
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // Guard: przekierowanie gdy user nie ma uprawnien do tworzenia zadan.
+  // useEffect zamiast inline router.replace -- inline lamalo Rules of Hooks
+  // (early return przed kolejnymi useState).
   useEffect(() => {
+    if (!perms.canCreateTask) {
+      router.replace("/projects");
+    }
+  }, [perms.canCreateTask]);
+
+  useEffect(() => {
+    if (!perms.canCreateTask) return; // skip fetch dla user bez uprawnien
     if (!project_id) {
       Alert.alert(t("common.error"), t("tasks.project_id_required"));
       router.back();
@@ -79,7 +83,12 @@ export default function NewTaskScreen() {
     }
     fetchProjectName();
     fetchUsers();
-  }, [project_id]);
+  }, [project_id, perms.canCreateTask]);
+
+  // Render null gdy brak uprawnien -- redirect zalatwia useEffect powyzej.
+  if (!perms.canCreateTask) {
+    return null;
+  }
 
   const fetchProjectName = async () => {
     if (!project_id) return;

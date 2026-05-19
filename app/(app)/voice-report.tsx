@@ -319,7 +319,7 @@ export default function VoiceReportScreen() {
               </View>
             </View>
             <Text style={[styles.transcriptionText, { color: colors.textSecondary }]}>
-              "{result.transcription}"
+              &quot;{result.transcription}&quot;
             </Text>
           </View>
 

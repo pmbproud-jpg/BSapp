@@ -158,7 +158,7 @@ export default function AdminUpdatesScreen() {
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={[styles.stepTitle, { color: colors.text }]}>Web</Text>
                 <Text style={[styles.stepDesc, { color: colors.textMuted }]}>
-                  Push na branch "main" → Netlify automatycznie builduje i deployuje
+                  Push na branch &quot;main&quot; → Netlify automatycznie builduje i deployuje
                 </Text>
               </View>
             </View>

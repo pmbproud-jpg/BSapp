@@ -968,7 +968,7 @@ export default function ResourceCalendar({ weekDays, assignments, projects, vehi
                       </View>
                       {a.note ? (
                         <Text style={{ fontSize: 11, color: tc.textMuted, marginTop: 3, fontStyle: "italic" }}>
-                          „{a.note}"
+                          „{a.note}”
                         </Text>
                       ) : null}
                     </View>

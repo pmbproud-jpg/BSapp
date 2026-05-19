@@ -364,7 +364,7 @@ export default function GPSAnalyticsScreen() {
         <View style={styles.warningBar}>
           <Ionicons name="warning-outline" size={16} color="#f59e0b" />
           <Text style={styles.warningText}>
-            {t("gps_analytics.select_site")} — format: "51.2345, 7.1234"
+            {t("gps_analytics.select_site")} — format: &quot;51.2345, 7.1234&quot;
           </Text>
         </View>
       )}

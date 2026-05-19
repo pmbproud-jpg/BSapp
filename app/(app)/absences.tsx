@@ -307,7 +307,7 @@ export default function AbsencesScreen() {
             {/* Note */}
             {a.note ? (
               <Text style={{ fontSize: 12, color: tc.textSecondary, marginBottom: 6, fontStyle: "italic" }}>
-                „{a.note}"
+                „{a.note}”
               </Text>
             ) : null}
 
