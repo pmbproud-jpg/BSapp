@@ -1,0 +1,48 @@
+name: CI
+
+# Sprawdza jakosc kodu na kazdym PR i pushu do main.
+# Lokalny pre-commit (husky + lint-staged) mozna obejsc przez --no-verify;
+# CI w GitHub Actions tego nie pozwala -- ostatnia linia obrony przed
+# merge'em zlej zmiany do main.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Anuluj poprzedni run dla tego samego PR/branch zeby nie marnowac minut
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: TypeScript + ESLint + Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        # --include=dev zeby zainstalowac jest, jest-expo, @testing-library/*
+        # legacy-peer-deps z .npmrc (po fazie 4 dodano paczki z luznymi peer ranges)
+        run: npm ci --include=dev
+
+      - name: TypeScript check
+        run: npx tsc --noEmit --skipLibCheck
+
+      - name: ESLint
+        # Akceptujemy warnings, ale 0 errors -- po release 1.0.2 mamy juz 0 errors
+        run: npx eslint app src --max-warnings 250
+
+      - name: Jest
+        run: npx jest --ci --passWithNoTests

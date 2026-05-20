@@ -4,6 +4,26 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.2.0] - 2026-05-20
+
+### Dodane
+- **GitHub Actions CI** ([.github/workflows/ci.yml](.github/workflows/ci.yml)) — uruchamia `tsc --noEmit + eslint + jest` na każdym pushu do `main` i każdym PR. Husky pilnuje lokalnie ale `--no-verify` to obejdzie; CI w GitHubie to ostatnia linia obrony przed merge'em błędnej zmiany. Concurrency anuluje poprzednie runy dla tego samego brancha (oszczędność minut Actions).
+- **Test `usePermissions`** ([src/hooks/__tests__/usePermissions.test.ts](src/hooks/__tests__/usePermissions.test.ts)) — 19 testów (11 dla `getRoleDefaults` + 8 dla hooka `usePermissions`). Pokrywa wszystkie 10 ról (admin, management, project_manager, bauleiter, worker, subcontractor, office_worker, logistics, purchasing, warehouse_manager) z charakterystycznymi permissions, override przez `custom_permissions`, fallback na `worker` gdy brak profile, grupowanie `isOfficeStaff`. To core security logic — refactor permissions teraz wybuchnie z testem zamiast cicho w prod.
+
+### Naprawione
+- **EAS Build APK preview** (3 attempt) — dodano `.npmrc` z `legacy-peer-deps=true`. Pierwsze 2 buildy padały w fazie "Install dependencies" z "Unknown error". Powód: po fazie 4 setup testów dodano 6 devDependencies (`jest`, `jest-expo`, `@testing-library/*`, `react-test-renderer`) z peer-dep ranges nie pasującymi 1:1 do React 19.1.0 / RN 0.81 / Expo SDK 54. Lokalnie działało (npm config default), na chmurze EAS nie — `.npmrc` wymusza ten sam behavior.
+- **Build successful:** `0aa834b5-6da0-4405-8aa9-354ec5759142`, runtime 1.1.0, APK: https://expo.dev/artifacts/eas/2jjXcnCHXwCmN13nATfZCW.apk
+
+### Zmienione
+- **Sprzątanie git** — `BSapp.zip` (1.6 MB) i `Dokumentacja i spis tresci.docx` (32 KB) usunięte z indeksu (`git rm --cached`, plik pozostaje lokalnie). Dodano `*.docx` do `.gitignore`. **Historia git nadal zawiera oba pliki** — pełne usunięcie wymaga `git filter-repo` (osobna decyzja, przepisuje historię).
+- **Sprzątanie git #2** — `sanity.test.ts` (leftover z fazy 4) usunięty z indeksu.
+- **Branch `master` usunięty lokalnie**, zdalnie zablokowany przez GitHub (master to default branch repo — trzeba ręcznie zmienić na main w Settings → Branches lub przez `gh repo edit --default-branch main`).
+
+### Status testów
+- **2/2 → 21/21 PASSED** (1.5s)
+- TypeScript: czysty
+- ESLint: 0 errors, 180 warnings (głównie kosmetyka: no-unused-vars, exhaustive-deps)
+
 ## [1.1.0] - 2026-05-19
 
 ### Zmienione
