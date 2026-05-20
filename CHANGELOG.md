@@ -4,6 +4,27 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.3.0] - 2026-05-20
+
+### Dodane
+- **Sentry observability** ([@sentry/react-native ~7.2.0](https://docs.sentry.io/platforms/react-native/)). Region: **EU (Niemcy)** — zgodny z DSGVO.
+  - Init w [app/_layout.tsx](app/_layout.tsx) z `tracesSampleRate: 0.2` (20% sample dla performance — oszczędność limitu 5k events/m na planie free) i `enableAutoSessionTracking: true` (crash-free sessions metric).
+  - W `__DEV__` Sentry jest **disabled** — eventy z developmentu nie zaśmiecają dashboardu produkcyjnego.
+  - `Sentry.wrap(RootLayout)` — root component opakowany dla auto-tracking nawigacji i sesji.
+  - `Sentry.captureException` w `ErrorBoundary.componentDidCatch` — każdy React crash idzie do Sentry z `componentStack` jako kontekst.
+  - `Sentry.setUser({ id, email, username, segment: role })` w [AuthProvider](src/providers/AuthProvider.tsx) — każdy event ma id usera, email, nazwę i rolę. Po wylogowaniu user jest czyszczony (`setUser(null)`).
+  - Plugin `@sentry/react-native` dodany do `app.json` (wymagany dla source maps w buildach EAS).
+  - DSN w `EXPO_PUBLIC_SENTRY_DSN` (env var, nie hardcode) — DSN to z designu Sentry public token (idzie do bundla klienta), ale env var pozwala na łatwą rotację i różne projekty dla dev/staging/prod.
+  - `.env.example` zaktualizowany z instrukcją zakładania konta i pozyskania DSN.
+
+### Operacyjne
+- **Co teraz widzisz w Sentry:**
+  - Każdy unhandled JS error → event z stacktrace, breadcrumbs (nawigacja, network requests), urządzeniem (iOS/Android/web), wersją appki, użytkownikiem.
+  - Performance: 20% transakcji (nawigacja screen→screen, API calls) — chart latencji.
+  - Crash-free sessions / crash-free users — KPI stabilności.
+- **Co dodać w Netlify dashboard:** `EXPO_PUBLIC_SENTRY_DSN` env var (Site settings → Environment variables) — web build już dostanie DSN automatycznie.
+- **Co dodać w EAS:** `EXPO_PUBLIC_SENTRY_DSN` w EAS environment variables (Expo dashboard → Project → Environments → preview/production) — przyszłe `eas build` dostaną DSN automatycznie.
+
 ## [1.2.0] - 2026-05-20
 
 ### Dodane

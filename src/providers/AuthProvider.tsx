@@ -1,6 +1,7 @@
 ﻿import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { Alert, Platform } from "react-native";
+import * as Sentry from "@sentry/react-native";
 import { supabase } from "../lib/supabase/client";
 import i18n from "../i18n";
 import type { Database } from "../lib/supabase/database.types";
@@ -130,6 +131,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, 60_000);
     return () => clearInterval(interval);
   }, [session?.user?.id]);
+
+  // Sentry user context -- kazdy crash wysylany do Sentry ma id usera, email
+  // i nazwe (do filtrowania crashy per klient). Po wylogowaniu czyscimy.
+  useEffect(() => {
+    if (session?.user && profile) {
+      Sentry.setUser({
+        id: profile.id,
+        email: session.user.email ?? undefined,
+        username: profile.full_name ?? undefined,
+        // Dodatkowy kontekst: rola usera -- pomocne przy debugowaniu
+        // problemow specyficznych dla rol (np. tylko worker widzi blad)
+        segment: profile.role ?? undefined,
+      });
+    } else {
+      Sentry.setUser(null);
+    }
+  }, [profile?.id, profile?.full_name, profile?.role, session?.user?.id, session?.user?.email]);
 
   const signOut = async () => {
     try {

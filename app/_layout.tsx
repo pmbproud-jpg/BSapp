@@ -3,6 +3,7 @@ import { ActivityIndicator, View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { QueryClientProvider } from "@tanstack/react-query";
+import * as Sentry from "@sentry/react-native";
 import { AuthProvider, useAuth } from "../src/providers/AuthProvider";
 import { ThemeProvider } from "../src/providers/ThemeProvider";
 import { NotificationProvider } from "../src/providers/NotificationProvider";
@@ -11,7 +12,22 @@ import i18n, { initI18n } from "../src/i18n";
 import { queryClient } from "../src/lib/queryClient";
 import UpdateChecker from "../src/components/UpdateChecker";
 
-// ErrorBoundary — łapie błędy React i pokazuje ekran awaryjny zamiast crashu
+// ── Sentry init (observability) ──
+// DSN z EXPO_PUBLIC_SENTRY_DSN (publiczny -- Sentry DSN z designu nie jest sekretem,
+// idzie do bundla klienta). Region DE (Niemcy) -- zgodny z DSGVO.
+// Bez DSN init no-op, aplikacja dziala normalnie.
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  // 20% sample dla performance tracing -- oszczednosc 5k events/m free planu
+  tracesSampleRate: 0.2,
+  // Auto sesje (czas dzialania, crash-free sessions metric)
+  enableAutoSessionTracking: true,
+  // Dev: nie wysylaj eventow lokalnie zeby nie zasmiecac dashboardu
+  enabled: !__DEV__,
+});
+
+// ErrorBoundary — łapie błędy React i pokazuje ekran awaryjny zamiast crashu.
+// componentDidCatch wysyla blad do Sentry przed pokazaniem fallbacku userowi.
 class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
@@ -22,6 +38,9 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
   }
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("ErrorBoundary caught:", error, info);
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: info.componentStack } },
+    });
   }
   render() {
     if (this.state.hasError) {
@@ -75,7 +94,7 @@ function RootLayoutNav() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -120,3 +139,6 @@ export default function RootLayout() {
     </ErrorBoundary>
   );
 }
+
+// Sentry.wrap rejestruje root component dla auto-tracking nawigacji i sesji.
+export default Sentry.wrap(RootLayout);
