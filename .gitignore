@@ -60,5 +60,8 @@ supabase/.temp/
 # archives
 *.zip
 
+# duże binaria dokumentacji (zostają lokalnie, nie commitujemy)
+*.docx
+
 # Audit artifacts (mogą zawierać sekrety w plaintext przed redakcją)
 Audyt/*.pdf
