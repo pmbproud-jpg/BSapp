@@ -4,6 +4,16 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.3.2] - 2026-05-21
+
+### Naprawione
+- **EAS Build APK errored z `EAS_BUILD_UNKNOWN_GRADLE_ERROR`** — w v1.3.0 `npx expo install @sentry/react-native` automatycznie dodał plugin `"@sentry/react-native"` do `app.json`. Plugin w fazie `Run gradlew` próbuje uploadować source maps przez `@sentry/cli` i wymaga `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT` env vars (osobne od DSN). Bez nich gradle pada.
+- Rozwiązanie: **usunięcie plugina** z `app.json`. Sentry init w JS (`app/_layout.tsx`) nadal działa — zbiera crashe i wysyła do dashboardu. **Trade-off:** stacktrace w Sentry pokazuje minified bundle JS zamiast oryginalnych nazw funkcji.
+- **Pełne włączenie source maps** (kiedy będziesz chciał czytelne stacktrace'y) wymaga:
+  1. Sentry → Settings → Account → Auth Tokens → Create Auth Token (scopy: `project:releases`, `org:read`).
+  2. EAS env vars: `SENTRY_AUTH_TOKEN`, `SENTRY_ORG=pmb` (lub Twoje slug), `SENTRY_PROJECT=bsapp`.
+  3. Plugin z powrotem w `app.json` z konfiguracją.
+
 ## [1.3.1] - 2026-05-21
 
 ### Naprawione
