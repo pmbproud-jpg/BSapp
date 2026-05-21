@@ -8,7 +8,7 @@ import { openLink } from "@/src/utils/helpers";
 import { getRoleColor, getRoleIcon } from "@/src/utils/roleHelpers";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
@@ -104,12 +104,13 @@ export default function UsersScreen() {
     { value: "warehouse_manager", label: t("common.roles.warehouse_manager") || "Lagerverwalter", icon: "file-tray-stacked" as keyof typeof Ionicons.glyphMap },
   ];
 
-  const renderUser = ({ item }: { item: Profile }) => (
-    // Link z expo-router (asChild + Pressable) -- na web renderuje natywny
-    // <a href> co dziala 100% (klik w Text dziecko bubble up do <a> naturally,
-    // bez problemow react-native-web Pressable+Text propagation).
-    // Diagnoza v1.3.7 (global click listener) pokazala ze klik w Text (nazwisko)
-    // dochodzi do DOM ale Pressable handler nie odpala -- znany bug RNW.
+  const renderUser = ({ item }: { item: Profile }) => {
+    // DIAGNOSTYKA v1.3.9: log gdy karta sie renderuje + porownanie natywnego <a> z Link
+    if (typeof window !== "undefined") {
+      // eslint-disable-next-line no-console
+      console.log("[RENDER USER]", item.id);
+    }
+    return (
     <Link href={`/users/${item.id}` as never} asChild>
       <Pressable style={styles.userCard}>
       <View style={styles.userHeader}>
@@ -206,7 +207,8 @@ export default function UsersScreen() {
       )}
       </Pressable>
     </Link>
-  );
+    );
+  };
 
   const subcontractors = useMemo(() => users.filter((u) => u.role === "subcontractor"), [users]);
 
@@ -622,6 +624,20 @@ export default function UsersScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+            {/* DIAGNOSTYKA v1.3.9: pure HTML <a href> jako kontrola.
+                Jesli ten link DZIALA a karty nie dzialaja -- problem jest w
+                karcie/Link. Jesli ten link TEZ nie dziala -- globalny issue. */}
+            {Platform.OS === "web" && filteredUsers.length > 0 && (
+              // eslint-disable-next-line react-native/no-raw-text, react/forbid-elements
+              React.createElement("a", {
+                href: `/users/${filteredUsers[0].id}`,
+                style: { display: "block", padding: 16, margin: 12, backgroundColor: "#fef3c7", border: "2px solid #f59e0b", borderRadius: 8, color: "#92400e", fontWeight: "bold", textDecoration: "none" },
+                onClick: () => {
+                  // eslint-disable-next-line no-console
+                  console.log("[PURE A] clicked native link to:", filteredUsers[0].id);
+                },
+              }, `🧪 TEST: Klik tutaj zeby wejsc do pierwszego usera (natywny <a href>)`)
+            )}
             <FlatList
               data={filteredUsers}
               renderItem={renderUser}
