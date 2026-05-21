@@ -16,13 +16,16 @@ import UpdateChecker from "../src/components/UpdateChecker";
 // DSN z EXPO_PUBLIC_SENTRY_DSN (publiczny -- Sentry DSN z designu nie jest sekretem,
 // idzie do bundla klienta). Region DE (Niemcy) -- zgodny z DSGVO.
 // Bez DSN init no-op, aplikacja dziala normalnie.
+//
+// MINIMALNA konfiguracja po v1.3.4 hotfix:
+//   - tracesSampleRate i enableAutoSessionTracking USUNIETE -- wpadly w jakims
+//     hooku routera Expo i blokowaly nawigacje (klik w karte nie otwieral
+//     szczegolow nawet po usunieciu Sentry.wrap w v1.3.1). Auto-tracking
+//     nawigacji odlozony do osobnej iteracji z reactNavigationIntegration.
+//   - Zostaje: error capture przez Sentry.captureException w ErrorBoundary
+//     oraz unhandled errors auto-przechwytywane przez SDK.
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
-  // 20% sample dla performance tracing -- oszczednosc 5k events/m free planu
-  tracesSampleRate: 0.2,
-  // Auto sesje (czas dzialania, crash-free sessions metric)
-  enableAutoSessionTracking: true,
-  // Dev: nie wysylaj eventow lokalnie zeby nie zasmiecac dashboardu
   enabled: !__DEV__,
 });
 

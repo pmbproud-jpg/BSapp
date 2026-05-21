@@ -4,6 +4,13 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.3.4] - 2026-05-21
+
+### Naprawione
+- **Kontynuacja problemu z nawigacją** — po v1.3.1 (cofnięcie `Sentry.wrap`) i v1.3.3 (chevron klikalny) user zgłosił że NADAL nie da się wejść w użytkownika z listy. Console pokazuje warning `Blocked aria-hidden on an element because its descendant retained focus` co sugeruje że jakiś globalny overlay (Sentry hook?) wpływa na DOM/focus.
+- Hipoteza: `tracesSampleRate: 0.2` + `enableAutoSessionTracking: true` w `Sentry.init` próbują podpiąć się do navigation routera Expo (mimo że `Sentry.wrap` cofnięty). Bez właściwego `routingInstrumentation` dla Expo Router te flagi mogą cicho blokować router.push.
+- Rozwiązanie: **MINIMALNA konfiguracja Sentry** — tylko `dsn` + `enabled`. Bez tracing i bez session tracking. Co zostaje: `captureException` w `ErrorBoundary` + automatyczne przechwytywanie unhandled errors przez SDK + `setUser` w `AuthProvider`. Co tracimy: performance metrics (transactions, response time), crash-free sessions metric. Można dorzucić później z reactNavigationIntegration.
+
 ## [1.3.3] - 2026-05-21
 
 ### Naprawione
