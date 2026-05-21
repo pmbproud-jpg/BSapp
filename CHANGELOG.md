@@ -4,6 +4,41 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.4.0] - 2026-05-21
+
+### 🎯 PRAWDZIWA naprawa nawigacji users (po 8 nieudanych prób v1.3.1-1.3.9)
+
+**Root cause:** `app/(app)/users/[id].tsx` był **DUPLIKATEM** `users/index.tsx` (1034 linii kopia listy). Renderował tę samą listę co lista, więc po kliku karty URL zmieniał się na `/users/<id>` ale ekran wyglądał identycznie → user widział że "klik nic nie robi".
+
+Diagnostyka z v1.3.9 (`document.addEventListener('click')` + hook na `pushState`/`replaceState`) pokazała log:
+```
+[NAV replaceState] /users/5dc734b5-c9cb-4878-80b7-84277271387e
+```
+Czyli Link/router **działają** — URL się zmienia. Plik destination po prostu renderował tę samą listę. Bug istniał **od commit `9b4d685` z lutego/marca** — wszystkie wcześniejsze "kliki w usera" prowadziły w nigdzie.
+
+### Dodane
+- **`app/(app)/users/[id].tsx` — prawdziwy detail view** (250 linii):
+  - useLocalSearchParams<{id: string}> → fetchProfile z Supabase
+  - Loading state z ActivityIndicator
+  - Error state z back button (jeśli profile nie znaleziony)
+  - Header card: duża rola avatar + nazwisko + role badge + "To Twój profil" hint
+  - Sekcja "Dane kontaktowe": email (klikalny mailto), telefon (klikalny tel) z 🔒 dla hide_*
+  - Sekcja "Informacje": rola, access_expires_at (dla subcontractors), ID (selectable monospace)
+  - TODO sekcja "Akcje" dla canEdit users (edycja roli/permissions/reset hasła — v1.4.x).
+
+### Naprawione (przy okazji)
+- Cofnięte zbędne zmiany diagnostyczne z v1.3.7-1.3.9:
+  - global click listener z `app/_layout.tsx` — usunięty (zrobił swoje)
+  - `console.log` z `renderUser` — usunięty
+  - `React.createElement("a", ...)` test link z `users/index.tsx` — usunięty
+
+### Lekcja
+- v1.3.1 (Sentry.wrap), v1.3.2 (Sentry plugin), v1.3.4 (Sentry tracing), v1.3.5 (reactCompiler), v1.3.6 (TouchableOpacity→Pressable), v1.3.8 (Link asChild), v1.3.9 (diagnostyka) — wszystkie naprawiały objawy. **Prawdziwa przyczyna była trywialna:** brak prawdziwego destination route. Diagnostyka DOM-level (v1.3.9) wreszcie pokazała że URL się zmienia → wniosek że problem w destination.
+- W przyszłości: gdy nawigacja "nie działa" — **najpierw sprawdzić w devtools czy URL się zmienia** zanim debugować Touchable/Pressable/router.
+
+### TODO osobno
+- Sprawdzić czy `app/(app)/projects/[id].tsx` jest prawdziwym detail view czy duplikatem (taki sam wzorzec).
+
 ## [1.3.8] - 2026-05-21
 
 ### Naprawione — FINALNA naprawa nawigacji users

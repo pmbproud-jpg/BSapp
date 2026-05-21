@@ -29,42 +29,6 @@ Sentry.init({
   enabled: !__DEV__,
 });
 
-// ── DIAGNOSTYKA v1.3.9: global click listener + nav tracking ──
-// v1.3.8 (Link asChild) tez nie zadzialal. Przywracamy listener + dodajemy
-// hooka na pushState (zeby zobaczyc kiedy/czy router faktycznie wykonuje nawigacje).
-if (typeof window !== "undefined" && typeof document !== "undefined") {
-  document.addEventListener("click", (e) => {
-    const target = e.target as HTMLElement | null;
-    if (!target) return;
-    const closestAnchor = target.closest("a");
-    const closestRole = target.closest("[role='button'],[role='link']");
-    // eslint-disable-next-line no-console
-    console.log("[GLOBAL CLICK]", {
-      tag: target.tagName,
-      className: typeof target.className === "string" ? target.className.slice(0, 100) : "(SVG?)",
-      closestA: closestAnchor ? { href: closestAnchor.getAttribute("href"), tag: closestAnchor.tagName } : null,
-      closestRole: closestRole ? { role: closestRole.getAttribute("role"), tag: closestRole.tagName } : null,
-      ariaHidden: target.closest("[aria-hidden='true']") ? "INSIDE_ARIA_HIDDEN" : "no",
-      defaultPrevented: e.defaultPrevented,
-    });
-  }, true);
-  // Hook do pushState/replaceState zeby wykryc kazda nawigacje
-  const origPush = window.history.pushState.bind(window.history);
-  const origReplace = window.history.replaceState.bind(window.history);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  window.history.pushState = function (state: unknown, title: string, url?: string | URL | null) {
-    // eslint-disable-next-line no-console
-    console.log("[NAV pushState]", url);
-    return origPush(state as any, title, url);
-  } as typeof window.history.pushState;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  window.history.replaceState = function (state: unknown, title: string, url?: string | URL | null) {
-    // eslint-disable-next-line no-console
-    console.log("[NAV replaceState]", url);
-    return origReplace(state as any, title, url);
-  } as typeof window.history.replaceState;
-}
-
 // ErrorBoundary — łapie błędy React i pokazuje ekran awaryjny zamiast crashu.
 // componentDidCatch wysyla blad do Sentry przed pokazaniem fallbacku userowi.
 class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
