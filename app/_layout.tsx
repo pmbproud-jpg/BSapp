@@ -29,26 +29,6 @@ Sentry.init({
   enabled: !__DEV__,
 });
 
-// ── DIAGNOSTYKA v1.3.7: global click listener (tylko web, do usuniecia po naprawie) ──
-// User po v1.3.6 zglosil ze klik w karte usera nadal nie dziala mimo zmiany
-// TouchableOpacity -> Pressable. console.log w onPress NIE pojawia sie. To znaczy
-// ze klik w ogole nie trafia do React handler. Global listener pokaze co dokladnie
-// element DOM dostaje click event -- pomoze zidentyfikowac overlay/blocker.
-if (typeof window !== "undefined" && typeof document !== "undefined") {
-  document.addEventListener("click", (e) => {
-    const target = e.target as HTMLElement | null;
-    if (!target) return;
-    // eslint-disable-next-line no-console
-    console.log("[GLOBAL CLICK]", {
-      tag: target.tagName,
-      className: target.className,
-      ariaHidden: target.closest("[aria-hidden='true']") ? "INSIDE_ARIA_HIDDEN" : "no",
-      defaultPrevented: e.defaultPrevented,
-      eventPhase: e.eventPhase,
-    });
-  }, true); // useCapture=true -- lapie click w capture phase PRZED bubble
-}
-
 // ErrorBoundary — łapie błędy React i pokazuje ekran awaryjny zamiast crashu.
 // componentDidCatch wysyla blad do Sentry przed pokazaniem fallbacku userowi.
 class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {

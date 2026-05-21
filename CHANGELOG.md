@@ -4,6 +4,30 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.3.8] - 2026-05-21
+
+### Naprawione — FINALNA naprawa nawigacji users
+- **Root cause ZNALEZIONY** dzięki global click listener z v1.3.7. Log z F12 Console:
+  ```
+  [GLOBAL CLICK] {tag: 'DIV', className: 'css-g5y9jx r-1q9bdsx r-vuvdlw r-3o4zer', ariaHidden: 'no', defaultPrevented: false, eventPhase: 1}
+  ```
+  Klasy `r-vuvdlw` (`cursor: default`) + `r-3o4zer` (`user-select: text`) → kliknięty element to **React Native Web `<Text>`**. Klik trafia do Text (`defaultPrevented: false`), ale **`<Text>` na react-native-web NIE propaguje click do `Pressable`/`Touchable` parent** w niektórych przypadkach. To długoletni issue platformy.
+- **Naprawa:** Zamiast `Pressable onPress={router.push}` użyto **`<Link href asChild>` z expo-router**. Na web Link renderuje natywny `<a href="/users/${id}">` element — kliki we wszystkie children (włącznie z Text) naturalnie bubble up do `<a>`, browser nawiguje. Na mobile Link używa Pressable + router.push pod spodem.
+- Zmiana w `renderUser` **i** `renderSubcontractor` (analogiczny problem). Outer `Pressable` i chevron `Pressable` opakowane w `<Link asChild>`.
+- **Usunięto diagnostykę:** global click listener z `app/_layout.tsx`, console.log z onPress callbacków.
+
+### Lekcja z 1.3.1-1.3.7
+- 5 nietrafionych hipotez: Sentry.wrap, Sentry tracing, reactCompiler, nested Touchable, Pressable. Bez global click listener (v1.3.7) nie znaleźlibyśmy prawdziwej przyczyny. **DOM-level click event capture to nieoceniony debug tool przy RN Web.**
+
+### TODO osobno
+- Analogiczny fix w `projects/index.tsx`, `dashboard.tsx`, `tasks/index.tsx`, `notifications.tsx` (też mają outer Touchable wrap kart z Text children).
+
+## [1.3.7] - 2026-05-21
+
+### Dodane — diagnostyka (do usunięcia po naprawie)
+- Global click listener `document.addEventListener('click', ..., true)` w [app/_layout.tsx](app/_layout.tsx) — loguje `[GLOBAL CLICK] {tag, className, ariaHidden, defaultPrevented, eventPhase}` dla KAŻDEGO kliknięcia w capture phase. Bez tego nie mielibyśmy odpowiedzi co przejmuje click w karcie users.
+- Usunięte w v1.3.8 wraz z console.log w onPress.
+
 ## [1.3.6] - 2026-05-21
 
 ### Naprawione — PRAWDZIWA przyczyna problemu z nawigacją

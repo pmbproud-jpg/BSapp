@@ -7,7 +7,7 @@ import { useCompany } from "@/src/providers/CompanyProvider";
 import { openLink } from "@/src/utils/helpers";
 import { getRoleColor, getRoleIcon } from "@/src/utils/roleHelpers";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { Link, router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -105,17 +105,13 @@ export default function UsersScreen() {
   ];
 
   const renderUser = ({ item }: { item: Profile }) => (
-    // Pressable zamiast TouchableOpacity -- react-native-web 0.21 nested
-    // TouchableOpacity nie odbierał click (email/phone/buttons z stopPropagation
-    // przechwytywaly wszystko). Pressable ma poprawne event handling na web.
-    <Pressable
-      style={styles.userCard}
-      onPress={() => {
-        // eslint-disable-next-line no-console
-        console.log("[USER CARD] outer Pressable clicked:", item.id);
-        router.push(`/users/${item.id}`);
-      }}
-    >
+    // Link z expo-router (asChild + Pressable) -- na web renderuje natywny
+    // <a href> co dziala 100% (klik w Text dziecko bubble up do <a> naturally,
+    // bez problemow react-native-web Pressable+Text propagation).
+    // Diagnoza v1.3.7 (global click listener) pokazala ze klik w Text (nazwisko)
+    // dochodzi do DOM ale Pressable handler nie odpala -- znany bug RNW.
+    <Link href={`/users/${item.id}` as never} asChild>
+      <Pressable style={styles.userCard}>
       <View style={styles.userHeader}>
         <View style={styles.userIcon}>
           <Ionicons
@@ -143,17 +139,14 @@ export default function UsersScreen() {
               {/* Chevron jako wyrazny klikalny "wejdz w szczegoly" -- email/phone/buttons
                   zajmuja wieksza czesc karty z stopPropagation, wiec outer Touchable mial
                   za malo wolnej przestrzeni. hitSlop powieksza obszar dotykowy. */}
-              <Pressable
-                onPress={() => {
-                  // eslint-disable-next-line no-console
-                  console.log("[USER CARD] chevron Pressable clicked:", item.id);
-                  router.push(`/users/${item.id}`);
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                style={{ marginLeft: 6, padding: 2 }}
-              >
-                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-              </Pressable>
+              <Link href={`/users/${item.id}` as never} asChild>
+                <Pressable
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={{ marginLeft: 6, padding: 2 }}
+                >
+                  <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+                </Pressable>
+              </Link>
             </View>
           </View>
           {item.hide_email && !(isAdmin || isManagement) ? null : (
@@ -211,7 +204,8 @@ export default function UsersScreen() {
           )}
         </View>
       )}
-    </Pressable>
+      </Pressable>
+    </Link>
   );
 
   const subcontractors = useMemo(() => users.filter((u) => u.role === "subcontractor"), [users]);
@@ -261,11 +255,11 @@ export default function UsersScreen() {
   const renderSubcontractor = ({ item }: { item: Profile }) => {
     const expired = isExpired(item.access_expires_at);
     return (
-      // Pressable zamiast TouchableOpacity -- jak w renderUser (nested touch fix dla web)
-      <Pressable
-        style={[styles.userCard, expired && { borderColor: "#ef4444", borderWidth: 1.5 }]}
-        onPress={() => router.push(`/users/${item.id}`)}
-      >
+      // Link asChild (jak w renderUser) -- renderuje <a> na web ktore lapie kliki
+      // we wszystkich children w tym Text. router.push nie dziala bo klik w Text
+      // nie propaguje do Pressable na react-native-web (znany bug).
+      <Link href={`/users/${item.id}` as never} asChild>
+        <Pressable style={[styles.userCard, expired && { borderColor: "#ef4444", borderWidth: 1.5 }]}>
         <View style={styles.userHeader}>
           <View style={[styles.userIcon, { backgroundColor: expired ? "#fef2f2" : "#f5f3ff" }]}>
             <Ionicons name="people" size={24} color={expired ? "#ef4444" : "#8b5cf6"} />
@@ -304,7 +298,8 @@ export default function UsersScreen() {
             <Text style={{ color: "#8b5cf6", fontWeight: "600", fontSize: 13 }}>{t("users.subcontractors.renew_30_days") || "30 Tage verlängern"}</Text>
           </TouchableOpacity>
         )}
-      </Pressable>
+        </Pressable>
+      </Link>
     );
   };
 
