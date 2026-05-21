@@ -4,6 +4,13 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.4.2] - 2026-05-21
+
+### Naprawione
+- **Back button pokazywał "wspólny.tył"** (Chrome auto-translate). Powód: klucz `common.back` **nie istniał** w `pl.json` / `de.json` / `en.json`. i18next gdy klucz nie istnieje zwraca **literalny klucz jako string** ("common.back") — ten string jest truthy więc fallback `t("common.back") || "Wróć"` NIE odpalał. Chrome przeglądarka widziała "common.back" jako tekst angielski, włączyła auto-translate i pokazała "wspólny.tył" (common→wspólny, back→tył).
+- Naprawa: dodanie klucza `common.back` do PL ("Wróć") / DE ("Zurück") / EN ("Back").
+- **Lekcja na przyszłość:** pattern `t("key") || "fallback"` jest ZŁY — `t` zawsze zwraca string (klucz dla missing keys). Poprawne: `t("key", "fallback")` lub `t("key", { defaultValue: "fallback" })`.
+
 ## [1.4.1] - 2026-05-21
 
 ### Naprawione (user detail view UX)
