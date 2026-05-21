@@ -140,5 +140,11 @@ function RootLayout() {
   );
 }
 
-// Sentry.wrap rejestruje root component dla auto-tracking nawigacji i sesji.
-export default Sentry.wrap(RootLayout);
+// Bez Sentry.wrap -- w v1.3.0 wprowadzony Sentry.wrap powodowal regresje
+// nawigacji w Expo Router 6 (router.push przestawal dzialac na TouchableOpacity
+// kart na liscie userow/projektow). Wrap wymaga dodatkowej konfiguracji
+// reactNavigationIntegration ktora dla Expo Router jest skomplikowana.
+// Bez wrapa nadal mamy: Sentry.init (capture exceptions), ErrorBoundary
+// captureException, Sentry.setUser w AuthProvider. To wystarczy zeby
+// crashe trafialy do dashboardu. Auto-tracking nawigacji odlozony.
+export default RootLayout;

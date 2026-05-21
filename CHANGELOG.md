@@ -4,6 +4,14 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.3.1] - 2026-05-21
+
+### Naprawione
+- **HOTFIX: Regresja nawigacji** — `Sentry.wrap(RootLayout)` z [1.3.0](#130---2026-05-20) zaburzał Expo Router 6 (`router.push` przestawał działać na `TouchableOpacity` kart w listach userów/projektów — kliknięcie nie otwierało szczegółów). User zgłosił problem w sesji 2026-05-21.
+- Rozwiązanie: cofnąć `Sentry.wrap` z [app/_layout.tsx:144](app/_layout.tsx#L144), zostawić `export default RootLayout` (bez wrapa).
+- **Sentry nadal w pełni działa** — `Sentry.init`, `ErrorBoundary.captureException`, `Sentry.setUser` w `AuthProvider` zachowane. Co tracimy: auto-tracking nawigacji (transactions per screen) — wymaga dodatkowej konfiguracji `reactNavigationIntegration` zaprojektowanej dla Expo Router. Odłożone do osobnej iteracji.
+- Stan testów: 21/21 PASSED, TypeScript: czysty.
+
 ## [1.3.0] - 2026-05-20
 
 ### Dodane
