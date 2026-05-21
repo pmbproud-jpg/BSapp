@@ -14,6 +14,7 @@ import {
     ActivityIndicator,
     FlatList,
     Platform,
+    Pressable,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -104,14 +105,16 @@ export default function UsersScreen() {
   ];
 
   const renderUser = ({ item }: { item: Profile }) => (
-    <TouchableOpacity
+    // Pressable zamiast TouchableOpacity -- react-native-web 0.21 nested
+    // TouchableOpacity nie odbierał click (email/phone/buttons z stopPropagation
+    // przechwytywaly wszystko). Pressable ma poprawne event handling na web.
+    <Pressable
       style={styles.userCard}
       onPress={() => {
         // eslint-disable-next-line no-console
-        console.log("[USER CARD] outer Touchable clicked:", item.id);
+        console.log("[USER CARD] outer Pressable clicked:", item.id);
         router.push(`/users/${item.id}`);
       }}
-      activeOpacity={0.7}
     >
       <View style={styles.userHeader}>
         <View style={styles.userIcon}>
@@ -140,18 +143,17 @@ export default function UsersScreen() {
               {/* Chevron jako wyrazny klikalny "wejdz w szczegoly" -- email/phone/buttons
                   zajmuja wieksza czesc karty z stopPropagation, wiec outer Touchable mial
                   za malo wolnej przestrzeni. hitSlop powieksza obszar dotykowy. */}
-              <TouchableOpacity
+              <Pressable
                 onPress={() => {
                   // eslint-disable-next-line no-console
-                  console.log("[USER CARD] chevron clicked:", item.id);
+                  console.log("[USER CARD] chevron Pressable clicked:", item.id);
                   router.push(`/users/${item.id}`);
                 }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={{ marginLeft: 6, padding: 2 }}
-                activeOpacity={0.6}
               >
                 <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
           {item.hide_email && !(isAdmin || isManagement) ? null : (
@@ -209,7 +211,7 @@ export default function UsersScreen() {
           )}
         </View>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 
   const subcontractors = useMemo(() => users.filter((u) => u.role === "subcontractor"), [users]);
@@ -259,10 +261,10 @@ export default function UsersScreen() {
   const renderSubcontractor = ({ item }: { item: Profile }) => {
     const expired = isExpired(item.access_expires_at);
     return (
-      <TouchableOpacity
+      // Pressable zamiast TouchableOpacity -- jak w renderUser (nested touch fix dla web)
+      <Pressable
         style={[styles.userCard, expired && { borderColor: "#ef4444", borderWidth: 1.5 }]}
         onPress={() => router.push(`/users/${item.id}`)}
-        activeOpacity={0.7}
       >
         <View style={styles.userHeader}>
           <View style={[styles.userIcon, { backgroundColor: expired ? "#fef2f2" : "#f5f3ff" }]}>
@@ -302,7 +304,7 @@ export default function UsersScreen() {
             <Text style={{ color: "#8b5cf6", fontWeight: "600", fontSize: 13 }}>{t("users.subcontractors.renew_30_days") || "30 Tage verlängern"}</Text>
           </TouchableOpacity>
         )}
-      </TouchableOpacity>
+      </Pressable>
     );
   };
 

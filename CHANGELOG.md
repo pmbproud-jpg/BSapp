@@ -4,6 +4,19 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.3.6] - 2026-05-21
+
+### Naprawione — PRAWDZIWA przyczyna problemu z nawigacją
+- **Root cause:** `react-native-web 0.21.0` ma znany bug z **nested `TouchableOpacity`**. W [users/index.tsx](app/(app)/users/index.tsx) outer `TouchableOpacity` (cała karta z `router.push`) zawiera 4-5 nested `TouchableOpacity` (email mailto, phone tel, chevron, 3 buttony akcji). Wewnętrzne mają `e.stopPropagation()` i przejmują WSZYSTKIE klik events — outer nigdy nie dostaje `onPress`. Tłumaczy też dlaczego `console.log` w v1.3.5 NIE pojawiał się w konsoli.
+- **Diagnoza:** v1.3.5 dodało `console.log` do outer i chevron Touchable. User pokazał console — żaden log się nie pojawił, mimo że email/phone Touchable działały (`Launched external handler for mailto:...`). To potwierdziło że outer Touchable jest blokowany przez nested, nie problem `router.push`.
+- **Naprawa:** `<TouchableOpacity>` → `<Pressable>` dla outer karty i chevron w `renderUser` i `renderSubcontractor`. **`Pressable` jest nowoczesnym API React Native z lepszą obsługą nested event handling na web.** Email/phone/buttons zostają jako `TouchableOpacity` (działają OK z `stopPropagation`).
+- v1.3.4 (minimum Sentry) i v1.3.5 (`reactCompiler: false`) były nietrafione — żaden z tych nie był przyczyną. Zmiany v1.3.4 zostają (Sentry minimum to dobry default). `reactCompiler` w v1.3.5 zostawiamy wyłączony jako defensive default — eksperymentalna funkcja, nieoptymalizowanie ręcznych callbacków daje lepszą przewidywalność.
+
+### TODO — w następnej iteracji
+- Usunięcie `console.log` z `users/index.tsx` (zostawione dla finalnej weryfikacji)
+- Analogiczna zmiana w `projects/index.tsx` (też ma nested Touchable — może mieć ten sam problem)
+- Migracja innych ekranów z nested Touchable na Pressable
+
 ## [1.3.5] - 2026-05-21
 
 ### Naprawione (próba 3 — diagnoza głęboka)
