@@ -4,6 +4,13 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.3.3] - 2026-05-21
+
+### Naprawione
+- **Klik na kartę użytkownika nie otwierał szczegółów** (kontynuacja sesji user, po `1.3.1` hotfix Sentry.wrap nadal nie działało). Diagnoza: outer `TouchableOpacity` zawijający całą kartę miał teoretycznie `onPress={() => router.push(...)}`, ale email + telefon + 3 przyciski akcji wewnątrz karty mają `e.stopPropagation()` (żeby klik na mailto nie otwierał też detail). To zostawiało bardzo mało wolnej przestrzeni do kliknięcia outer.
+- Rozwiązanie: **chevron `>` po prawej stronie karty (linia [app/(app)/users/index.tsx:136-144](app/(app)/users/index.tsx#L136-L144)) zamieniony na własne `TouchableOpacity` z `onPress={() => router.push(`/users/${item.id}`)}` + `hitSlop` 10px**. Teraz mamy wyraźny, klikalny przycisk "wejdź w szczegóły".
+- Outer `TouchableOpacity` zachowany — klik w avatar (lewa strona) lub w nazwisko (Text, bubble up) nadal działa.
+
 ## [1.3.2] - 2026-05-21
 
 ### Naprawione

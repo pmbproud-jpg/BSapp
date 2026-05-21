@@ -133,7 +133,17 @@ export default function UsersScreen() {
                   {t(`common.roles.${item.role}`)}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94a3b8" style={{ marginLeft: 6 }} />
+              {/* Chevron jako wyrazny klikalny "wejdz w szczegoly" -- email/phone/buttons
+                  zajmuja wieksza czesc karty z stopPropagation, wiec outer Touchable mial
+                  za malo wolnej przestrzeni. hitSlop powieksza obszar dotykowy. */}
+              <TouchableOpacity
+                onPress={() => router.push(`/users/${item.id}`)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={{ marginLeft: 6, padding: 2 }}
+                activeOpacity={0.6}
+              >
+                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              </TouchableOpacity>
             </View>
           </View>
           {item.hide_email && !(isAdmin || isManagement) ? null : (
