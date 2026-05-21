@@ -81,12 +81,22 @@ export default function UserDetailScreen() {
     );
   }
 
+  // Robust back: na web po direct URL navigation router.back() moze
+  // wyprowadzic uzytkownika ze strony (brak historii). Zawsze fallback na liste /users.
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/users");
+    }
+  };
+
   if (error || !user) {
     return (
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle-outline" size={64} color="#ef4444" />
         <Text style={styles.errorText}>{error || (t("users.not_found") || "Użytkownik nie znaleziony")}</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={goBack}>
           <Ionicons name="arrow-back" size={20} color="#ffffff" />
           <Text style={styles.backButtonText}>{t("common.back") || "Wróć"}</Text>
         </TouchableOpacity>
@@ -101,11 +111,15 @@ export default function UserDetailScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      {/* Back button */}
-      <TouchableOpacity style={styles.topBackBtn} onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={22} color="#1e293b" />
-        <Text style={styles.topBackText}>{t("common.back") || "Wróć"}</Text>
-      </TouchableOpacity>
+      {/* Header z back button + tytulem */}
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.topBackBtn} onPress={goBack} activeOpacity={0.6}>
+          <Ionicons name="arrow-back" size={22} color="#1e293b" />
+          <Text style={styles.topBackText}>{t("common.back") || "Wróć"}</Text>
+        </TouchableOpacity>
+        <Text style={styles.topTitle}>{t("users.user_details") || "Szczegóły użytkownika"}</Text>
+        <View style={{ width: 80 }} />
+      </View>
 
       {/* Header karty */}
       <View style={styles.headerCard}>
@@ -231,17 +245,34 @@ const styles = StyleSheet.create({
     marginVertical: 16,
     textAlign: "center",
   },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 12,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
   topBackBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     paddingVertical: 8,
-    marginBottom: 8,
+    paddingHorizontal: 4,
+    minWidth: 80,
   },
   topBackText: {
-    fontSize: 16,
+    fontSize: 15,
     color: "#1e293b",
     fontWeight: "500",
+  },
+  topTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1e293b",
+    textAlign: "center",
   },
   headerCard: {
     backgroundColor: "#ffffff",

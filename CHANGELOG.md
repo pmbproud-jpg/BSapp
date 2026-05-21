@@ -4,6 +4,13 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.4.1] - 2026-05-21
+
+### Naprawione (user detail view UX)
+- **`router.back()` na web**: po direct URL navigation (np. klik linka w innej karcie/zakładce) historia jest pusta — `router.back()` wyprowadza usera ze strony. Dodano `router.canGoBack()` guard + fallback `router.replace("/users")`.
+- **Header z tytułem**: dodany pasek na górze ekranu `← Wróć | Szczegóły użytkownika |` z borderem na dole. Wcześniej był tylko goły back button bez kontekstu co to za ekran.
+- **Tłumaczenia PL/DE/EN** — moje klucze (`users.user_details`, `users.contact_data`, `users.status_info`, `users.actions`, `users.not_found`, `users.own_profile`, `users.email`, `users.access_expires`, `users.edit_coming_soon`) dodane do wszystkich 3 plików locale. Wcześniej używały fallback hardcoded PL po `||`, więc PL działało, ale DE i EN dziedziczyły PL fallback zamiast tłumaczeń.
+
 ## [1.4.0] - 2026-05-21
 
 ### 🎯 PRAWDZIWA naprawa nawigacji users (po 8 nieudanych prób v1.3.1-1.3.9)
