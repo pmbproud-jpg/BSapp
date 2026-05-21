@@ -106,7 +106,11 @@ export default function UsersScreen() {
   const renderUser = ({ item }: { item: Profile }) => (
     <TouchableOpacity
       style={styles.userCard}
-      onPress={() => router.push(`/users/${item.id}`)}
+      onPress={() => {
+        // eslint-disable-next-line no-console
+        console.log("[USER CARD] outer Touchable clicked:", item.id);
+        router.push(`/users/${item.id}`);
+      }}
       activeOpacity={0.7}
     >
       <View style={styles.userHeader}>
@@ -137,7 +141,11 @@ export default function UsersScreen() {
                   zajmuja wieksza czesc karty z stopPropagation, wiec outer Touchable mial
                   za malo wolnej przestrzeni. hitSlop powieksza obszar dotykowy. */}
               <TouchableOpacity
-                onPress={() => router.push(`/users/${item.id}`)}
+                onPress={() => {
+                  // eslint-disable-next-line no-console
+                  console.log("[USER CARD] chevron clicked:", item.id);
+                  router.push(`/users/${item.id}`);
+                }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={{ marginLeft: 6, padding: 2 }}
                 activeOpacity={0.6}

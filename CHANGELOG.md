@@ -4,6 +4,14 @@ Wszystkie istotne zmiany w BSapp.
 
 Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie [SemVer](https://semver.org/lang/pl/).
 
+## [1.3.5] - 2026-05-21
+
+### Naprawione (próba 3 — diagnoza głęboka)
+- v1.3.1, v1.3.3, v1.3.4 nie naprawiły problemu nawigacji w users/index. User zgłosił że klik w kartę (avatar, nazwisko, chevron) nadal nie otwiera szczegółów. Po wykluczeniu modali (brak w pliku) i Sentry tracing (minimum w v1.3.4) → kolejny podejrzany: **`reactCompiler: true`** w `app.json` experiments.
+- React Compiler memoizuje agresywnie wszystkie callbacki — `() => router.push(...)` może zostać zoptymalizowany w sposób gubiący referencje do `router`.
+- **Wyłączono `reactCompiler: false`** w [app.json:56](app.json#L56). Eksperyment, włączony od audytu fazy 2.
+- **Dodano `console.log("[USER CARD] outer/chevron clicked", item.id)`** w obu Touchable kart usera. Diagnoza: po hard refresh i kliku w kartę user zobaczy w F12 Console czy logi się pojawiają. Jeśli **tak** — onPress działa, problem w `router.push`. Jeśli **nie** — Touchable w ogóle nie reaguje.
+
 ## [1.3.4] - 2026-05-21
 
 ### Naprawione
