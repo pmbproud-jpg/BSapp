@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stundenzettel-Generator</title>
+<meta name="theme-color" content="#2563eb">
+<meta name="description" content="Arbeitsstunden erfassen und als PDF erstellen">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Stundenzettel">
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#ffffff; --ink:#1f2933; --muted:#66707a;
+    --line:#dde3e8; --accent:#2563eb; --accent-d:#1d4ed8; --ok:#16a34a; --danger:#dc2626;
+    --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.4; -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px; margin:0 auto; padding:16px 14px 96px;}
+  h1{font-size:20px; margin:6px 0 2px; letter-spacing:.2px;}
+  .sub{color:var(--muted); font-size:13px; margin:0 0 14px;}
+  .tabs{display:flex; gap:8px; margin:0 0 16px;}
+  .tab{flex:1; padding:11px 8px; border:1px solid var(--line); background:var(--card);
+    border-radius:12px; font-size:15px; font-weight:600; color:var(--muted);
+    cursor:pointer; text-align:center;}
+  .tab.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:16px; margin:0 0 14px; box-shadow:var(--shadow);}
+  .idcard{border-color:#cfe0ff; background:#f7faff;}
+  label{display:block; font-size:13px; font-weight:600; color:var(--muted); margin:0 0 6px;}
+  select,input[type=text],input[type=date],input[type=month]{
+    padding:9px 10px; font-size:15px; border:1px solid var(--line);
+    border-radius:9px; background:#fff; color:var(--ink); font-family:inherit;}
+  .field{margin:0 0 14px;}
+  .field:last-child{margin-bottom:0;}
+  .field select,.field input{width:100%;}
+  button{font-family:inherit; cursor:pointer;}
+  .btn{padding:12px 16px; font-size:15px; font-weight:700; border:none; border-radius:11px;
+    background:var(--accent); color:#fff;}
+  .btn:active{background:var(--accent-d);}
+  .btn.ok{background:var(--ok);}
+  .btn.full{width:100%;}
+  .btn.small{padding:9px 13px; font-size:14px;}
+
+  .addproj{display:flex; gap:8px; align-items:flex-end; margin:0 0 14px;}
+  .addproj .field{flex:1; margin:0;}
+
+  /* Tabelle */
+  .tblwrap{overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:12px;}
+  table.grid{border-collapse:collapse; width:100%; min-width:720px; font-size:14px;}
+  table.grid th,table.grid td{border:1px solid var(--line); padding:6px 8px; text-align:left; white-space:nowrap;}
+  table.grid thead th{background:#eef2f6; font-size:12px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted);}
+  table.grid td.t-firma{min-width:190px;}
+  table.grid select,table.grid input[type=date]{padding:7px 8px; font-size:14px; border-radius:7px; width:100%;}
+  .timecell{display:flex; align-items:center; gap:3px;}
+  .timecell select{width:auto; min-width:58px; padding:7px 4px; text-align:center;}
+  .timecell span{color:var(--muted); font-weight:700;}
+  td.t-kw{color:var(--muted); font-weight:600; font-variant-numeric:tabular-nums; text-align:center; white-space:nowrap;}
+  td.t-std{font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums; text-align:right;}
+  td.t-del{width:36px; text-align:center;}
+  .delbtn{background:none; border:none; color:var(--danger); font-size:18px; line-height:1; padding:2px 4px;}
+  tr.totalrow td{background:#f3f6fb; font-weight:700;}
+  tr.totalrow td.t-std{font-size:16px;}
+  .empty td{color:var(--muted); text-align:center; padding:18px 0; font-size:14px; white-space:normal;}
+  .tblfoot{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+
+  .seg{display:flex; gap:6px; background:#eef2f6; padding:4px; border-radius:11px;}
+  .seg button{flex:1; padding:9px; border:none; background:transparent; border-radius:8px;
+    font-weight:600; font-size:14px; color:var(--muted);}
+  .seg button.active{background:#fff; color:var(--ink); box-shadow:var(--shadow);}
+  .calc{background:#f0f6ff; border:1px solid #cfe0ff; border-radius:10px; padding:12px;
+    text-align:center; font-size:15px; margin:2px 0 14px;}
+  .calc b{font-size:20px; color:var(--accent);}
+  .hint{font-size:12px; color:var(--muted); margin-top:6px;}
+  .view{display:none;}
+  .view.active{display:block;}
+  .row2{display:flex; gap:12px; flex-wrap:wrap;}
+  .row2>.field{flex:1; min-width:180px;}
+
+  /* ---------- Report / Druck ---------- */
+  #report{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #report, #report *{visibility:visible;}
+    #report{display:block; position:absolute; left:0; top:0; width:100%; padding:8mm;}
+    @page{size:A4 portrait; margin:12mm;}
+  }
+  #report{font-family:Arial,Helvetica,sans-serif; color:#000;}
+  #report h2{font-size:18px; margin:0 0 4px;}
+  #report .rmeta{font-size:12px; color:#222; margin:0 0 14px; line-height:1.6;}
+  #report .rmeta b{color:#000;}
+  #report table{width:100%; border-collapse:collapse; font-size:12px;}
+  #report th,#report td{border:1px solid #000; padding:5px 7px; text-align:left;}
+  #report th{background:#eee; font-weight:700;}
+  #report td.num,#report th.num{text-align:right; font-variant-numeric:tabular-nums;}
+  #report tr.total td{font-weight:700; background:#f3f3f3;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Stundenzettel-Generator</h1>
+  <p class="sub">Stundenzettel → PDF · Daten werden nur in diesem Browser gespeichert</p>
+
+  <!-- ============ IDENTITÄT ============ -->
+  <div class="card idcard">
+    <div class="field">
+      <label>Firma</label>
+      <input type="text" id="idFirma" placeholder="Name der Firma">
+    </div>
+    <div class="field">
+      <label>Vor- und Nachname</label>
+      <input type="text" id="idName" placeholder="Wessen Stunden sind das?">
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-view="input">📋 Stundentabelle</button>
+    <button class="tab" data-view="pdf">📄 PDF erstellen</button>
+  </div>
+
+  <!-- ============ ANSICHT: TABELLE ============ -->
+  <div class="view active" id="view-input">
+    <div class="card">
+      <div class="addproj">
+        <div class="field">
+          <label>Baustelle zur Liste hinzufügen</label>
+          <input type="text" id="newProjName" placeholder="z. B. Ausländeramt Bonn 260004">
+        </div>
+        <button class="btn small ok" id="addProjBtn">Baustelle hinzufügen</button>
+      </div>
+
+      <div class="tblwrap">
+        <table class="grid">
+          <thead>
+            <tr>
+              <th>Baustelle</th><th>Datum</th><th>KW</th><th>Von</th><th>Bis</th>
+              <th>Pause</th><th>Anfahrt</th><th>Stunden</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="gridBody"></tbody>
+          <tfoot>
+            <tr class="totalrow">
+              <td colspan="5">Gesamt</td>
+              <td id="totPause">–</td>
+              <td id="totAnf">–</td>
+              <td class="t-std" id="totStd">0,00</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="tblfoot">
+        <button class="btn ok" id="addRowBtn">＋ Tag hinzufügen</button>
+      </div>
+      <p class="hint">Uhrzeiten wählen Sie aus den Listen (Stunde : Minute). „Stunden" wird automatisch berechnet: (Bis − Von) − Pause. Anfahrt wird separat gezählt.</p>
+    </div>
+  </div>
+
+  <!-- ============ ANSICHT: PDF ============ -->
+  <div class="view" id="view-pdf">
+    <div class="card">
+      <div class="field">
+        <label>Zeitraum</label>
+        <div class="seg" id="rangeSeg">
+          <button data-range="day">Tag</button>
+          <button data-range="week">Woche</button>
+          <button data-range="month" class="active">Monat</button>
+        </div>
+      </div>
+
+      <div class="row2">
+        <div class="field" id="dayField" style="display:none;">
+          <label>Tag wählen</label>
+          <input type="date" id="pdfDay">
+        </div>
+        <div class="field" id="weekField" style="display:none;">
+          <label>Beliebiger Tag der Woche (Mo–So)</label>
+          <input type="date" id="pdfWeek">
+        </div>
+        <div class="field" id="monthField">
+          <label>Monat</label>
+          <input type="month" id="pdfMonth">
+        </div>
+        <div class="field">
+          <label>Baustelle</label>
+          <select id="pdfProj"></select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Titel auf dem PDF</label>
+        <input type="text" id="pdfTitle" placeholder="z. B. Juli 2026">
+      </div>
+
+      <div class="calc" style="margin-bottom:14px;">
+        <span id="pdfSummary">—</span>
+      </div>
+
+      <button class="btn ok full" id="genBtn">PDF erstellen</button>
+      <p class="hint">Es öffnet sich der Druckdialog — wählen Sie „Als PDF speichern" als Drucker.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRUCKBEREICH ============ -->
+<div id="report"></div>
+
+<script>
+(function(){
+  "use strict";
+  var LS_PROJ="sz_projects_v1", LS_ENTRIES="sz_entries_v2", LS_IDENT="sz_ident_v1";
+  var DE_MONTHS=["Januar","Februar","März","April","Mai","Juni","Juli",
+    "August","September","Oktober","November","Dezember"];
+
+  function load(key, def){ try{ return JSON.parse(localStorage.getItem(key)) || def; }catch(e){ return def; } }
+  function save(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+  var projects=load(LS_PROJ,[]);
+  var entries =load(LS_ENTRIES,[]);
+  var ident   =load(LS_IDENT,{firma:"",name:""});
+
+  function $(id){ return document.getElementById(id); }
+  function pad(n){ return (n<10?"0":"")+n; }
+  function minToHHMM(m){ m=Math.max(0,Math.round(m)); return pad(Math.floor(m/60))+":"+pad(m%60); }
+  function minToDecComma(m){ return (m/60).toFixed(2).replace(".",","); }
+  function todayISO(){ var d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+  function isoToDE(iso){ var p=iso.split("-"); return p[2]+"."+p[1]+"."+p[0]; }
+  function isoWeek(iso){ // ISO-8601 Kalenderwoche
+    if(!iso) return null;
+    var p=iso.split("-"), d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]));
+    var day=(d.getUTCDay()+6)%7; d.setUTCDate(d.getUTCDate()-day+3);
+    var ft=new Date(Date.UTC(d.getUTCFullYear(),0,4));
+    var fday=(ft.getUTCDay()+6)%7; ft.setUTCDate(ft.getUTCDate()-fday+3);
+    return 1+Math.round((d-ft)/604800000);
+  }
+  function kwLabel(iso){ var w=isoWeek(iso); return w? "KW "+w : "–"; }
+  function workMin(e){ return Math.max(0, e.bis - e.von - e.pause); }
+  function escapeHtml(s){ return String(s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];}); }
+  function escapeAttr(s){ return String(s).replace(/[&"]/g,function(c){return c==="&"?"&amp;":"&quot;";}); }
+  function newId(){ return "e"+Date.now()+"_"+Math.floor(entries.length); }
+
+  // ---------- Identität ----------
+  $("idFirma").value=ident.firma||"";
+  $("idName").value =ident.name||"";
+  $("idFirma").addEventListener("input", function(){ ident.firma=this.value; save(LS_IDENT,ident); });
+  $("idName").addEventListener("input", function(){ ident.name=this.value; save(LS_IDENT,ident); });
+
+  // ---------- Options ----------
+  function hourOpts(sel, max){
+    var o=""; for(var h=0;h<=max;h++){ o+='<option value="'+h+'"'+(h===sel?' selected':'')+'>'+pad(h)+'</option>'; } return o;
+  }
+  function minOpts(sel){
+    var o=""; for(var m=0;m<60;m+=5){ o+='<option value="'+m+'"'+(m===sel?' selected':'')+'>'+pad(m)+'</option>'; } return o;
+  }
+  function projOpts(sel){
+    var o='<option value="">— wählen —</option>';
+    projects.forEach(function(p){ o+='<option value="'+escapeAttr(p)+'"'+(p===sel?' selected':'')+'>'+escapeHtml(p)+'</option>'; });
+    return o;
+  }
+  function timeCell(idPrefix, totalMin, kind){
+    var h=Math.floor(totalMin/60), m=totalMin%60, maxH=kind==="dur"?6:23;
+    return '<div class="timecell">'
+      + '<select data-part="h" data-p="'+idPrefix+'">'+hourOpts(h,maxH)+'</select>'
+      + '<span>:</span>'
+      + '<select data-part="m" data-p="'+idPrefix+'">'+minOpts(m)+'</select>'
+      + '</div>';
+  }
+
+  // ---------- Tabelle ----------
+  function renderGrid(){
+    var body=$("gridBody");
+    if(entries.length===0){
+      body.innerHTML='<tr class="empty"><td colspan="8">Keine Tage. Klicken Sie auf „＋ Tag hinzufügen".</td></tr>';
+    } else {
+      body.innerHTML=entries.map(function(e){
+        return '<tr data-id="'+e.id+'">'
+          + '<td class="t-firma"><select data-f="project">'+projOpts(e.project)+'</select></td>'
+          + '<td><input type="date" data-f="date" value="'+e.date+'"></td>'
+          + '<td class="t-kw">'+kwLabel(e.date)+'</td>'
+          + '<td>'+timeCell("von",e.von,"clock")+'</td>'
+          + '<td>'+timeCell("bis",e.bis,"clock")+'</td>'
+          + '<td>'+timeCell("pause",e.pause,"dur")+'</td>'
+          + '<td>'+timeCell("anfahrt",e.anfahrt,"dur")+'</td>'
+          + '<td class="t-std">'+minToHHMM(workMin(e))+'</td>'
+          + '<td class="t-del"><button class="delbtn" title="Tag löschen">✕</button></td>'
+          + '</tr>';
+      }).join("");
+    }
+    bindGrid();
+    updateTotals();
+  }
+  function getEntry(id){ for(var i=0;i<entries.length;i++){ if(entries[i].id===id) return entries[i]; } return null; }
+
+  function bindGrid(){
+    Array.prototype.forEach.call($("gridBody").querySelectorAll("tr[data-id]"), function(tr){
+      var id=tr.getAttribute("data-id");
+      var e=getEntry(id);
+      tr.querySelector('[data-f="project"]').addEventListener("change", function(){
+        e.project=this.value; save(LS_ENTRIES,entries);
+      });
+      tr.querySelector('[data-f="date"]').addEventListener("change", function(){
+        e.date=this.value||todayISO(); save(LS_ENTRIES,entries);
+        var kw=tr.querySelector(".t-kw"); if(kw) kw.textContent=kwLabel(e.date);
+      });
+      Array.prototype.forEach.call(tr.querySelectorAll(".timecell select"), function(sel){
+        sel.addEventListener("change", function(){
+          var p=this.getAttribute("data-p");
+          var cell=this.closest(".timecell");
+          var h=+cell.querySelector('[data-part="h"]').value;
+          var m=+cell.querySelector('[data-part="m"]').value;
+          e[p]=h*60+m; save(LS_ENTRIES,entries);
+          tr.querySelector(".t-std").textContent=minToHHMM(workMin(e));
+          updateTotals();
+        });
+      });
+      tr.querySelector(".delbtn").addEventListener("click", function(){
+        entries=entries.filter(function(x){ return x.id!==id; });
+        save(LS_ENTRIES,entries); renderGrid();
+      });
+    });
+  }
+
+  function updateTotals(){
+    var sw=0,sp=0,sa=0;
+    entries.forEach(function(e){ sw+=workMin(e); sp+=e.pause; sa+=e.anfahrt; });
+    $("totPause").textContent=entries.length? minToHHMM(sp):"–";
+    $("totAnf").textContent  =entries.length? minToHHMM(sa):"–";
+    $("totStd").textContent  =minToDecComma(sw);
+    updatePdfSummary();
+  }
+
+  // ---------- Baustelle hinzufügen ----------
+  function fillPdfProj(){
+    var o='<option value="__all__">Alle Baustellen</option>';
+    projects.forEach(function(p){ o+='<option value="'+escapeAttr(p)+'">'+escapeHtml(p)+'</option>'; });
+    $("pdfProj").innerHTML=o;
+  }
+  $("addProjBtn").addEventListener("click", function(){
+    var name=$("newProjName").value.trim();
+    if(!name) return;
+    if(projects.indexOf(name)===-1){ projects.push(name); save(LS_PROJ,projects); }
+    $("newProjName").value="";
+    fillPdfProj(); renderGrid();
+  });
+  $("newProjName").addEventListener("keydown", function(ev){ if(ev.key==="Enter"){ $("addProjBtn").click(); } });
+
+  // ---------- Tag hinzufügen ----------
+  $("addRowBtn").addEventListener("click", function(){
+    var last=entries.length? entries[entries.length-1]:null;
+    var date=todayISO();
+    if(last && last.date){ var d=parseISO(last.date); d.setDate(d.getDate()+1); date=isoOf(d); }
+    entries.push({
+      id:newId(),
+      project:last? last.project:(projects[0]||""),
+      date:date,
+      von:last? last.von:360,
+      bis:last? last.bis:960,
+      pause:last? last.pause:45,
+      anfahrt:last? last.anfahrt:0
+    });
+    save(LS_ENTRIES,entries);
+    renderGrid();
+    var rows=$("gridBody").querySelectorAll("tr[data-id]");
+    if(rows.length){ rows[rows.length-1].scrollIntoView({block:"center"}); }
+  });
+
+  // ---------- Tabs ----------
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(t){
+    t.addEventListener("click", function(){
+      document.querySelectorAll(".tab").forEach(function(x){x.classList.remove("active");});
+      this.classList.add("active");
+      var v=this.getAttribute("data-view");
+      $("view-input").classList.toggle("active", v==="input");
+      $("view-pdf").classList.toggle("active", v==="pdf");
+      if(v==="pdf") updatePdfSummary();
+    });
+  });
+
+  // ---------- Zeitraum ----------
+  var currentRange="month";
+  Array.prototype.forEach.call($("rangeSeg").querySelectorAll("button"), function(b){
+    b.addEventListener("click", function(){
+      $("rangeSeg").querySelectorAll("button").forEach(function(x){x.classList.remove("active");});
+      this.classList.add("active");
+      currentRange=this.getAttribute("data-range");
+      $("dayField").style.display   = currentRange==="day"   ? "block":"none";
+      $("weekField").style.display  = currentRange==="week"  ? "block":"none";
+      $("monthField").style.display = currentRange==="month" ? "block":"none";
+      autoTitle(); updatePdfSummary();
+    });
+  });
+
+  function parseISO(iso){ var p=iso.split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
+  function isoOf(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+  function weekBounds(iso){
+    var d=parseISO(iso), dow=(d.getDay()+6)%7;
+    var mon=new Date(d); mon.setDate(d.getDate()-dow);
+    var sun=new Date(mon); sun.setDate(mon.getDate()+6);
+    return [mon,sun];
+  }
+  function currentFilter(){
+    if(currentRange==="day"){
+      var d=$("pdfDay").value; if(!d) return null;
+      return { test:function(iso){return iso===d;}, title:isoToDE(d) };
+    }
+    if(currentRange==="week"){
+      var w=$("pdfWeek").value; if(!w) return null;
+      var b=weekBounds(w), a=isoOf(b[0]), z=isoOf(b[1]);
+      return { test:function(iso){return iso>=a&&iso<=z;}, title:"Woche "+isoToDE(a)+" – "+isoToDE(z) };
+    }
+    var m=$("pdfMonth").value; if(!m) return null;
+    var parts=m.split("-"), y=+parts[0], mi=+parts[1]-1;
+    return { test:function(iso){return iso.slice(0,7)===m;}, title:DE_MONTHS[mi]+" "+y };
+  }
+  function filteredEntries(){
+    var f=currentFilter(); if(!f) return {list:[],f:null};
+    var proj=$("pdfProj").value;
+    var list=entries.filter(function(e){
+      if(!e.date || !f.test(e.date)) return false;
+      if(proj!=="__all__" && e.project!==proj) return false;
+      return true;
+    }).sort(function(a,b){ return a.date<b.date?-1:a.date>b.date?1:0; });
+    return {list:list,f:f};
+  }
+  function autoTitle(){ var f=currentFilter(); if(f) $("pdfTitle").value=f.title; }
+  function updatePdfSummary(){
+    if(!$("view-pdf").classList.contains("active")) return;
+    var r=filteredEntries();
+    if(!r.f){ $("pdfSummary").textContent="Zeitraum wählen"; return; }
+    var sw=r.list.reduce(function(s,e){return s+workMin(e);},0);
+    var sa=r.list.reduce(function(s,e){return s+e.anfahrt;},0);
+    $("pdfSummary").innerHTML=r.list.length+" Tage · <b>"+minToDecComma(sw)+" Std</b>"
+      + (sa? " · Anfahrt "+minToDecComma(sa)+" Std":"");
+  }
+  ["pdfDay","pdfWeek","pdfMonth","pdfProj"].forEach(function(id){
+    $(id).addEventListener("change", function(){ autoTitle(); updatePdfSummary(); });
+  });
+
+  // ---------- PDF ----------
+  $("genBtn").addEventListener("click", function(){
+    var r=filteredEntries();
+    if(!r.f){ alert("Bitte Zeitraum wählen (Tag / Woche / Monat)."); return; }
+    if(r.list.length===0){ alert("Keine Einträge im gewählten Zeitraum."); return; }
+    var title=$("pdfTitle").value.trim() || r.f.title;
+    var proj=$("pdfProj").value;
+    var projLabel=proj==="__all__" ? "Alle Baustellen" : proj;
+
+    var sw=0,sa=0,rows="";
+    r.list.forEach(function(e){
+      var w=workMin(e); sw+=w; sa+=e.anfahrt;
+      rows+="<tr>"
+        + "<td>"+escapeHtml(e.project||"")+"</td>"
+        + "<td>"+isoToDE(e.date)+"</td>"
+        + "<td>"+kwLabel(e.date)+"</td>"
+        + "<td>"+minToHHMM(e.von)+"</td>"
+        + "<td>"+minToHHMM(e.bis)+"</td>"
+        + "<td>"+minToHHMM(e.pause)+"</td>"
+        + "<td>"+(e.anfahrt? minToHHMM(e.anfahrt):"–")+"</td>"
+        + '<td class="num">'+minToHHMM(w)+"</td>"
+        + "</tr>";
+    });
+
+    var meta=[];
+    if(ident.firma && ident.firma.trim()) meta.push("<b>Firma:</b> "+escapeHtml(ident.firma.trim()));
+    if(ident.name && ident.name.trim())   meta.push("<b>Name:</b> "+escapeHtml(ident.name.trim()));
+    meta.push("<b>Baustelle:</b> "+escapeHtml(projLabel));
+
+    var html='<h2>'+escapeHtml(title)+'</h2>'
+      + '<p class="rmeta">'+meta.join("<br>")+'</p>'
+      + '<table><thead><tr>'
+      + '<th>Baustelle</th><th>Datum</th><th>KW</th><th>Von</th><th>Bis</th><th>Pause</th><th>Anfahrt</th><th class="num">Stunden</th>'
+      + '</tr></thead><tbody>'+rows
+      + '<tr class="total"><td colspan="6" style="text-align:right;">Gesamt</td>'
+        + '<td>'+(sa? minToHHMM(sa):"–")+'</td>'
+        + '<td class="num">'+minToDecComma(sw)+'</td></tr>'
+      + '</tbody></table>';
+    $("report").innerHTML=html;
+    window.print();
+  });
+
+  // ---------- Init ----------
+  $("pdfDay").value=todayISO();
+  $("pdfWeek").value=todayISO();
+  $("pdfMonth").value=todayISO().slice(0,7);
+  fillPdfProj();
+  renderGrid();
+  autoTitle();
+
+  // ---------- Service Worker (Offline / Installierbar) ----------
+  if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").catch(function(){});
+    });
+  }
+})();
+</script>
+</body>
+</html>
