@@ -50,13 +50,24 @@
   .btn.ok{background:var(--ok);}
   .btn.full{width:100%;}
   .btn.small{padding:9px 13px; font-size:14px;}
+  .btn.ghost{background:#eef2f6; color:var(--ink); border:1px solid var(--line); font-weight:600;}
+
+  .backup{display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px;}
+  .backup .btn{flex:1; min-width:150px;}
 
   .addproj{display:flex; gap:8px; align-items:flex-end; margin:0 0 14px;}
   .addproj .field{flex:1; margin:0;}
 
+  .person-head{display:flex; gap:10px; align-items:flex-end; margin:0 0 12px;}
+  .person-head .field{flex:1; margin:0;}
+  .person-del{background:#fdeaea; border:1px solid #f6cccc; color:var(--danger);
+    font-size:16px; line-height:1; border-radius:9px; padding:10px 12px; font-weight:700;}
+  .person-tag{display:inline-block; background:#eef2f6; color:var(--muted); font-size:12px;
+    font-weight:700; padding:2px 8px; border-radius:20px; margin:0 0 8px;}
+
   /* Tabelle */
   .tblwrap{overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:12px;}
-  table.grid{border-collapse:collapse; width:100%; min-width:720px; font-size:14px;}
+  table.grid{border-collapse:collapse; width:100%; min-width:760px; font-size:14px;}
   table.grid th,table.grid td{border:1px solid var(--line); padding:6px 8px; text-align:left; white-space:nowrap;}
   table.grid thead th{background:#eef2f6; font-size:12px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted);}
   table.grid td.t-firma{min-width:190px;}
@@ -72,6 +83,7 @@
   tr.totalrow td.t-std{font-size:16px;}
   .empty td{color:var(--muted); text-align:center; padding:18px 0; font-size:14px; white-space:normal;}
   .tblfoot{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+  #addPersonBtn{width:100%; margin-top:2px;}
 
   .seg{display:flex; gap:6px; background:#eef2f6; padding:4px; border-radius:11px;}
   .seg button{flex:1; padding:9px; border:none; background:transparent; border-radius:8px;
@@ -95,6 +107,8 @@
     @page{size:A4 portrait; margin:12mm;}
   }
   #report{font-family:Arial,Helvetica,sans-serif; color:#000;}
+  #report .sheet{page-break-inside:auto;}
+  #report .sheet + .sheet{page-break-before:always;}
   #report h2{font-size:18px; margin:0 0 4px;}
   #report .rmeta{font-size:12px; color:#222; margin:0 0 14px; line-height:1.6;}
   #report .rmeta b{color:#000;}
@@ -110,15 +124,17 @@
   <h1>Stundenzettel-Generator</h1>
   <p class="sub">Stundenzettel → PDF · Daten werden nur in diesem Browser gespeichert</p>
 
-  <!-- ============ IDENTITÄT ============ -->
+  <!-- ============ FIRMA ============ -->
   <div class="card idcard">
     <div class="field">
       <label>Firma</label>
       <input type="text" id="idFirma" placeholder="Name der Firma">
     </div>
-    <div class="field">
-      <label>Vor- und Nachname</label>
-      <input type="text" id="idName" placeholder="Wessen Stunden sind das?">
+    <p class="hint" style="margin-top:10px;">Gilt für alle Personen unten. Tipp: Speichern Sie regelmäßig eine Sicherung — bei „Browserdaten löschen" gehen ungesicherte Einträge verloren.</p>
+    <div class="backup" style="margin-top:12px;">
+      <button class="btn ghost small" id="exportBtn">⬇ Sicherung speichern</button>
+      <button class="btn ghost small" id="importBtn">⬆ Sicherung laden</button>
+      <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
     </div>
   </div>
 
@@ -137,38 +153,23 @@
         </div>
         <button class="btn small ok" id="addProjBtn">Baustelle hinzufügen</button>
       </div>
-
-      <div class="tblwrap">
-        <table class="grid">
-          <thead>
-            <tr>
-              <th>Baustelle</th><th>Datum</th><th>KW</th><th>Von</th><th>Bis</th>
-              <th>Pause</th><th>Anfahrt</th><th>Stunden</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="gridBody"></tbody>
-          <tfoot>
-            <tr class="totalrow">
-              <td colspan="5">Gesamt</td>
-              <td id="totPause">–</td>
-              <td id="totAnf">–</td>
-              <td class="t-std" id="totStd">0,00</td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      <div class="tblfoot">
-        <button class="btn ok" id="addRowBtn">＋ Tag hinzufügen</button>
-      </div>
-      <p class="hint">Uhrzeiten wählen Sie aus den Listen (Stunde : Minute). „Stunden" wird automatisch berechnet: (Bis − Von) − Pause. Anfahrt wird separat gezählt.</p>
+      <p class="hint">Die Baustellen-Liste gilt für alle Personen. Uhrzeiten wählen Sie aus den Listen (Stunde : Minute). „Stunden" = (Bis − Von) − Pause. Anfahrt wird separat gezählt.</p>
     </div>
+
+    <div id="personsWrap"></div>
+
+    <button class="btn ok" id="addPersonBtn">＋ Person hinzufügen</button>
   </div>
 
   <!-- ============ ANSICHT: PDF ============ -->
   <div class="view" id="view-pdf">
     <div class="card">
+      <div class="field">
+        <label>Person</label>
+        <select id="pdfPerson"></select>
+        <p class="hint">Eine Person → eigener Stundenzettel (einzeln). „Alle Personen" → ein PDF, eine Seite pro Person.</p>
+      </div>
+
       <div class="field">
         <label>Zeitraum</label>
         <div class="seg" id="rangeSeg">
@@ -218,15 +219,32 @@
 <script>
 (function(){
   "use strict";
-  var LS_PROJ="sz_projects_v1", LS_ENTRIES="sz_entries_v2", LS_IDENT="sz_ident_v1";
+  var LS_PROJ="sz_projects_v1", LS_DATA="sz_data_v3";
   var DE_MONTHS=["Januar","Februar","März","April","Mai","Juni","Juli",
     "August","September","Oktober","November","Dezember"];
 
-  function load(key, def){ try{ return JSON.parse(localStorage.getItem(key)) || def; }catch(e){ return def; } }
-  function save(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+  function load(key, def){ try{ var v=localStorage.getItem(key); return v===null? def : JSON.parse(v); }catch(e){ return def; } }
+  function save(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
+
   var projects=load(LS_PROJ,[]);
-  var entries =load(LS_ENTRIES,[]);
-  var ident   =load(LS_IDENT,{firma:"",name:""});
+
+  // ---------- Daten laden + Migration aus altem Format ----------
+  var seq=0;
+  function uid(pfx){ seq++; return pfx+Date.now().toString(36)+seq.toString(36); }
+  function pfxNull(){ return ""; }
+  var data=load(LS_DATA,null);
+  if(!data){
+    var oldEntries=load("sz_entries_v2",null);
+    var oldIdent=load("sz_ident_v1",null);
+    if(oldEntries || oldIdent){
+      data={ firma:(oldIdent&&oldIdent.firma)||"", persons:[ {id:uid("p"), name:(oldIdent&&oldIdent.name)||"", entries:oldEntries||[]} ] };
+    } else {
+      data={ firma:"", persons:[ {id:uid("p"), name:"", entries:[]} ] };
+    }
+    save(LS_DATA,data);
+  }
+  if(!data.persons || !data.persons.length){ data.persons=[{id:uid("p"),name:"",entries:[]}]; }
+  function saveData(){ save(LS_DATA,data); }
 
   function $(id){ return document.getElementById(id); }
   function pad(n){ return (n<10?"0":"")+n; }
@@ -234,7 +252,7 @@
   function minToDecComma(m){ return (m/60).toFixed(2).replace(".",","); }
   function todayISO(){ var d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
   function isoToDE(iso){ var p=iso.split("-"); return p[2]+"."+p[1]+"."+p[0]; }
-  function isoWeek(iso){ // ISO-8601 Kalenderwoche
+  function isoWeek(iso){
     if(!iso) return null;
     var p=iso.split("-"), d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]));
     var day=(d.getUTCDay()+6)%7; d.setUTCDate(d.getUTCDate()-day+3);
@@ -244,15 +262,15 @@
   }
   function kwLabel(iso){ var w=isoWeek(iso); return w? "KW "+w : "–"; }
   function workMin(e){ return Math.max(0, e.bis - e.von - e.pause); }
-  function escapeHtml(s){ return String(s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];}); }
-  function escapeAttr(s){ return String(s).replace(/[&"]/g,function(c){return c==="&"?"&amp;":"&quot;";}); }
-  function newId(){ return "e"+Date.now()+"_"+Math.floor(entries.length); }
+  function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];}); }
+  function escapeAttr(s){ return String(s==null?"":s).replace(/[&"]/g,function(c){return c==="&"?"&amp;":"&quot;";}); }
+  function parseISO(iso){ var p=iso.split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
+  function isoOf(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+  function personLabel(p, idx){ return (p.name && p.name.trim()) ? p.name.trim() : ("Person "+(idx+1)); }
 
-  // ---------- Identität ----------
-  $("idFirma").value=ident.firma||"";
-  $("idName").value =ident.name||"";
-  $("idFirma").addEventListener("input", function(){ ident.firma=this.value; save(LS_IDENT,ident); });
-  $("idName").addEventListener("input", function(){ ident.name=this.value; save(LS_IDENT,ident); });
+  // ---------- Firma ----------
+  $("idFirma").value=data.firma||"";
+  $("idFirma").addEventListener("input", function(){ data.firma=this.value; saveData(); });
 
   // ---------- Options ----------
   function hourOpts(sel, max){
@@ -275,68 +293,123 @@
       + '</div>';
   }
 
-  // ---------- Tabelle ----------
-  function renderGrid(){
-    var body=$("gridBody");
-    if(entries.length===0){
-      body.innerHTML='<tr class="empty"><td colspan="8">Keine Tage. Klicken Sie auf „＋ Tag hinzufügen".</td></tr>';
-    } else {
-      body.innerHTML=entries.map(function(e){
-        return '<tr data-id="'+e.id+'">'
-          + '<td class="t-firma"><select data-f="project">'+projOpts(e.project)+'</select></td>'
-          + '<td><input type="date" data-f="date" value="'+e.date+'"></td>'
-          + '<td class="t-kw">'+kwLabel(e.date)+'</td>'
-          + '<td>'+timeCell("von",e.von,"clock")+'</td>'
-          + '<td>'+timeCell("bis",e.bis,"clock")+'</td>'
-          + '<td>'+timeCell("pause",e.pause,"dur")+'</td>'
-          + '<td>'+timeCell("anfahrt",e.anfahrt,"dur")+'</td>'
-          + '<td class="t-std">'+minToHHMM(workMin(e))+'</td>'
-          + '<td class="t-del"><button class="delbtn" title="Tag löschen">✕</button></td>'
-          + '</tr>';
-      }).join("");
-    }
-    bindGrid();
-    updateTotals();
+  // ---------- Personen rendern ----------
+  function rowHTML(e){
+    return '<tr data-eid="'+e.id+'">'
+      + '<td class="t-firma"><select data-f="project">'+projOpts(e.project)+'</select></td>'
+      + '<td><input type="date" data-f="date" value="'+e.date+'"></td>'
+      + '<td class="t-kw">'+kwLabel(e.date)+'</td>'
+      + '<td>'+timeCell("von",e.von,"clock")+'</td>'
+      + '<td>'+timeCell("bis",e.bis,"clock")+'</td>'
+      + '<td>'+timeCell("pause",e.pause,"dur")+'</td>'
+      + '<td>'+timeCell("anfahrt",e.anfahrt,"dur")+'</td>'
+      + '<td class="t-std">'+minToHHMM(workMin(e))+'</td>'
+      + '<td class="t-del"><button class="delbtn" title="Tag löschen">✕</button></td>'
+      + '</tr>';
   }
-  function getEntry(id){ for(var i=0;i<entries.length;i++){ if(entries[i].id===id) return entries[i]; } return null; }
+  function personHTML(p, idx){
+    var rows;
+    if(p.entries.length===0){
+      rows='<tr class="empty"><td colspan="9">Keine Tage. Klicken Sie auf „＋ Tag hinzufügen".</td></tr>';
+    } else {
+      rows=p.entries.map(rowHTML).join("");
+    }
+    return '<div class="card person" data-pid="'+p.id+'">'
+      + '<span class="person-tag">Person '+(idx+1)+'</span>'
+      + '<div class="person-head">'
+        + '<div class="field"><label>Vor- und Nachname</label>'
+          + '<input type="text" class="person-name" value="'+escapeAttr(p.name)+'" placeholder="Wessen Stunden sind das?"></div>'
+        + '<button class="person-del" title="Person löschen">✕</button>'
+      + '</div>'
+      + '<div class="tblwrap"><table class="grid"><thead><tr>'
+        + '<th>Baustelle</th><th>Datum</th><th>KW</th><th>Von</th><th>Bis</th><th>Pause</th><th>Anfahrt</th><th>Stunden</th><th></th>'
+      + '</tr></thead><tbody class="person-body">'+rows+'</tbody>'
+      + '<tfoot><tr class="totalrow"><td colspan="5">Gesamt</td>'
+        + '<td class="tot-pause">–</td><td class="tot-anf">–</td><td class="t-std tot-std">0,00</td><td></td></tr></tfoot>'
+      + '</table></div>'
+      + '<div class="tblfoot"><button class="btn ok add-day">＋ Tag hinzufügen</button></div>'
+      + '</div>';
+  }
+  function renderPersons(){
+    $("personsWrap").innerHTML=data.persons.map(personHTML).join("");
+    bindPersons();
+  }
 
-  function bindGrid(){
-    Array.prototype.forEach.call($("gridBody").querySelectorAll("tr[data-id]"), function(tr){
-      var id=tr.getAttribute("data-id");
-      var e=getEntry(id);
-      tr.querySelector('[data-f="project"]').addEventListener("change", function(){
-        e.project=this.value; save(LS_ENTRIES,entries);
+  function getPerson(pid){ for(var i=0;i<data.persons.length;i++){ if(data.persons[i].id===pid) return data.persons[i]; } return null; }
+  function getEntry(p, eid){ for(var i=0;i<p.entries.length;i++){ if(p.entries[i].id===eid) return p.entries[i]; } return null; }
+
+  function updatePersonTotals(card, p){
+    var sw=0,sp=0,sa=0;
+    p.entries.forEach(function(e){ sw+=workMin(e); sp+=e.pause; sa+=e.anfahrt; });
+    card.querySelector(".tot-pause").textContent=p.entries.length? minToHHMM(sp):"–";
+    card.querySelector(".tot-anf").textContent  =p.entries.length? minToHHMM(sa):"–";
+    card.querySelector(".tot-std").textContent  =minToDecComma(sw);
+    updatePdfSummary();
+  }
+
+  function bindPersons(){
+    Array.prototype.forEach.call($("personsWrap").querySelectorAll(".person"), function(card){
+      var pid=card.getAttribute("data-pid");
+      var p=getPerson(pid);
+      if(!p) return;
+
+      card.querySelector(".person-name").addEventListener("input", function(){
+        p.name=this.value; saveData(); refreshPdfPersons(false);
       });
-      tr.querySelector('[data-f="date"]').addEventListener("change", function(){
-        e.date=this.value||todayISO(); save(LS_ENTRIES,entries);
-        var kw=tr.querySelector(".t-kw"); if(kw) kw.textContent=kwLabel(e.date);
+      card.querySelector(".person-del").addEventListener("click", function(){
+        if(p.entries.length && !confirm("Person mit "+p.entries.length+" Tag(en) wirklich löschen?")) return;
+        data.persons=data.persons.filter(function(x){ return x.id!==pid; });
+        if(!data.persons.length){ data.persons=[{id:uid("p"),name:"",entries:[]}]; }
+        saveData(); renderPersons(); refreshPdfPersons(true);
       });
-      Array.prototype.forEach.call(tr.querySelectorAll(".timecell select"), function(sel){
-        sel.addEventListener("change", function(){
-          var p=this.getAttribute("data-p");
-          var cell=this.closest(".timecell");
-          var h=+cell.querySelector('[data-part="h"]').value;
-          var m=+cell.querySelector('[data-part="m"]').value;
-          e[p]=h*60+m; save(LS_ENTRIES,entries);
-          tr.querySelector(".t-std").textContent=minToHHMM(workMin(e));
-          updateTotals();
+      card.querySelector(".add-day").addEventListener("click", function(){
+        var last=p.entries.length? p.entries[p.entries.length-1]:null;
+        var date=todayISO();
+        if(last && last.date){ var d=parseISO(last.date); d.setDate(d.getDate()+1); date=isoOf(d); }
+        p.entries.push({ id:uid("e"), project:last? last.project:(projects[0]||""), date:date,
+          von:last? last.von:360, bis:last? last.bis:960, pause:last? last.pause:45, anfahrt:last? last.anfahrt:0 });
+        saveData(); renderPersons();
+        var cards=$("personsWrap").querySelectorAll(".person");
+        for(var i=0;i<cards.length;i++){ if(cards[i].getAttribute("data-pid")===pid){
+          var rws=cards[i].querySelectorAll("tr[data-eid]"); if(rws.length) rws[rws.length-1].scrollIntoView({block:"center"}); break;
+        }}
+      });
+
+      // Zeilen
+      Array.prototype.forEach.call(card.querySelectorAll("tr[data-eid]"), function(tr){
+        var eid=tr.getAttribute("data-eid");
+        var e=getEntry(p,eid); if(!e) return;
+        tr.querySelector('[data-f="project"]').addEventListener("change", function(){ e.project=this.value; saveData(); });
+        tr.querySelector('[data-f="date"]').addEventListener("change", function(){
+          e.date=this.value||todayISO(); saveData();
+          var kw=tr.querySelector(".t-kw"); if(kw) kw.textContent=kwLabel(e.date);
+        });
+        Array.prototype.forEach.call(tr.querySelectorAll(".timecell select"), function(sel){
+          sel.addEventListener("change", function(){
+            var pp=this.getAttribute("data-p"), cell=this.closest(".timecell");
+            var h=+cell.querySelector('[data-part="h"]').value, m=+cell.querySelector('[data-part="m"]').value;
+            e[pp]=h*60+m; saveData();
+            tr.querySelector(".t-std").textContent=minToHHMM(workMin(e));
+            updatePersonTotals(card,p);
+          });
+        });
+        tr.querySelector(".delbtn").addEventListener("click", function(){
+          p.entries=p.entries.filter(function(x){ return x.id!==eid; });
+          saveData(); renderPersons();
         });
       });
-      tr.querySelector(".delbtn").addEventListener("click", function(){
-        entries=entries.filter(function(x){ return x.id!==id; });
-        save(LS_ENTRIES,entries); renderGrid();
-      });
+
+      updatePersonTotals(card,p);
     });
   }
 
-  function updateTotals(){
-    var sw=0,sp=0,sa=0;
-    entries.forEach(function(e){ sw+=workMin(e); sp+=e.pause; sa+=e.anfahrt; });
-    $("totPause").textContent=entries.length? minToHHMM(sp):"–";
-    $("totAnf").textContent  =entries.length? minToHHMM(sa):"–";
-    $("totStd").textContent  =minToDecComma(sw);
-    updatePdfSummary();
-  }
+  // ---------- Person hinzufügen ----------
+  $("addPersonBtn").addEventListener("click", function(){
+    data.persons.push({ id:uid("p"), name:"", entries:[] });
+    saveData(); renderPersons(); refreshPdfPersons(false);
+    var cards=$("personsWrap").querySelectorAll(".person");
+    if(cards.length){ cards[cards.length-1].scrollIntoView({block:"start"}); cards[cards.length-1].querySelector(".person-name").focus(); }
+  });
 
   // ---------- Baustelle hinzufügen ----------
   function fillPdfProj(){
@@ -349,28 +422,41 @@
     if(!name) return;
     if(projects.indexOf(name)===-1){ projects.push(name); save(LS_PROJ,projects); }
     $("newProjName").value="";
-    fillPdfProj(); renderGrid();
+    fillPdfProj(); renderPersons();
   });
   $("newProjName").addEventListener("keydown", function(ev){ if(ev.key==="Enter"){ $("addProjBtn").click(); } });
 
-  // ---------- Tag hinzufügen ----------
-  $("addRowBtn").addEventListener("click", function(){
-    var last=entries.length? entries[entries.length-1]:null;
-    var date=todayISO();
-    if(last && last.date){ var d=parseISO(last.date); d.setDate(d.getDate()+1); date=isoOf(d); }
-    entries.push({
-      id:newId(),
-      project:last? last.project:(projects[0]||""),
-      date:date,
-      von:last? last.von:360,
-      bis:last? last.bis:960,
-      pause:last? last.pause:45,
-      anfahrt:last? last.anfahrt:0
-    });
-    save(LS_ENTRIES,entries);
-    renderGrid();
-    var rows=$("gridBody").querySelectorAll("tr[data-id]");
-    if(rows.length){ rows[rows.length-1].scrollIntoView({block:"center"}); }
+  // ---------- Sicherung (Export / Import) ----------
+  $("exportBtn").addEventListener("click", function(){
+    var payload={ app:"stundenzettel", version:3, exportedAt:new Date().toISOString(), projects:projects, data:data };
+    var blob=new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=url; a.download="stundenzettel-sicherung-"+todayISO()+".json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  });
+  $("importBtn").addEventListener("click", function(){ $("importFile").click(); });
+  $("importFile").addEventListener("change", function(){
+    var file=this.files && this.files[0]; if(!file) return;
+    var reader=new FileReader();
+    reader.onload=function(){
+      try{
+        var obj=JSON.parse(reader.result);
+        var d=obj.data || obj; // erlaube auch rohe Daten
+        if(!d || !d.persons){ alert("Ungültige Sicherungsdatei."); return; }
+        if(!confirm("Sicherung laden? Die aktuellen Daten in diesem Browser werden ersetzt.")) return;
+        data=d;
+        if(!data.persons.length) data.persons=[{id:uid("p"),name:"",entries:[]}];
+        if(obj.projects && obj.projects.length){ projects=obj.projects.slice(); save(LS_PROJ,projects); }
+        saveData();
+        $("idFirma").value=data.firma||"";
+        fillPdfProj(); renderPersons(); refreshPdfPersons(true);
+        alert("Sicherung geladen.");
+      }catch(e){ alert("Datei konnte nicht gelesen werden."); }
+    };
+    reader.readAsText(file);
+    this.value="";
   });
 
   // ---------- Tabs ----------
@@ -398,9 +484,6 @@
       autoTitle(); updatePdfSummary();
     });
   });
-
-  function parseISO(iso){ var p=iso.split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
-  function isoOf(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
   function weekBounds(iso){
     var d=parseISO(iso), dow=(d.getDay()+6)%7;
     var mon=new Date(d); mon.setDate(d.getDate()-dow);
@@ -421,41 +504,51 @@
     var parts=m.split("-"), y=+parts[0], mi=+parts[1]-1;
     return { test:function(iso){return iso.slice(0,7)===m;}, title:DE_MONTHS[mi]+" "+y };
   }
-  function filteredEntries(){
-    var f=currentFilter(); if(!f) return {list:[],f:null};
+  function filterEntries(p, f){
     var proj=$("pdfProj").value;
-    var list=entries.filter(function(e){
+    return p.entries.filter(function(e){
       if(!e.date || !f.test(e.date)) return false;
       if(proj!=="__all__" && e.project!==proj) return false;
       return true;
     }).sort(function(a,b){ return a.date<b.date?-1:a.date>b.date?1:0; });
-    return {list:list,f:f};
   }
+  function selectedPersons(){
+    var v=$("pdfPerson").value;
+    if(v==="__all__") return data.persons.slice();
+    var p=getPerson(v); return p? [p] : [];
+  }
+
   function autoTitle(){ var f=currentFilter(); if(f) $("pdfTitle").value=f.title; }
+  function refreshPdfPersons(keepIfPossible){
+    var sel=$("pdfPerson");
+    var prev=sel.value;
+    var o='<option value="__all__">Alle Personen</option>';
+    data.persons.forEach(function(p,idx){ o+='<option value="'+p.id+'">'+escapeHtml(personLabel(p,idx))+'</option>'; });
+    sel.innerHTML=o;
+    if(keepIfPossible && prev && sel.querySelector('option[value="'+prev+'"]')) sel.value=prev;
+    updatePdfSummary();
+  }
   function updatePdfSummary(){
     if(!$("view-pdf").classList.contains("active")) return;
-    var r=filteredEntries();
-    if(!r.f){ $("pdfSummary").textContent="Zeitraum wählen"; return; }
-    var sw=r.list.reduce(function(s,e){return s+workMin(e);},0);
-    var sa=r.list.reduce(function(s,e){return s+e.anfahrt;},0);
-    $("pdfSummary").innerHTML=r.list.length+" Tage · <b>"+minToDecComma(sw)+" Std</b>"
-      + (sa? " · Anfahrt "+minToDecComma(sa)+" Std":"");
+    var f=currentFilter();
+    if(!f){ $("pdfSummary").textContent="Zeitraum wählen"; return; }
+    var persons=selectedPersons();
+    var totalDays=0, sw=0, activePersons=0;
+    persons.forEach(function(p){
+      var list=filterEntries(p,f);
+      if(list.length){ activePersons++; totalDays+=list.length; list.forEach(function(e){ sw+=workMin(e); }); }
+    });
+    if(totalDays===0){ $("pdfSummary").textContent="Keine Einträge im Zeitraum"; return; }
+    $("pdfSummary").innerHTML=activePersons+" Person(en) · "+totalDays+" Tage · <b>"+minToDecComma(sw)+" Std</b>";
   }
-  ["pdfDay","pdfWeek","pdfMonth","pdfProj"].forEach(function(id){
+  ["pdfDay","pdfWeek","pdfMonth","pdfProj","pdfPerson"].forEach(function(id){
     $(id).addEventListener("change", function(){ autoTitle(); updatePdfSummary(); });
   });
 
   // ---------- PDF ----------
-  $("genBtn").addEventListener("click", function(){
-    var r=filteredEntries();
-    if(!r.f){ alert("Bitte Zeitraum wählen (Tag / Woche / Monat)."); return; }
-    if(r.list.length===0){ alert("Keine Einträge im gewählten Zeitraum."); return; }
-    var title=$("pdfTitle").value.trim() || r.f.title;
-    var proj=$("pdfProj").value;
-    var projLabel=proj==="__all__" ? "Alle Baustellen" : proj;
-
+  function sheetHTML(p, idx, list, title, projLabel){
     var sw=0,sa=0,rows="";
-    r.list.forEach(function(e){
+    list.forEach(function(e){
       var w=workMin(e); sw+=w; sa+=e.anfahrt;
       rows+="<tr>"
         + "<td>"+escapeHtml(e.project||"")+"</td>"
@@ -468,13 +561,11 @@
         + '<td class="num">'+minToHHMM(w)+"</td>"
         + "</tr>";
     });
-
     var meta=[];
-    if(ident.firma && ident.firma.trim()) meta.push("<b>Firma:</b> "+escapeHtml(ident.firma.trim()));
-    if(ident.name && ident.name.trim())   meta.push("<b>Name:</b> "+escapeHtml(ident.name.trim()));
+    if(data.firma && data.firma.trim()) meta.push("<b>Firma:</b> "+escapeHtml(data.firma.trim()));
+    meta.push("<b>Name:</b> "+escapeHtml(personLabel(p,idx)));
     meta.push("<b>Baustelle:</b> "+escapeHtml(projLabel));
-
-    var html='<h2>'+escapeHtml(title)+'</h2>'
+    return '<div class="sheet"><h2>'+escapeHtml(title)+'</h2>'
       + '<p class="rmeta">'+meta.join("<br>")+'</p>'
       + '<table><thead><tr>'
       + '<th>Baustelle</th><th>Datum</th><th>KW</th><th>Von</th><th>Bis</th><th>Pause</th><th>Anfahrt</th><th class="num">Stunden</th>'
@@ -482,8 +573,23 @@
       + '<tr class="total"><td colspan="6" style="text-align:right;">Gesamt</td>'
         + '<td>'+(sa? minToHHMM(sa):"–")+'</td>'
         + '<td class="num">'+minToDecComma(sw)+'</td></tr>'
-      + '</tbody></table>';
-    $("report").innerHTML=html;
+      + '</tbody></table></div>';
+  }
+  $("genBtn").addEventListener("click", function(){
+    var f=currentFilter();
+    if(!f){ alert("Bitte Zeitraum wählen (Tag / Woche / Monat)."); return; }
+    var title=$("pdfTitle").value.trim() || f.title;
+    var proj=$("pdfProj").value;
+    var projLabel=proj==="__all__" ? "Alle Baustellen" : proj;
+    var persons=selectedPersons();
+    var sheets="", any=false;
+    persons.forEach(function(p){
+      var idx=data.persons.indexOf(p);
+      var list=filterEntries(p,f);
+      if(list.length){ sheets+=sheetHTML(p, idx, list, title, projLabel); any=true; }
+    });
+    if(!any){ alert("Keine Einträge im gewählten Zeitraum."); return; }
+    $("report").innerHTML=sheets;
     window.print();
   });
 
@@ -492,14 +598,13 @@
   $("pdfWeek").value=todayISO();
   $("pdfMonth").value=todayISO().slice(0,7);
   fillPdfProj();
-  renderGrid();
+  renderPersons();
+  refreshPdfPersons(false);
   autoTitle();
 
   // ---------- Service Worker (Offline / Installierbar) ----------
   if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
-    window.addEventListener("load", function(){
-      navigator.serviceWorker.register("sw.js").catch(function(){});
-    });
+    window.addEventListener("load", function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
   }
 })();
 </script>

@@ -1,5 +1,5 @@
 /* Stundenzettel-Generator — Service Worker (Offline-Cache) */
-var CACHE = "stundenzettel-v1";
+var CACHE = "stundenzettel-v2";
 var ASSETS = [
   "./",
   "./index.html",
